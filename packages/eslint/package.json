@@ -7,7 +7,6 @@
     "./base.js"
   ],
   "scripts": {
-    "lint": "eslint .",
     "format": "prettier --check \"**/*.{js,json}\"",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .turbo node_modules"
@@ -22,8 +21,6 @@
     "eslint-plugin-import": "^2.29.1"
   },
   "devDependencies": {
-    "@novelty/prettier": "^0.1.0",
-    "@novelty/tsconfig": "^0.1.0",
     "eslint": "^8.56.0",
     "typescript": "^5.3.3"
   },
@@ -32,6 +29,5 @@
     "extends": [
       "./base.js"
     ]
-  },
-  "prettier": "@novelty/prettier"
+  }
 }
