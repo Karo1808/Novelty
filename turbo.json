@@ -14,12 +14,8 @@
     "lint": {
       "dependsOn": ["^lint"]
     },
-    "format": {
-      "outputs": ["node_modules/.cache/prettiercache"]
-    },
-    "typecheck": {
-      "outputs": ["node_modules/.cache/tsbuildinfo.json"]
-    },
+    "format": {},
+    "typecheck": {},
     "clean": {
       "cache": false
     }
