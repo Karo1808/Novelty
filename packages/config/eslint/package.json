@@ -7,10 +7,10 @@
     "./base.js"
   ],
   "scripts": {
-    "clean": "rm -rf .turbo node_modules",
     "lint": "eslint .",
     "format": "prettier --check \"**/*.{js,json}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .turbo node_modules"
   },
   "dependencies": {
     "@next/eslint-plugin-next": "^14.1.0",
