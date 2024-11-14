@@ -1,0 +1,14 @@
+{
+  "extends": "@novelty/typescript-config/base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}
