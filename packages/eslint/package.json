@@ -7,8 +7,6 @@
     "./base.js"
   ],
   "scripts": {
-    "format": "prettier --check \"**/*.{js,json}\"",
-    "typecheck": "tsc --noEmit",
     "clean": "rm -rf .turbo node_modules"
   },
   "dependencies": {
