@@ -2,6 +2,7 @@
   "name": "@novelty/prettier",
   "private": true,
   "main": "index.mjs",
+  "version": "0.1.0",
   "scripts": {
     "format": "prettier --check \"**/*.{mjs,json}\"",
     "typecheck": "tsc --noEmit",
