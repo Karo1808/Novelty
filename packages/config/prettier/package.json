@@ -4,9 +4,9 @@
   "main": "index.mjs",
   "version": "0.1.0",
   "scripts": {
-    "format": "prettier --check \"**/*.{mjs,json}\"",
+    "format": "prettier --check \"**/*.{mjs,json,ts,js}\"",
     "typecheck": "tsc --noEmit",
-      "clean": "rm -rf .turbo node_modules"
+    "clean": "rm -rf .turbo node_modules"
   },
   "dependencies": {
     "@ianvs/prettier-plugin-sort-imports": "^4.1.1",
@@ -16,6 +16,5 @@
   "devDependencies": {
     "@novelty/tsconfig": "^0.1.0",
     "typescript": "^5.3.3"
-  },
-  "prettier": "@novelty/prettier"
+  }
 }
