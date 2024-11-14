@@ -13,7 +13,7 @@
     "prettier": "^3.2.5",
     "turbo": "^2.2.3",
     "typescript": "5.5.4",
-    "@novelty/prettier": "^0.1.0"
+    "@novelty/prettier": "workspace:*"
   },
   "packageManager": "pnpm@8.15.6",
   "engines": {
