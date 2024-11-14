@@ -3,7 +3,6 @@
   "private": true,
   "main": "index.mjs",
   "scripts": {
-    "format": "prettier --check \"**/*.{mjs,json,ts,js}\"",
     "clean": "rm -rf .turbo node_modules"
   },
   "dependencies": {
