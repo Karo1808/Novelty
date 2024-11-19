@@ -1,9 +1,9 @@
 {
   "name": "@novelty/api",
-  "private": "true",
-  "main": "index.ts",
   "type": "module",
   "version": "0.0.1",
+  "private": "true",
+  "main": "index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node ./dist/src/index.js",
@@ -27,9 +27,9 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@antfu/eslint-config": "^3.9.2",
     "@novelty/typescript-config": "workspace:*",
     "@types/node": "^20.11.17",
-    "@types/pino": "^7.0.5",
     "tsx": "^4.7.1",
     "typescript": "5.5.4"
   }
