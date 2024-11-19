@@ -21,12 +21,14 @@
     ]
   },
   "devDependencies": {
+    "@antfu/eslint-config": "^3.9.2",
     "@commitlint/cli": "^19.5.0",
     "@commitlint/config-conventional": "^19.5.0",
     "@commitlint/cz-commitlint": "^19.5.0",
     "@commitlint/types": "^19.5.0",
     "commitizen": "^4.3.1",
     "eslint": "^9.15.0",
+    "eslint-plugin-format": "^0.1.2",
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",
     "prettier": "^3.2.5",
