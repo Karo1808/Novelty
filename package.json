@@ -30,8 +30,7 @@
     "lint-staged": "^15.2.10",
     "prettier": "^3.2.5",
     "turbo": "^2.2.3",
-    "typescript": "5.5.4",
-    "@novelty/eslint-config": "workspace:*"
+    "typescript": "5.5.4"
   },
   "packageManager": "pnpm@8.15.6",
   "engines": {
