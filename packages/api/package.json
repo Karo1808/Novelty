@@ -16,6 +16,7 @@
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "@hono/zod-openapi": "^0.17.0",
+    "@logtail/pino": "^0.5.2",
     "@scalar/hono-api-reference": "^0.5.159",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.5",
