@@ -1,20 +1,20 @@
 import { apiReference } from "@scalar/hono-api-reference";
 
-import type { AppOpenAPI } from "./types.ts";
+import type { AppOpenAPI } from "@/types/index.types";
 
 import packageJSON from "../../package.json" with { type: "json" };
 
 export default function configureOpenAPI(app: AppOpenAPI) {
-  app.doc("/doc", {
+  app.doc("/spec", {
     openapi: "3.0.0",
     info: {
       version: packageJSON.version,
-      title: "Tasks API",
+      title: "Novelty API",
     },
   });
 
   app.get(
-    "/reference",
+    "/docs",
     apiReference({
       theme: "kepler",
       layout: "classic",
@@ -23,7 +23,7 @@ export default function configureOpenAPI(app: AppOpenAPI) {
         clientKey: "fetch",
       },
       spec: {
-        url: "/doc",
+        url: "/spec",
       },
     }),
   );
