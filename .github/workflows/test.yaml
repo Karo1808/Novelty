@@ -15,7 +15,7 @@ env:
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
-  build-lint:
+  test: 
     runs-on: ubuntu-latest
 
     env: 
@@ -47,7 +47,7 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install deps (with cache)
-        run: pnpm install
+        run: pnpm install --prod=false
 
       - name: test
         run: pnpm test:ci
