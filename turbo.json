@@ -14,10 +14,17 @@
     "lint": {
       "dependsOn": ["^lint"]
     },
+    "lint:fix": {
+      "dependsOn": ["^lint"]
+    },
     "format": {},
     "typecheck": {},
     "clean": {
       "cache": false
-    }
+    },
+    "test": {},
+    "test:ci": {},
+    "test:ui": {},
+    "test:coverage": {}
   }
 }

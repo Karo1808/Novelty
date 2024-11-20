@@ -1,3 +1,4 @@
+
 name: CI
 
 on:
@@ -14,11 +15,11 @@ env:
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
-  test:
+  build-lint:
     runs-on: ubuntu-latest
 
     env: 
-      NODE_ENV: production
+      NODE_ENV: test
 
     strategy:
       matrix:
@@ -48,5 +49,5 @@ jobs:
       - name: Install deps (with cache)
         run: pnpm install
 
-      - name: Build, lint and type-check
-        run: pnpm turbo build lint typecheck format
+      - name: test
+        run: pnpm test:ci
