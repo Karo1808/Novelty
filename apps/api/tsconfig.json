@@ -1,13 +1,15 @@
 {
   "extends": "@novelty/typescript-config/base.json",
   "compilerOptions": {
+    "target": "ESNext",
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
+    "lib": ["ESNext"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "paths": {
       "@/*": ["./src/*"],
-      "$/*": ["./src/features/*"]
+      "$/*": ["./src/modules/*"]
     },
     "types": ["node"],
     "outDir": "dist"
