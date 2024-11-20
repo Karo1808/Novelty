@@ -3,6 +3,14 @@
   "type": "module",
   "version": "0.0.1",
   "private": "true",
+  "exports": {
+    "./rpc": {
+      "import": {
+        "types": "./dist/rpc.d.ts",
+        "default": "./dist/rpc.js"
+      }
+    }
+  },
   "main": "index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -10,8 +18,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "lint:fix": "npm run lint --fix",
-    "build": "tsc",
-    "clean": "rm -rf node_modules .turbo"
+    "build": "tsc && pnpm build:rpc",
+    "build:rpc": "tsc -p tsconfig.rpc.json",
+    "clean": "rm -rf node_modules .turbo dist"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
@@ -31,6 +40,7 @@
     "@novelty/typescript-config": "workspace:*",
     "@types/node": "^20.11.17",
     "tsx": "^4.7.1",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "vitest": "^2.1.5"
   }
 }
