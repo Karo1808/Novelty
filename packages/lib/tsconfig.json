@@ -1,0 +1,3 @@
+{
+  "extends": "@novelty/typescript-config/base.json"
+}
