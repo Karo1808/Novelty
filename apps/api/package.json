@@ -20,12 +20,17 @@
     "lint:fix": "npm run lint --fix",
     "build": "tsc && pnpm build:rpc",
     "build:rpc": "tsc -p tsconfig.rpc.json",
+    "test": "cross-env NODE_ENV=test vitest",
+    "test:ci": "cross-env NODE_ENV=test vitest run",
+    "test:ui": "cross-env NODE_ENV=test vitest --ui",
+    "test:coverage": "cross-env NODE_ENV=test vitest run --coverage",
     "clean": "rm -rf node_modules .turbo dist"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "@hono/zod-openapi": "^0.17.0",
     "@logtail/pino": "^0.5.2",
+    "@novelty/lib": "workspace:*",
     "@scalar/hono-api-reference": "^0.5.159",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.5",
@@ -40,6 +45,7 @@
     "@antfu/eslint-config": "^3.9.2",
     "@novelty/typescript-config": "workspace:*",
     "@types/node": "^20.11.17",
+    "cross-env": "^7.0.3",
     "tsx": "^4.7.1",
     "typescript": "5.5.4",
     "vitest": "^2.1.5"
