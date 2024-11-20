@@ -5,7 +5,7 @@ import { compress } from "hono/compress";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 
-import type { AppBindings } from "@/types/index.types";
+import type { AppBindings, AppOpenAPI } from "@/types/index.types";
 
 import notFound from "@/middleware/not-found.middleware";
 import onError from "@/middleware/on-error.middleware";
@@ -44,4 +44,8 @@ export default function createApp() {
   app.notFound(notFound);
 
   return app;
+}
+
+export function createTestApp<R extends AppOpenAPI>(router: R) {
+  return createApp().route("/", router);
 }
