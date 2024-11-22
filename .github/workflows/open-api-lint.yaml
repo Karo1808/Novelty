@@ -42,7 +42,7 @@ jobs:
         run: pnpm install --shamefully-hoist 
 
       - name: generate open api specification
-        run: turbo open-api:generate
+        run: pnpm turbo open-api:generate
 
       - name: lint open api specification
-        run: turbo open-api:lint
+        run: pnpm turbo open-api:lint
