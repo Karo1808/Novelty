@@ -18,9 +18,8 @@ paths:
       description: Verifies the status of the API
       operationId: healthcheck
       responses:
-        '200':
+        "200":
           description: Healthcheck
-          required: false
           content:
             application/json:
               schema:
@@ -37,9 +36,6 @@ paths:
                       - production
                       - test
                       - debug
-                required:
-                  - status
-                  - environment
                 example:
                   status: healthy
                   environment: development

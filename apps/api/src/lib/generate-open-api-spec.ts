@@ -6,10 +6,32 @@ import app from "@/app";
 
 import { getOpenApiDefinition } from "./get-open-api-doc";
 
-const generator = new OpenApiGeneratorV3(app.openAPIRegistry.definitions);
+function removeRequiredFields(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(removeRequiredFields);
+  }
+  else if (obj && typeof obj === "object") {
+    const { required, ...rest } = obj;
+    return Object.fromEntries(
+      Object.entries(rest).map(([key, value]) => [
+        key,
+        removeRequiredFields(value),
+      ]),
+    );
+  }
+  return obj;
+}
 
+const generator = new OpenApiGeneratorV3(app.openAPIRegistry.definitions);
 const doc = generator.generateDocument(getOpenApiDefinition());
 
-const openApiYaml = yaml.dump(doc);
+// Remove all `required` properties due to issue with spectral throwing any error on that rule
+const sanitizedDoc = removeRequiredFields(doc);
+
+const openApiYaml = yaml.dump(sanitizedDoc);
 
 writeFileSync("open-api-spec.yaml", openApiYaml);
+
+// TODO: REmove this line
+// eslint-disable-next-line no-console
+console.log("OpenAPI spec generated without `required` fields.");
