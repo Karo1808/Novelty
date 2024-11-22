@@ -25,6 +25,13 @@
     "test": {},
     "test:ci": {},
     "test:ui": {},
-    "test:coverage": {}
+    "test:coverage": {},
+    "open-api:generate": {
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["open-api-spec.yaml"]
+    },
+    "open-api:lint": {
+      "dependsOn": ["^open-api:generate"]
+    }
   }
 }

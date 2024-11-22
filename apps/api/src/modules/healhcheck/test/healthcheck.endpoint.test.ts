@@ -1,23 +1,11 @@
 import { testClient } from "hono/testing";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import env from "@/env";
 import createApp from "@/lib/create-app";
 import { HttpStatusCodes } from "@/lib/http-status-codes";
 
 import { healthcheckRouter } from "../healthcheck.index";
-
-vi.mock("@novelty/lib/date/get-uptime", () => ({
-  getUptime: vi.fn(),
-}));
-
-vi.mock("@novelty/lib/date/get-isos-time", () => ({
-  getIsosTime: vi.fn(),
-}));
-
-vi.mock("@/state", () => ({
-  startTime: Date.now() - 3600 * 1000, // Mock start time (1 hour ago)
-}));
 
 if (env.NODE_ENV !== "test") {
   throw new Error("NODE_ENV must be 'test'");
