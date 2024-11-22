@@ -32,7 +32,6 @@
     "@asteasolutions/zod-to-openapi": "^7.2.0",
     "@hono/node-server": "^1.13.7",
     "@hono/zod-openapi": "^0.17.0",
-    "@logtail/pino": "^0.5.2",
     "@novelty/lib": "workspace:*",
     "@scalar/hono-api-reference": "^0.5.159",
     "dayjs": "^1.11.13",

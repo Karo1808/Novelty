@@ -5,8 +5,6 @@ import pretty from "pino-pretty";
 
 import env from "@/env";
 
-const token = env.LOG_TOKEN;
-
 export function pinoLogger() {
   return logger({
     pino: pino(
@@ -20,12 +18,6 @@ export function pinoLogger() {
                 translateTime: true,
                 ignore: "pid,hostname",
                 level: env.LOG_LEVEL || "info",
-              },
-            },
-            {
-              target: "@logtail/pino",
-              options: {
-                sourceToken: token,
               },
             },
           ],
