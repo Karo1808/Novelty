@@ -8,19 +8,14 @@ on:
     branches: ["main"]
   merge_group:
 
-env:
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
 
 jobs:
-  test: 
+  lint-open-api-spec:
     runs-on: ubuntu-latest
-
-    env: 
-      NODE_ENV: test
 
     strategy:
       matrix:
-        node: [20, 22, "lts/*"]
+        node: ["lts/*"]
 
     steps:
       - name: Checkout repo
@@ -44,7 +39,10 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install deps (with cache)
-        run: pnpm install --prod=false
+        run: pnpm install --shamefully-hoist 
 
-      - name: test
-        run: pnpm turbo test:ci
+      - name: generate open api specification
+        run: pnpm turbo open-api:generate
+
+      - name: lint open api specification
+        run: pnpm turbo open-api:lint
