@@ -47,4 +47,4 @@ jobs:
         run: pnpm install --prod=false
 
       - name: test
-        run: pnpm test:ci
+        run: pnpm turbo test:ci
