@@ -1,7 +1,10 @@
 import antfu from "@antfu/eslint-config";
+import eslintConfigTurbo from "eslint-config-turbo";
 
 export default antfu(
   {
+    lessOpinionated: true,
+    plugins: ({ eslintConfigTurbo }),
     type: "app",
     typescript: true,
     formatters: true,
@@ -32,5 +35,5 @@ export default antfu(
         },
       ],
     },
-  }
+  },
 );
