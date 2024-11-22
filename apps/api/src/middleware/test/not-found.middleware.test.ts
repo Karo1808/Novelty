@@ -1,0 +1,25 @@
+import type { Context } from "hono";
+
+import { describe, expect, it, vi } from "vitest";
+
+import { HttpStatusCodes } from "@/lib/http-status-codes";
+import notFound from "@/middleware/not-found.middleware";
+
+describe("notFound handler", () => {
+  it("should return a 404 response with the correct message", () => {
+    const c = {
+      json: vi.fn().mockReturnValue("mockResponse"),
+      req: { path: "/non-existent-route" },
+    } as unknown as Context;
+
+    const response = notFound(c);
+
+    expect(c.json).toHaveBeenCalledWith(
+      { message: "Not found - /non-existent-route" },
+      HttpStatusCodes.NOT_FOUND,
+    );
+
+    // Verify the returned response
+    expect(response).toBe("mockResponse");
+  });
+});
