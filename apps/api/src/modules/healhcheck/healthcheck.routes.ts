@@ -9,6 +9,8 @@ export const healthcheckRoute = createRoute({
   tags: ["Healthcheck"],
   method: "get",
   path: "/healthcheck",
+  description: "Verifies the status of the API",
+  operationId: "healthcheck",
   responses: {
     [HttpStatusCodes.OK]: jsonContent(healthcheckSchema, "Healthcheck"),
   },

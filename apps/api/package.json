@@ -24,9 +24,12 @@
     "test:ci": "cross-env NODE_ENV=test vitest run",
     "test:ui": "cross-env NODE_ENV=test vitest --ui",
     "test:coverage": "cross-env NODE_ENV=test vitest run --coverage",
-    "clean": "rm -rf node_modules .turbo dist"
+    "clean": "rm -rf node_modules .turbo dist",
+    "open-api:generate": "tsx ./src/lib/generate-open-api-spec.ts",
+    "open-api:lint": "pnpm dlx @superfaceai/openapi-linter lint ./open-api-spec.yaml"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^7.2.0",
     "@hono/node-server": "^1.13.7",
     "@hono/zod-openapi": "^0.17.0",
     "@logtail/pino": "^0.5.2",
@@ -37,6 +40,7 @@
     "dotenv-expand": "^12.0.1",
     "hono": "^4.6.10",
     "hono-pino": "^0.6.0",
+    "js-yaml": "^4.1.0",
     "pino": "^9.5.0",
     "pino-pretty": "^13.0.0",
     "zod": "^3.23.8"
@@ -44,6 +48,7 @@
   "devDependencies": {
     "@antfu/eslint-config": "^3.9.2",
     "@novelty/typescript-config": "workspace:*",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.11.17",
     "cross-env": "^7.0.3",
     "tsx": "^4.7.1",

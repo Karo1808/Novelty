@@ -1,0 +1,45 @@
+openapi: 3.0.0
+info:
+  description: Novelty API
+  version: 0.0.1
+  title: Novelty API
+servers:
+  - url: v1
+tags:
+  - name: Healthcheck
+components:
+  schemas: {}
+  parameters: {}
+paths:
+  /healthcheck:
+    get:
+      tags:
+        - Healthcheck
+      description: Verifies the status of the API
+      operationId: healthcheck
+      responses:
+        '200':
+          description: Healthcheck
+          required: false
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - healthy
+                  environment:
+                    type: string
+                    enum:
+                      - development
+                      - production
+                      - test
+                      - debug
+                required:
+                  - status
+                  - environment
+                example:
+                  status: healthy
+                  environment: development
