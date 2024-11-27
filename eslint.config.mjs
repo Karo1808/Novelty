@@ -24,6 +24,7 @@ export default antfu(
       "perfectionist/sort-imports": [
         "error",
         {
+          internalPattern: "^@[^/]+",
         },
       ],
       "unicorn/filename-case": [
