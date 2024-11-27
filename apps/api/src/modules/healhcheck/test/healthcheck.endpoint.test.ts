@@ -1,5 +1,5 @@
 import { testClient } from "hono/testing";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import env from "@/env";
 import createApp from "@/lib/create-app";
@@ -10,6 +10,14 @@ import { healthcheckRouter } from "../healthcheck.index";
 if (env.NODE_ENV !== "test") {
   throw new Error("NODE_ENV must be 'test'");
 }
+
+vi.mock("@hono/node-server/conninfo", () => ({
+  getConnInfo: vi.fn(() => ({
+    remote: {
+      address: "127.0.0.1",
+    },
+  })),
+}));
 
 const client = testClient(createApp().route("/", healthcheckRouter));
 
