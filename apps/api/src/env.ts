@@ -21,7 +21,7 @@ const EnvSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
-  BASE_URL: z.string().url().default("http://localhost"),
+  BASE_URL: z.string().default("http://localhost"),
   PROMETHEUS_PORT: z.coerce.number().default(9090),
   GRAFANA_PORT: z.coerce.number().default(3000),
   NODE_EXPORTER_PORT: z.coerce.number().default(9100),
