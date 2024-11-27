@@ -12,7 +12,7 @@
     "test:ci": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "clean": "rm -rf node_modules .turbo dist"
+    "clean": "rm -rf node_modules .turbo dist coverage"
   },
   "dependencies": {
     "dayjs": "^1.11.13"

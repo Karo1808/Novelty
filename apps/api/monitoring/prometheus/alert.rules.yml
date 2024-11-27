@@ -1,0 +1,102 @@
+groups:
+  - name: Node Exporter Alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance) < 0.2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CPU usage is high on {{ $labels.instance }}. Idle CPU is less than 20%."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemFree_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Memory usage is above 90% on {{ $labels.instance }}."
+
+      - alert: HighDiskUsage
+        expr: node_filesystem_avail_bytes{fstype="ext4", device!~"/dev/loop.*"} / node_filesystem_size_bytes{fstype="ext4", device!~"/dev/loop.*"} < 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk usage is above 90% on {{ $labels.instance }}."
+
+      - alert: HighDiskIO
+        expr: rate(node_disk_io_time_seconds_total{device!~"dm.*"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk I/O time is high on {{ $labels.instance }}."
+
+      - alert: HighNetworkUsage
+        expr: rate(node_network_receive_bytes_total[5m]) > 1000000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Network usage is too high on {{ $labels.instance }}."
+
+  - name: API Alerts
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected for HTTP requests (5xx) on {{ $labels.instance }}."
+
+      - alert: HighRequestLatency
+        expr: avg(http_request_duration_seconds_sum{job="api"}) / avg(http_request_duration_seconds_count{job="api"}) > 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Request latency is high in the API on {{ $labels.instance }}."
+
+      - alert: HighRequestRate
+        expr: rate(http_requests_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Request rate is high on {{ $labels.instance }}."
+
+      - alert: LowRequestRate
+        expr: rate(http_requests_total[5m]) < 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Request rate is unusually low on {{ $labels.instance }}."
+
+      - alert: APIUnreachable
+        expr: up{job="api", instance="localhost:3001"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API is down on {{ $labels.instance }}."
+
+  - name: Node.js Performance Alerts
+    rules:
+      - alert: HighHeapMemoryUsage
+        expr: nodejs_heap_memory_usage_bytes > 2000000000 # Adjust threshold as needed
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Heap memory usage is high in Node.js application on {{ $labels.instance }}."
+
+      - alert: HighEventLoopLag
+        expr: nodejs_event_loop_lag_seconds > 0.5 # Adjust threshold as needed
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Event loop is lagging in Node.js application on {{ $labels.instance }}."

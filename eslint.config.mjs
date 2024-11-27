@@ -13,7 +13,7 @@ export default antfu(
       semi: true,
       quotes: "double",
     },
-    ignores: ["**/migrations/*"],
+    ignores: ["**/migrations/*", "**/*.yml", "**/*.yaml"],
   },
   {
     rules: {
@@ -22,7 +22,7 @@ export default antfu(
       "node/prefer-global/process": ["off"],
       "node/no-process-env": ["error"],
       "perfectionist/sort-imports": [
-        "error",
+        "off",
         {
           internalPattern: ["@/**"],
         },

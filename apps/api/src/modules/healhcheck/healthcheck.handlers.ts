@@ -8,7 +8,10 @@ import type { HealthcheckRoute } from "./healthcheck.routes";
 export const handleHealthcheck: AppRouteHandler<HealthcheckRoute> = async (
   c,
 ) => {
-  c.var.logger.info("API status requested");
+  c.var.logger.info({
+    message: "API Status Requested",
+  });
+
   return c.json(
     {
       status: "healthy",
