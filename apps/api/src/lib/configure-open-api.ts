@@ -1,6 +1,6 @@
-import { apiReference } from "@scalar/hono-api-reference";
-
 import type { AppOpenAPI } from "@/types/index.types";
+
+import { apiReference } from "@scalar/hono-api-reference";
 
 import { getOpenApiDefinition } from "./get-open-api-doc";
 
