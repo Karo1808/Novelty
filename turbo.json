@@ -32,6 +32,10 @@
     },
     "open-api:lint": {
       "dependsOn": ["^open-api:generate"]
-    }
+    },
+    "compose:dev:up": {},
+    "compose:dev:down": {},
+    "compose:prod:up": {},
+    "compose:prod:down": {}
   }
 }
