@@ -9,7 +9,7 @@ import type { AppBindings, AppOpenAPI } from "@/types/index.types";
 
 import notFound from "@/middleware/not-found.middleware";
 import onError from "@/middleware/on-error.middleware";
-import { pinoLogger } from "@/middleware/pino-logger.middleware";
+import { requestLogger } from "@/middleware/request-logger.middleware";
 
 import { HttpStatusCodes } from "./http-status-codes";
 
@@ -36,9 +36,9 @@ export default function createApp() {
   const app = createRouter();
 
   app.use(compress());
-  app.use(pinoLogger());
   app.use(cors());
   app.use(secureHeaders());
+  app.use(requestLogger());
 
   app.onError(onError);
   app.notFound(notFound);

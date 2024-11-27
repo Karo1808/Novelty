@@ -21,7 +21,11 @@
     "open-open-api:generate": "turbo open-api:generate",
     "open-open-api:lint": "turbo open-api:lint",
     "prepare": "husky",
-    "commit": "git-cz"
+    "commit": "git-cz",
+    "compose:dev:up": "docker/run.sh dev",
+    "compose:dev:down": "docker/stop.sh dev",
+    "compose:prod:up": "docker/run.sh prod",
+    "compose:prod:down": "docker/stop.sh prod"
   },
   "dependencies": {
     "eslint-config-turbo": "^2.3.1"

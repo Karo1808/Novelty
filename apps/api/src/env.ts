@@ -17,10 +17,16 @@ const EnvSchema = z.object({
   NODE_ENV: z
     .enum(["test", "debug", "development", "production"])
     .default("development"),
-  PORT: z.coerce.number().default(3000),
+  PORT: z.coerce.number().default(3001),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
+  BASE_URL: z.string().url().default("http://localhost"),
+  PROMETHEUS_PORT: z.coerce.number().default(9090),
+  GRAFANA_PORT: z.coerce.number().default(3000),
+  NODE_EXPORTER_PORT: z.coerce.number().default(9100),
+  LOKI_PORT: z.coerce.number().default(3100),
+  PROMTAIL_PORT: z.coerce.number().default(9080),
 });
 
 export type env = z.infer<typeof EnvSchema>;
