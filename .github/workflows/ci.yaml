@@ -44,4 +44,7 @@ jobs:
         run: pnpm install --shamefully-hoist 
 
       - name: Build, lint and type-check
-        run: pnpm turbo build lint typecheck format
+        run: |
+          export SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+          export TURBO_TOKEN=${{ secrets.TURBO_TOKEN }}
+          pnpm turbo build lint typecheck format
