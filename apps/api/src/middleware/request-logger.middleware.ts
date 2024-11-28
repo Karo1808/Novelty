@@ -28,6 +28,7 @@ export const requestLogger = (): MiddlewareHandler => {
           headers: c.req.header(),
           query: c.req.query(),
           ip: info.remote.address,
+          reqId: c.var.requestId,
         },
         "Incoming request",
       );
@@ -41,6 +42,7 @@ export const requestLogger = (): MiddlewareHandler => {
           url: c.req.url,
           status: c.res.status,
           duration: `${duration}ms`,
+          reqId: c.var.requestId,
         },
         "Request processed",
       );

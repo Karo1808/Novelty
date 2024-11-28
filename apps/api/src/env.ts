@@ -27,6 +27,7 @@ const EnvSchema = z.object({
   NODE_EXPORTER_PORT: z.coerce.number().default(9100),
   LOKI_PORT: z.coerce.number().default(3100),
   PROMTAIL_PORT: z.coerce.number().default(9080),
+  SENTRY_DSN: z.string().default(""),
 });
 
 export type env = z.infer<typeof EnvSchema>;

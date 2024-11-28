@@ -1,4 +1,5 @@
 import type { Hook } from "@hono/zod-openapi";
+import { requestId } from "hono/request-id";
 
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { compress } from "hono/compress";
@@ -12,6 +13,10 @@ import onError from "@/middleware/on-error.middleware";
 import { requestLogger } from "@/middleware/request-logger.middleware";
 
 import { HttpStatusCodes } from "./http-status-codes";
+import { sentry } from "@hono/sentry";
+import env from "@/env";
+import { sentryConfigureScope } from "@/middleware/sentry-configure-scope.middleware";
+import { sentryTransactionMiddleware } from "@/middleware/sentry-transaction.middleware";
 
 const defaultHook: Hook<any, any, any, any> = (result, c) => {
   if (!result.success) {
@@ -38,6 +43,10 @@ export default function createApp() {
   app.use(compress());
   app.use(cors());
   app.use(secureHeaders());
+  app.use("*", requestId());
+  app.use("*", sentryTransactionMiddleware());
+  app.use("*", sentry({ dsn: env.SENTRY_DSN }));
+  app.use("*", sentryConfigureScope());
   app.use(requestLogger());
 
   app.onError(onError);

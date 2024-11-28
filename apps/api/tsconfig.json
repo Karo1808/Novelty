@@ -5,14 +5,27 @@
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
     "lib": ["ESNext"],
+    "baseUrl": "./",
     "module": "ESNext",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "Node",
     "paths": {
       "@/*": ["./src/*"],
       "$/*": ["./src/modules/*"]
     },
+
     "types": ["node"],
-    "outDir": "dist"
+    "inlineSources": true,
+    "outDir": "dist",
+    "sourceMap": true,
+
+    // Set `sourceRoot` to  "/" to strip the build path prefix
+    // from generated source code references.
+    // This improves issue grouping in Sentry.
+    "sourceRoot": "/",
+    "plugins": [{ "transform": "typescript-transform-paths" }]
   },
-  "include": ["src"]
+  "ts-node": {
+    "require": ["tsconfig-paths/register"]
+  },
+  "include": ["src/**/*"]
 }

@@ -14,27 +14,30 @@
   "main": "index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "node ./dist/src/index.js",
+    "start": "ts-node ./dist/src/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "lint:fix": "npm run lint --fix",
-    "build": "tsc && pnpm build:rpc",
-    "build:rpc": "tsc -p tsconfig.rpc.json",
+    "build": "tspc && tsc-alias --resolve-full-paths pnpm build:rpc && pnpm sentry:sourcemaps",
+    "build:rpc": "tspc -p tsconfig.rpc.json",
     "test": "cross-env NODE_ENV=test vitest",
     "test:ci": "cross-env NODE_ENV=test vitest run",
     "test:ui": "cross-env NODE_ENV=test vitest --ui",
     "test:coverage": "cross-env NODE_ENV=test vitest run --coverage",
     "clean": "rm -rf node_modules .turbo dist coverage",
     "open-api:generate": "tsx ./src/lib/generate-open-api-spec.ts",
-    "open-api:lint": "pnpm dlx @superfaceai/openapi-linter lint ./open-api-spec.yaml"
+    "open-api:lint": "pnpm dlx @superfaceai/openapi-linter lint ./open-api-spec.yaml",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org karol-pietrucha --project novelty-api ./dist && sentry-cli sourcemaps upload --org karol-pietrucha --project novelty-api ./dist"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.2.0",
     "@hono/node-server": "^1.13.7",
     "@hono/prometheus": "^1.0.1",
+    "@hono/sentry": "^1.2.0",
     "@hono/zod-openapi": "^0.17.0",
     "@novelty/lib": "workspace:*",
     "@scalar/hono-api-reference": "^0.5.159",
+    "@sentry/cli": "^2.39.1",
     "@sentry/node": "^8.41.0",
     "@sentry/profiling-node": "^8.41.0",
     "dayjs": "^1.11.13",
@@ -52,10 +55,16 @@
   "devDependencies": {
     "@antfu/eslint-config": "^3.9.2",
     "@novelty/typescript-config": "workspace:*",
+    "@sentry/types": "^8.41.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.11.17",
     "cross-env": "^7.0.3",
+    "ts-node": "^10.9.2",
+    "ts-patch": "^3.2.1",
+    "tsc-alias": "^1.8.10",
+    "tsconfig-paths": "^4.2.0",
     "tsx": "^4.7.1",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "typescript-transform-paths": "^3.5.2"
   }
 }
