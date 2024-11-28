@@ -43,6 +43,10 @@ jobs:
       - name: Install deps (with cache)
         run: pnpm install --shamefully-hoist 
 
+      - name: Verify SENTRY_AUTH_TOKEN availability
+        run: echo "SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}" > /dev/null
+
+
       - name: Build, lint and type-check
         run: |
           export SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
