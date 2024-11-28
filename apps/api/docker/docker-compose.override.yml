@@ -9,10 +9,10 @@ services:
       ports:
       - "${LOKI_PORT}:${LOKI_PORT}"
 
-  # promtail:
-  #   network_mode: "host"
-  #   ports:
-  #   - "${PROMTAIL_PORT}:${PROMTAIL_PORT}"
+  promtail:
+    network_mode: "host"
+    ports:
+    - "${PROMTAIL_PORT}:${PROMTAIL_PORT}"
 
   grafana:
     network_mode: "host"
