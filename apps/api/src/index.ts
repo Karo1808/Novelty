@@ -1,6 +1,7 @@
 import app from "@/app";
 import logger from "@/lib/logger";
 import { serve } from "@hono/node-server";
+import "../instrument";
 
 const port = 3001;
 

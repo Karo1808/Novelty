@@ -14,14 +14,14 @@ services:
     volumes:
       - ../monitoring/loki/loki-config.yaml:/etc/loki/local-config.yaml
 
-  # promtail:
-  #   image: grafana/promtail:latest
-  #   container_name: promtail
-  #   volumes:
-  #     - ../monitoring/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml 
-  #     - /var/log:/var/log 
-  #   command: -config.file=/etc/promtail/promtail-config.yaml
-  
+  promtail:
+      image: grafana/promtail:3.0.0
+      container_name: promtail
+      volumes:
+        - ../monitoring/promtail/promtail-config.yaml:/etc/promtail/promtail.yaml
+      command: -config.file=/etc/promtail/promtail.yaml
+      depends_on:
+        - loki
 
   grafana:
     image: grafana/grafana:latest
