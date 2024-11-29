@@ -15,7 +15,7 @@ expand(
 
 const EnvSchema = z.object({
   NODE_ENV: z
-    .enum(["test", "debug", "development", "production"])
+    .enum(["test", "debug", "development", "production", "open-api"])
     .default("development"),
   PORT: z.coerce.number().default(3001),
   LOG_LEVEL: z
