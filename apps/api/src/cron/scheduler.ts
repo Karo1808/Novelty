@@ -7,7 +7,8 @@ import env from "@/env";
 const cronWithCheckIn = Sentry.cron.instrumentNodeCron(cron);
 
 export const startCronJobs = () => {
-  if (env.NODE_ENV === "open-api") {
+  // Disable cron job for open api generation to work
+  if (env.IS_OPEN_API_GENERATE) {
     logger.info("Cron jobs are disabled in this environment.");
     return;
   }
