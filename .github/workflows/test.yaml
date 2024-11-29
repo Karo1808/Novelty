@@ -8,9 +8,6 @@ on:
     branches: ["main"]
   merge_group:
 
-env:
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-
 jobs:
   test: 
     runs-on: ubuntu-latest
@@ -45,6 +42,15 @@ jobs:
 
       - name: Install deps (with cache)
         run: pnpm install --prod=false
+
+      - name: TurboRepo Remote Cache Server
+        uses: trappar/turborepo-remote-cache-gh-action@main
+        with:
+          storage-provider: s3
+          storage-path: novelty-remote-cache
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}       
 
       - name: test
         run: pnpm turbo test:ci
