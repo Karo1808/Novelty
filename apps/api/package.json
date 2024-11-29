@@ -25,7 +25,7 @@
     "test:ui": "cross-env NODE_ENV=test vitest --ui",
     "test:coverage": "cross-env NODE_ENV=test vitest run --coverage",
     "clean": "rm -rf node_modules .turbo dist coverage",
-    "open-api:generate": "tsx ./src/lib/generate-open-api-spec.ts",
+    "open-api:generate": "IS_OPEN_API_GENERATE=1 tsx ./src/lib/generate-open-api-spec.ts",
     "open-api:lint": "pnpm dlx @superfaceai/openapi-linter lint ./open-api-spec.yaml",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org karol-pietrucha --project novelty-api ./dist && sentry-cli sourcemaps upload --org karol-pietrucha --project novelty-api ./dist"
   },

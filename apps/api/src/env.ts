@@ -28,7 +28,7 @@ const EnvSchema = z.object({
   LOKI_PORT: z.coerce.number().default(3100),
   PROMTAIL_PORT: z.coerce.number().default(9080),
   SENTRY_DSN: z.string().default(""),
-  IS_OPEN_API_GENERATE: z.boolean().default(false),
+  IS_OPEN_API_GENERATE: z.coerce.number().default(0),
 });
 
 export type env = z.infer<typeof EnvSchema>;
