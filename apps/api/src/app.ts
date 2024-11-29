@@ -3,12 +3,9 @@ import { healthcheckRouter } from "$/healhcheck/healthcheck.index";
 import configureOpenAPI from "@/lib/configure-open-api";
 import createApp from "@/lib/create-app";
 
-import { configurePrometheus } from "@/lib/configure-prometheus";
-import { startCronJobs } from "@/cron/scheduler";
+import { configurePrometheus } from "./lib/configure-prometheus";
 
 const app = createApp();
-
-startCronJobs();
 
 configureOpenAPI(app);
 configurePrometheus(app);

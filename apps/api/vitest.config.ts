@@ -4,11 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     globals: true,
-    include: [
-      "src/modules/**/*.test.ts",
-      "src/middleware/**/*.test.ts",
-      "src/cron/**/*.test.ts",
-    ],
+    include: ["src/modules/**/*.test.ts", "src/middleware/**/*.test.ts"],
     environment: "node",
     reporters: ["default"],
   },
