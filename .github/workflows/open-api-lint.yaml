@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env: 
-      NODE_ENV: open-api
+      IS_OPEN_API_GENERATE: true
 
     strategy:
       matrix:
