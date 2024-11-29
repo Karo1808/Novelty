@@ -8,10 +8,15 @@ on:
     branches: ["main"]
   merge_group:
 
+env:
+  TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
   lint-open-api-spec:
     runs-on: ubuntu-latest
+
+    env: 
+      NODE_ENV: open-api
 
     strategy:
       matrix:
