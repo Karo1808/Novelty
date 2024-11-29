@@ -17,6 +17,7 @@ jobs:
 
     env: 
       IS_OPEN_API_GENERATE: true
+      NODE_ENV: production 
 
     strategy:
       matrix:
