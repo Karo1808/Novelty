@@ -9,6 +9,7 @@ on:
 
 env:
   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+  TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
   build-lint:
