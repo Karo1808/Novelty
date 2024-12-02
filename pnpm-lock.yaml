@@ -178,6 +178,15 @@ importers:
       dayjs:
         specifier: ^1.11.13
         version: 1.11.13
+      pino:
+        specifier: ^9.5.0
+        version: 9.5.0
+      pino-loki:
+        specifier: ^2.3.1
+        version: 2.3.1
+      pino-pretty:
+        specifier: ^13.0.0
+        version: 13.0.0
     devDependencies:
       '@antfu/eslint-config':
         specifier: ^3.9.2
