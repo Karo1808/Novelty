@@ -11,6 +11,7 @@ export const callHealthcheck = async () => {
     monitorSlug,
     status: "in_progress",
   });
+
   const endTimer = cronJobOutcomeHistogram.startTimer({
     job_name: monitorSlug,
   });

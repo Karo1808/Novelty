@@ -1,0 +1,38 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: novelty-prometheus
+    volumes:
+      - ../prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml
+      - ../prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
+    restart: always
+
+  loki:
+    image: grafana/loki:latest
+    container_name: novelty-loki
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ../loki/loki-config.yaml:/etc/loki/local-config.yaml
+
+  promtail:
+      image: grafana/promtail:3.0.0
+      container_name: novelty-promtail
+      volumes:
+        - ../promtail/promtail-config.yaml:/etc/promtail/promtail.yaml
+      command: -config.file=/etc/promtail/promtail.yaml
+      depends_on:
+        - loki
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: novelty-grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    restart: always
+
+volumes:
+  grafana_data:
+    driver: local
