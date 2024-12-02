@@ -35,6 +35,7 @@
     "@hono/prometheus": "^1.0.1",
     "@hono/sentry": "^1.2.0",
     "@hono/zod-openapi": "^0.17.0",
+    "@novelty/db": "workspace:*",
     "@novelty/lib": "workspace:*",
     "@scalar/hono-api-reference": "^0.5.159",
     "@sentry/cli": "^2.39.1",

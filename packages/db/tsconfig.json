@@ -1,0 +1,22 @@
+{
+  "extends": "@novelty/typescript-config/base.json",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "baseUrl": "./",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "paths": {
+      "@/*": ["./*"]
+    },
+
+    "inlineSources": true,
+    "outDir": "dist",
+    "sourceMap": true,
+
+    "sourceRoot": "/",
+    "plugins": [{ "transform": "typescript-transform-paths" }]
+  },
+  "ts-node": {
+    "require": ["tsconfig-paths/register"]
+  }
+}
