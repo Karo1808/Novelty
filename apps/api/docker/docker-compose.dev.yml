@@ -1,0 +1,5 @@
+services:
+  node_exporter:
+    network_mode: "host"
+    ports:
+      - "${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}"

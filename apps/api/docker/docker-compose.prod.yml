@@ -1,18 +1,4 @@
 services:
-  prometheus:
-    network_mode: "bridge"  
-    ports:
-      - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
-    volumes:
-      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro  
-
-  grafana:
-    network_mode: "bridge"  
-    ports:
-      - "3000:3000"  
-    volumes:
-      - "${GRAFANA_PORT}:${GRAFANA_PORT}"
-
   node_exporter:
     network_mode: "bridge"
     ports:

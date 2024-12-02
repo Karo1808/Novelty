@@ -7,7 +7,7 @@ ENV_FILE="docker-compose.yml"
 if [[ $1 == "prod" ]]; then
   ENV_FILE="docker-compose.prod.yml"
 elif [[ $1 == "dev" ]]; then
-  ENV_FILE="docker-compose.override.yml"
+  ENV_FILE="docker-compose.dev.yml"
 fi
 
 echo "Looking for Compose files with name: $ENV_FILE"

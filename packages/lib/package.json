@@ -15,7 +15,10 @@
     "clean": "rm -rf node_modules .turbo dist coverage"
   },
   "dependencies": {
-    "dayjs": "^1.11.13"
+    "dayjs": "^1.11.13",
+    "pino": "^9.5.0",
+    "pino-loki": "^2.3.1",
+    "pino-pretty": "^13.0.0"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^3.9.2",
