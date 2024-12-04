@@ -12,10 +12,8 @@ export const sentryTransactionMiddleware = (): MiddlewareHandler => {
           op: "http.server",
         },
         async (rootSpan) => {
-          c.set("sentrySpan", rootSpan);
-
           try {
-            await next();
+            c.set("sentrySpan", rootSpan);
           }
           catch (error) {
             rootSpan.setStatus({
@@ -30,6 +28,7 @@ export const sentryTransactionMiddleware = (): MiddlewareHandler => {
           }
         },
       );
+      await next();
     },
   );
 };

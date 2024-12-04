@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { callHealthcheck } from "../status.job";
 import * as Sentry from "@sentry/node";
 import logger from "@/lib/logger";
+import env from "@/env";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { Pool, type Pool as TPool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import type { HealthcheckOKResponse } from "@/modules/healhcheck/healthcheck.schemas";
 
 vi.mock("@sentry/node", () => ({
   captureCheckIn: vi.fn(),
@@ -17,26 +22,57 @@ vi.mock("@/lib/logger", () => ({
   },
 }));
 
+let dbClient: any;
+
+vi.mock("@novelty/db/index", () => ({
+  get db() {
+    return dbClient;
+  },
+}));
+
+if (env.NODE_ENV !== "test") {
+  throw new Error("NODE_ENV must be 'test'");
+}
+
 describe("callHealthcheck", () => {
   const mockMonitorSlug = "healthcheck-cron";
   const mockCheckInId = "mock-checkin-id";
 
-  beforeEach(() => {
+  let container: any;
+  let pool: TPool;
+
+  beforeEach(async () => {
+    container = await new PostgreSqlContainer()
+      .withStartupTimeout(12000)
+      .start();
+    pool = new Pool({
+      connectionString: container.getConnectionUri(),
+    });
     vi.clearAllMocks();
     (Sentry.captureCheckIn as Mock).mockReturnValue(mockCheckInId);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.clearAllMocks();
+    await pool.end();
+    await container.stop();
   });
 
   it("should call the healthcheck endpoint and mark it as successful", async () => {
+    dbClient = drizzle({ client: pool });
     // eslint-disable-next-line ts/ban-ts-comment
     // @ts-expect-error
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ status: "healthy" }),
+        json: () =>
+          Promise.resolve<HealthcheckOKResponse>({
+            status: "healthy",
+            environment: "test",
+            readiness: {
+              database: "connected",
+            },
+          }),
       }),
     );
 

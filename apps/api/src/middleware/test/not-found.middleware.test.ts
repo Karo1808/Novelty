@@ -19,7 +19,6 @@ describe("notFound handler", () => {
       HttpStatusCodes.NOT_FOUND,
     );
 
-    // Verify the returned response
     expect(response).toBe("mockResponse");
   });
 });

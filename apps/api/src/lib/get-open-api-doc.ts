@@ -10,7 +10,6 @@ export const getOpenApiDefinition = (): OpenAPIObjectConfig => {
       version: packageJSON.version,
       title: "Novelty API",
     },
-    servers: [{ url: "v1" }],
     tags: [
       {
         name: "Healthcheck",
