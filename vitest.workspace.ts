@@ -29,4 +29,11 @@ export default defineWorkspace([
       environment: "node",
     },
   },
+  "packages/db/*",
+  {
+    test: {
+      globals: true,
+      environment: "node",
+    },
+  },
 ]);
