@@ -17,6 +17,7 @@ jobs:
 
     env: 
       IS_OPEN_API_GENERATE: 1
+      DATABASE_URL: na
 
     strategy:
       matrix:
