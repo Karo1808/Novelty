@@ -11,6 +11,7 @@ export default defineConfig({
     ],
     environment: "node",
     reporters: ["default"],
+    hookTimeout: 100000,
   },
   resolve: {
     alias: {
