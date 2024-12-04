@@ -1,0 +1,24 @@
+{
+  "name": "@novelty/services",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf node_modules .turbo dist coverage"
+  },
+  "dependencies": {
+    "@novelty/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^3.9.2",
+    "@novelty/typescript-config": "workspace:*",
+    "typescript": "5.5.4"
+  }
+}
