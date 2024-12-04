@@ -1,0 +1,9 @@
+{
+  "extends": "@novelty/typescript-config/base.json",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "baseUrl": "./",
+    "module": "ESNext",
+    "moduleResolution": "Node"
+  }
+}

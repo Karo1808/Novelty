@@ -1,7 +1,8 @@
 import env from "@/env";
 import * as Sentry from "@sentry/node";
 import logger from "@/lib/logger";
-import { cronJobOutcomeHistogram } from "@/lib/metrics";
+import { cronJobOutcomeHistogram, prometheusRegistry } from "@/lib/metrics";
+import { healthcheckOkSchema } from "@/modules/healhcheck/healthcheck.schemas";
 
 export const callHealthcheck = async () => {
   const monitorSlug = "healthcheck-cron";
@@ -12,7 +13,7 @@ export const callHealthcheck = async () => {
     status: "in_progress",
   });
 
-  const endTimer = cronJobOutcomeHistogram.startTimer({
+  const endTimer = cronJobOutcomeHistogram(prometheusRegistry).startTimer({
     job_name: monitorSlug,
   });
 
@@ -24,12 +25,17 @@ export const callHealthcheck = async () => {
     }
 
     const data = await res.json();
+    const parsedData = healthcheckOkSchema.parse(data);
+
+    if (!parsedData.status || parsedData.status !== "healthy") {
+      throw new Error(`Unexpected healthcheck status: ${parsedData.status}`);
+    }
 
     logger.info({
       message: "Healthcheck cron job executed successfully",
       source: "callHealthcheck",
       job: "cron",
-      data,
+      parsedData,
     });
 
     Sentry.captureCheckIn({
