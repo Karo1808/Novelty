@@ -1,10 +1,11 @@
 import antfu from "@antfu/eslint-config";
 import eslintConfigTurbo from "eslint-config-turbo";
+import eslintConfigDrizzle from "eslint-plugin-drizzle";
 
 export default antfu(
   {
     lessOpinionated: true,
-    plugins: ({ eslintConfigTurbo }),
+    plugins: ({ eslintConfigTurbo, eslintConfigDrizzle }),
     type: "app",
     typescript: true,
     formatters: true,

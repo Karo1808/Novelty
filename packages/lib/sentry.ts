@@ -1,12 +1,17 @@
-import env from "@/env";
 import * as Sentry from "@sentry/node";
-import type { Context, Scope } from "@sentry/types";
+import type { Context, Primitive, Scope } from "@sentry/types";
+import type { NodeEnvironment } from "./types";
 
 interface CaptureExceptionParams {
   error: Error;
   context?: Context;
-  contextName?: string; // Optional for less verbosity
+  contextName?: string;
   breadcrumb?: Sentry.Breadcrumb;
+  nodeEnvironment?: NodeEnvironment;
+  tags?: {
+    name: string;
+    value: Primitive;
+  }[];
 }
 
 export const captureException = ({
@@ -14,9 +19,20 @@ export const captureException = ({
   context,
   contextName = "general",
   breadcrumb,
+  nodeEnvironment = "development",
+  tags,
 }: CaptureExceptionParams) => {
   Sentry.withScope((scope: Scope) => {
-    scope.setTag("serverEnvironment", env.NODE_ENV ?? "development");
+    tags?.push({
+      name: "nodeEnvironment",
+      value: nodeEnvironment,
+    });
+
+    if (tags && tags.length) {
+      tags.forEach((tag) => {
+        scope.setTag(tag.name, tag.value);
+      });
+    }
 
     if (context) {
       scope.setContext(contextName, context);

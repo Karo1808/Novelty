@@ -2,10 +2,11 @@ import type { LoggerOptions, TransportMultiOptions } from "pino";
 import { pino } from "pino";
 import type { LokiOptions } from "pino-loki";
 import type { PrettyOptions } from "pino-pretty";
+import type { LogLevel, NodeEnvironment } from "./types";
 
 interface LoggerParams {
-  nodeEnvironment: "development" | "production" | "test" | "debug";
-  logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
+  nodeEnvironment: NodeEnvironment;
+  logLevel: LogLevel;
   hostUrl: string;
   labels: LokiOptions["labels"];
 }

@@ -4,5 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     reporters: ["default"],
+    hookTimeout: 100000,
+    include: ["**/*.test.ts"],
   },
 });
