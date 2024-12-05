@@ -1,7 +1,11 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "stream",
-  "globalEnv": ["SENTRY_AUTH_TOKEN", "TURBO_TELEMETRY_DISABLED"],
+  "globalEnv": [
+    "SENTRY_AUTH_TOKEN",
+    "TURBO_TELEMETRY_DISABLED",
+    "DATABASE_URL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

@@ -3,8 +3,6 @@ info:
   description: Novelty API
   version: 0.0.1
   title: Novelty API
-servers:
-  - url: v1
 tags:
   - name: Healthcheck
 components:
@@ -16,10 +14,9 @@ paths:
       tags:
         - Healthcheck
       description: Verifies the status of the API
-      operationId: healthcheck
       responses:
         '200':
-          description: Healthcheck
+          description: Successful healthcheck
           content:
             application/json:
               schema:
@@ -36,6 +33,45 @@ paths:
                       - production
                       - test
                       - debug
+                  readiness:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        enum:
+                          - connected
                 example:
                   status: healthy
                   environment: development
+                  readiness:
+                    database: connected
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - unhealthy
+                  environment:
+                    type: string
+                    enum:
+                      - development
+                      - production
+                      - test
+                      - debug
+                  readiness:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        enum:
+                          - disconnected
+                example:
+                  status: unhealthy
+                  environment: development
+                  readiness:
+                    database: disconnected

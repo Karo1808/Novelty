@@ -50,5 +50,16 @@
       "source": "./fixtures/output/**/*.*",
       "target": "./fixtures/input/<base>"
     }
+  ],
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 5432,
+      "driver": "PostgreSQL",
+      "name": "novelty",
+      "database": "database",
+      "username": "user"
+    }
   ]
 }
