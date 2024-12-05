@@ -26,7 +26,7 @@ const EnvSchema = z.object({
   BASE_URL: z.string().default("http://localhost"),
   SENTRY_DSN: z.string().default(""),
   IS_OPEN_API_GENERATE: z.coerce.number().default(0),
-  DATABASE_URL: z.string(),
+  DATABASE_URL: z.string().optional().default("testtttt"),
 });
 
 export type env = z.infer<typeof EnvSchema>;
