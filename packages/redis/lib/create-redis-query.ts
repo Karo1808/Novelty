@@ -1,34 +1,38 @@
-import type { DBClient, Dependencies } from "./types";
+import type { Dependencies } from "./types";
 import { timeoutQuery } from "@novelty/lib/timeout-query";
 import {
-  DatabaseConnectionError,
-  QueryExecutionError,
-  QueryTimeoutError,
+  RedisConnectionError,
+  RedisQueryError,
+  RedisTimeoutError,
 } from "./errors";
 import { captureException } from "@novelty/lib/sentry";
-import { dbQueryDurationHistogram } from "./metrics";
+import { redisQueryDurationHistogram } from "./metrics";
+import type { Redis } from "ioredis";
 
 interface CreateDBQueryParams<T> {
-  query: (db: DBClient) => Promise<T>;
+  query: (redis: Redis) => Promise<T>;
   queryName?: string;
   timeoutDurationMs?: number;
   dependencies: Dependencies;
 }
 
-export const createDBQuery = async <T>({
+export const createRedisQuery = async <T>({
   dependencies,
   query,
   queryName = "unknown query",
   timeoutDurationMs = 3000,
 }: CreateDBQueryParams<T>): Promise<T> => {
-  const { dbInstance, logger, reqId, prometheusRegistry } = dependencies;
+  const { redisClient, logger, reqId, prometheusRegistry } = dependencies;
 
   try {
-    await dbInstance.execute("SELECT 1");
+    const response = await redisClient.ping();
+    if (response !== "PONG") {
+      throw new RedisConnectionError("Unexpected PING response");
+    }
   }
   catch (error) {
     logger.error({
-      message: "Database connection could not be established",
+      message: "Redis connection could not be established",
       source: queryName,
       error: (error as Error).message,
       stackTrace: (error as Error)?.stack,
@@ -39,7 +43,7 @@ export const createDBQuery = async <T>({
       error: error as Error,
       tags: [{ name: "requestId", value: reqId }],
       breadcrumb: {
-        category: "database query",
+        category: "redis query",
         message: (error as Error).message,
         level: "error",
       },
@@ -47,22 +51,22 @@ export const createDBQuery = async <T>({
       context: { queryName },
     });
 
-    throw new DatabaseConnectionError(
-      "Database connection could not be established",
+    throw new RedisConnectionError(
+      "Redis connection could not be established",
       error as Error,
     );
   }
 
-  const endTimer = dbQueryDurationHistogram(prometheusRegistry).startTimer({
+  const endTimer = redisQueryDurationHistogram(prometheusRegistry).startTimer({
     queryName,
   });
 
   try {
     const res = await timeoutQuery({
-      query: query(dbInstance),
-      timeoutDuration: timeoutDurationMs,
-      customError: new QueryTimeoutError(timeoutDurationMs),
+      query: query(redisClient),
       queryName,
+      customError: new RedisTimeoutError(timeoutDurationMs),
+      timeoutDuration: timeoutDurationMs,
       logger,
     });
     endTimer({ status: "success" });
@@ -80,7 +84,7 @@ export const createDBQuery = async <T>({
       error: error as Error,
       tags: [{ name: "requestId", value: reqId }],
       breadcrumb: {
-        category: "database query",
+        category: "redis query",
         message: (error as Error).message,
         level: "error",
       },
@@ -88,6 +92,6 @@ export const createDBQuery = async <T>({
       context: { queryName },
     });
     endTimer({ status: "failure" });
-    throw new QueryExecutionError(queryName, error as Error);
+    throw new RedisQueryError(queryName, error as Error);
   }
 };

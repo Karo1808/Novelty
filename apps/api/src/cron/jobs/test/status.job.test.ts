@@ -7,7 +7,7 @@ import env from "@/env";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Pool, type Pool as TPool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import type { HealthcheckOKResponse } from "@/modules/healhcheck/healthcheck.schemas";
+import type { HealthcheckOKResponse } from "$/healhcheck/healthcheck.validations";
 
 vi.mock("@sentry/node", () => ({
   captureCheckIn: vi.fn(),
@@ -71,6 +71,7 @@ describe("callHealthcheck", () => {
             environment: "test",
             readiness: {
               database: "connected",
+              redis: "connected",
             },
           }),
       }),

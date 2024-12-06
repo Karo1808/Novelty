@@ -2,7 +2,7 @@ import env from "@/env";
 import * as Sentry from "@sentry/node";
 import logger from "@/lib/logger";
 import { cronJobOutcomeHistogram, prometheusRegistry } from "@/lib/metrics";
-import { healthcheckOkSchema } from "@/modules/healhcheck/healthcheck.schemas";
+import { healthcheckOkSchema } from "$/healhcheck/healthcheck.validations";
 
 export const callHealthcheck = async () => {
   const monitorSlug = "healthcheck-cron";
