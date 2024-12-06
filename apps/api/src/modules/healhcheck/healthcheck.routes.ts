@@ -4,7 +4,7 @@ import jsonContent from "@/lib/json-content";
 import {
   healthcheckOkSchema,
   healthcheckUnavailableSchema,
-} from "./healthcheck.schemas";
+} from "./healthcheck.validations";
 
 export const healthcheckRoute = createRoute({
   tags: ["Healthcheck"],

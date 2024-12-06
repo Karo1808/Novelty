@@ -12,3 +12,12 @@ export const cronJobOutcomeHistogram = (registry: Registry) => {
     registry,
   });
 };
+
+export const rateLimitCounter = (registry: Registry) => {
+  return createMetric("Counter", {
+    name: "rate_limit_exceeded_total",
+    help: "Total number of rate-limited requests",
+    labelNames: ["path", "method"],
+    registry,
+  });
+};
