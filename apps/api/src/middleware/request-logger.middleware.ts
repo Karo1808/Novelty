@@ -5,6 +5,7 @@ import { getConnInfo } from "@hono/node-server/conninfo";
 import { createMiddleware } from "hono/factory";
 
 import logger from "@/lib/logger";
+import { HttpStatusText } from "@/lib/http-status-codes";
 
 export const requestLogger = (): MiddlewareHandler => {
   return createMiddleware<{ Variables: { logger: Logger } }>(
@@ -41,6 +42,7 @@ export const requestLogger = (): MiddlewareHandler => {
           method: c.req.method,
           url: c.req.url,
           status: c.res.status,
+          statusText: HttpStatusText[c.res.status],
           duration: `${duration}ms`,
           reqId: c.var.requestId,
         },

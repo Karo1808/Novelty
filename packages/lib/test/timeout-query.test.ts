@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { timeoutQuery } from "../timeout-query";
-import { QueryTimeoutError } from "../errors";
-import type { Logger } from "@novelty/lib/types";
+import type { Logger } from "../types";
 import "dotenv/config";
 
 // eslint-disable-next-line node/no-process-env
@@ -14,24 +13,52 @@ describe("timeoutQuery", () => {
     const mockQuery = new Promise(resolve =>
       setTimeout(() => resolve("success"), 100),
     );
-    const result = await timeoutQuery(mockQuery, 200);
+
+    const result = await timeoutQuery({
+      query: mockQuery,
+      timeoutDuration: 200,
+      customError: new Error("Test"),
+      logger: undefined,
+      queryName: "resolve-query",
+    });
+
     expect(result).toBe("success");
   });
 
-  it("rejects with QueryTimeoutError if the query exceeds the timeout duration", async () => {
+  it("rejects with the custom error if the query exceeds the timeout duration", async () => {
     const mockQuery = new Promise(resolve =>
       setTimeout(() => resolve("success"), 300),
     );
-    await expect(timeoutQuery(mockQuery, 200)).rejects.toThrow(
-      QueryTimeoutError,
-    );
+
+    const customError = new Error("Test");
+
+    await expect(
+      timeoutQuery({
+        query: mockQuery,
+        timeoutDuration: 200,
+        customError,
+        logger: undefined,
+        queryName: "timeout-query",
+      }),
+    ).rejects.toThrow(customError);
   });
 
   it("propagates the query error if the query fails before the timeout", async () => {
     const mockQuery = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("query error")), 100),
     );
-    await expect(timeoutQuery(mockQuery, 200)).rejects.toThrow("query error");
+
+    const customError = new Error("Test");
+
+    await expect(
+      timeoutQuery({
+        query: mockQuery,
+        timeoutDuration: 200,
+        customError,
+        logger: undefined,
+        queryName: "propagate-query-error",
+      }),
+    ).rejects.toThrow("query error");
   });
 
   it("logs a warning when the timeout is triggered", async () => {
@@ -43,14 +70,23 @@ describe("timeoutQuery", () => {
       warn: vi.fn(),
     } as unknown as Logger;
 
+    const customError = new Error("Test");
+
     await expect(
-      timeoutQuery(mockQuery, 200, mockLogger, "test-query"),
-    ).rejects.toThrow(QueryTimeoutError);
+      timeoutQuery({
+        query: mockQuery,
+        timeoutDuration: 200,
+        customError,
+        logger: mockLogger,
+        queryName: "log-warning",
+      }),
+    ).rejects.toThrow(customError);
 
     expect(mockLogger.warn).toHaveBeenCalledWith({
       message: "Query timed out",
-      queryName: "test-query",
+      queryName: "log-warning",
       timeoutDuration: 200,
+      error: customError,
     });
   });
 });

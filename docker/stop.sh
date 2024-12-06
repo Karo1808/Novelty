@@ -28,7 +28,7 @@ for COMPOSE_FILE in $COMPOSE_FILES; do
   if [ -d "$SERVICE_DIR" ] && [ -f "$ENV_FILE_PATH" ]; then
     echo "Changing to directory: $SERVICE_DIR"
     # Explicitly specify the .env file in the parent directory
-    sudo docker-compose --env-file "$ENV_FILE_PATH" -f "$SERVICE_DIR/docker-compose.yml" -f "$COMPOSE_FILE" down
+    docker-compose --env-file "$ENV_FILE_PATH" -f "$SERVICE_DIR/docker-compose.yml" -f "$COMPOSE_FILE" down
   else
     echo "Error: Directory $SERVICE_DIR or .env file at $ENV_FILE_PATH does not exist!"
   fi

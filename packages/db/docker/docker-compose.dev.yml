@@ -2,3 +2,8 @@ services:
   db:
     ports:
       - ${DB_PORT}:5432
+  
+  postgres-exporter:
+   network_mode: "host"
+   ports:
+      - "9187:9187"

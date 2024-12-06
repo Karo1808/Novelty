@@ -40,11 +40,16 @@ paths:
                         type: string
                         enum:
                           - connected
+                      redis:
+                        type: string
+                        enum:
+                          - connected
                 example:
                   status: healthy
                   environment: development
                   readiness:
                     database: connected
+                    redis: connected
         '503':
           description: Service unavailable
           content:
@@ -69,9 +74,16 @@ paths:
                       database:
                         type: string
                         enum:
+                          - connected
+                          - disconnected
+                      redis:
+                        type: string
+                        enum:
+                          - connected
                           - disconnected
                 example:
                   status: unhealthy
                   environment: development
                   readiness:
                     database: disconnected
+                    redis: disconnected
