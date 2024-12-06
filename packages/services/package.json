@@ -14,11 +14,14 @@
     "clean": "rm -rf node_modules .turbo dist coverage"
   },
   "dependencies": {
-    "@novelty/db": "workspace:*"
+    "@novelty/db": "workspace:*",
+    "@novelty/lib": "workspace:*",
+    "@novelty/redis": "workspace:*"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^3.9.2",
     "@novelty/typescript-config": "workspace:*",
+    "ioredis": "^5.4.1",
     "typescript": "5.5.4"
   }
 }
