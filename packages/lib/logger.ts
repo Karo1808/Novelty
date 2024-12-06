@@ -18,7 +18,7 @@ export const configureLogger = ({
   labels,
 }: LoggerParams) => {
   const targets: TransportMultiOptions["targets"] = [
-    ...(nodeEnvironment !== "production"
+    ...(nodeEnvironment !== "production" && nodeEnvironment !== "test"
       ? [
           {
             target: "pino-pretty",
