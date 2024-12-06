@@ -1,6 +1,10 @@
 import type { DBClient, Dependencies } from "./types";
-import { timeoutQuery } from "./timeout-query";
-import { DatabaseConnectionError, QueryExecutionError } from "./errors";
+import { timeoutQuery } from "@novelty/lib/timeout-query";
+import {
+  DatabaseConnectionError,
+  QueryExecutionError,
+  QueryTimeoutError,
+} from "./errors";
 import { captureException } from "@novelty/lib/sentry";
 import { dbQueryDurationHistogram } from "./metrics";
 
@@ -54,7 +58,13 @@ export const createDBQuery = async <T>({
   });
 
   try {
-    const res = await timeoutQuery(query(dbInstance), timeoutDurationMs);
+    const res = await timeoutQuery({
+      query: query(dbInstance),
+      timeoutDuration: timeoutDurationMs,
+      customError: new QueryTimeoutError(timeoutDurationMs),
+      queryName,
+      logger,
+    });
     endTimer({ status: "success" });
     return res;
   }
