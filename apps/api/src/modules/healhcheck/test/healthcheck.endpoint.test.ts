@@ -68,7 +68,7 @@ describe("healthcheck routes", () => {
 
   it("get /healthcheck handles service available", async () => {
     dbClient = drizzle({ client: pool });
-    redis = new Redis();
+    redis = new Redis(redisContainer.getConnectionUrl());
 
     const response = await client.healthcheck.$get();
 
@@ -101,7 +101,7 @@ describe("healthcheck routes", () => {
 
   it("get /healthcheck handles database service unavailable", async () => {
     dbClient = drizzle({ client: "" as unknown as TPool });
-    redis = new Redis();
+    redis = new Redis(redisContainer.getConnectionUrl());
 
     const response = await client.healthcheck.$get();
 
