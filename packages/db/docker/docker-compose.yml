@@ -10,3 +10,12 @@ services:
       - ${DB_PORT}:5432
     volumes:
       - ./docker-data/db:/var/lib/postgresql/data 
+
+  postgres-exporter:
+    image: wrouesnel/postgres_exporter:latest
+    container_name: novelty-postgres-exporter
+    restart: always
+    environment:
+    - DATA_SOURCE_NAME=postgresql://${DB_USER}:${DB_PASSWORD}@db:${DB_PORT}/${DB_NAME}?sslmode=disable
+    depends_on:
+      - db
