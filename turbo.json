@@ -4,7 +4,9 @@
   "globalEnv": [
     "SENTRY_AUTH_TOKEN",
     "TURBO_TELEMETRY_DISABLED",
-    "DATABASE_URL"
+    "DATABASE_URL",
+    "REDIS_PORT",
+    "REDIS_PASSWORD"
   ],
   "tasks": {
     "build": {

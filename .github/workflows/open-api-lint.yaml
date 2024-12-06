@@ -11,6 +11,8 @@ on:
 env:
   TURBO_TELEMETRY_DISABLED: 1
   DATABASE_URL: na
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: na
 
 jobs:
   lint-open-api-spec:
