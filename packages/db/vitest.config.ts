@@ -5,6 +5,6 @@ export default defineConfig({
     globals: true,
     reporters: ["default"],
     hookTimeout: 100000,
-    include: ["**/*.test.ts"],
+    include: ["**/*.test.ts", "!**/docker-data/**"],
   },
 });
