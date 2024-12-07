@@ -143,7 +143,6 @@ describe("createDBQuery", () => {
       }),
     );
 
-    // Verify that the timer was ended with a failure status
     expect(startTimerSpy).toHaveBeenCalledWith({ queryName: "error-test" });
     expect(endTimerSpy).toHaveBeenCalledWith({ status: "failure" });
   });
