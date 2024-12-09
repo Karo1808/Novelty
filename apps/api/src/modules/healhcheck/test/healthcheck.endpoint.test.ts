@@ -36,6 +36,10 @@ vi.mock("@novelty/redis/index", () => ({
   },
 }));
 
+vi.mock("@/middleware/rate-limit.ts", () => ({
+  mainLimiter: vi.fn(),
+}));
+
 if (env.NODE_ENV !== "test") {
   throw new Error("NODE_ENV must be 'test'");
 }

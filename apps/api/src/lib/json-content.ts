@@ -1,6 +1,6 @@
 import type { ZodSchema } from "@/types/index.types";
 
-function jsonContent<T extends ZodSchema>(
+export function jsonContent<T extends ZodSchema>(
   schema: T,
   description: string,
   isRequired = false,
@@ -16,4 +16,12 @@ function jsonContent<T extends ZodSchema>(
   };
 }
 
-export default jsonContent;
+export const jsonContentRequired = <T extends ZodSchema>(
+  schema: T,
+  description: string,
+) => {
+  return {
+    ...jsonContent(schema, description),
+    required: true,
+  };
+};

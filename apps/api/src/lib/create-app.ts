@@ -17,7 +17,7 @@ import { sentry } from "@hono/sentry";
 import env from "@/env";
 import { sentryConfigureScope } from "@/middleware/sentry-configure-scope.middleware";
 import { sentryTransactionMiddleware } from "@/middleware/sentry-transaction.middleware";
-// import { mainLimiter } from "@/middleware/rate-limit";
+import { mainLimiter } from "@/middleware/rate-limit";
 
 const defaultHook: Hook<any, any, any, any> = (result, c) => {
   if (!result.success) {
@@ -49,7 +49,7 @@ export default function createApp() {
   app.use("*", sentry({ dsn: env.SENTRY_DSN }));
   app.use("*", sentryConfigureScope());
   app.use(requestLogger());
-  // app.use("/rate-limit", mainLimiter);
+  app.use("/rate-limit", mainLimiter);
 
   app.onError(onError);
   app.notFound(notFound);
