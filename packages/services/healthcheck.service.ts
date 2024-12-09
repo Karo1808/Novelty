@@ -2,7 +2,7 @@ import { getStatusQuery } from "@novelty/db/queries/misc.query";
 import { pingRedisQuery } from "@novelty/redis/queries/index.query";
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
 import type { ServiceDependencies } from "./types";
-import { prepareDependencies } from "./utils";
+import { prepareDependencies } from "./lib/utils";
 
 export const checkDbHealth = async (
   dependencies: MarkKeysAsPartial<ServiceDependencies, "redisClient">,

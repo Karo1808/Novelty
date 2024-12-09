@@ -1,0 +1,33 @@
+import { z } from "@hono/zod-openapi";
+import { selectUserSchema } from "@novelty/db/schemas/user.schema";
+
+export const registerCreatedSchema = z
+  .object({
+    message: z.string(),
+    user: selectUserSchema,
+  })
+  .openapi({
+    example: {
+      message:
+        "Registration successful. Please verify your email to activate your account.",
+      user: {
+        id: "V1StGXR8_Z5jdHi6B-myT",
+        email: "email@mail.com",
+        isEmailVerified: false,
+        createdAt: new Date("2024-12-09T12:34:56.789Z"),
+        updatedAt: new Date("2024-12-09T12:34:56.789Z"),
+      },
+    },
+  });
+
+export const registerConflictSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "An account with that email already exists.",
+    },
+  });
+
+export type RegisterCreatedResponse = z.infer<typeof registerCreatedSchema>;

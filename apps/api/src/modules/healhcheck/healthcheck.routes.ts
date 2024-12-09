@@ -1,6 +1,6 @@
 import { createRoute } from "@hono/zod-openapi";
 import { HttpStatusCodes } from "@/lib/http-status-codes";
-import jsonContent from "@/lib/json-content";
+import { jsonContent } from "@/lib/json-content";
 import {
   healthcheckOkSchema,
   healthcheckUnavailableSchema,
