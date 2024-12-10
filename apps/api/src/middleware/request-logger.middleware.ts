@@ -5,7 +5,7 @@ import { getConnInfo } from "@hono/node-server/conninfo";
 import { createMiddleware } from "hono/factory";
 
 import logger from "@/lib/logger";
-import { HttpStatusText } from "@/lib/http-status-codes";
+import { HttpStatusText } from "@novelty/lib/http-status-codes";
 
 export const requestLogger = (): MiddlewareHandler => {
   return createMiddleware<{ Variables: { logger: Logger } }>(

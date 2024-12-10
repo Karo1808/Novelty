@@ -8,18 +8,22 @@ import {
 } from "@novelty/db/lib/errors";
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
 import { prepareDependencies } from "./lib/utils";
+import {
+  HttpStatusCodes,
+  type HttpStatusCodeValue,
+} from "@novelty/lib/http-status-codes";
 
-export const registerUser = async (
+export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
   dependencies: MarkKeysAsPartial<ServiceDependencies, "redisClient">,
   body: InsertUser["register"],
-): Promise<ServiceResponse> => {
+): Promise<ServiceResponse<TStatusCodes>> => {
   const deps = prepareDependencies(dependencies, "redisClient");
 
   try {
     const doesEmailAlreadyExist = !!(await getUserByEmail(deps, body.email));
 
     if (doesEmailAlreadyExist) {
-      return { status: 409 };
+      return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
     }
 
     const hashedPassword = await hashPassword(body.password);
@@ -30,18 +34,26 @@ export const registerUser = async (
     });
 
     return {
-      status: 201,
+      status: HttpStatusCodes.CREATED as TStatusCodes,
       body: newUser,
     };
   }
   catch (error) {
     if (error instanceof DatabaseConnectionError) {
-      return { status: 503, source: "db", error };
+      return {
+        status: HttpStatusCodes.SERVICE_UNAVAILABLE as TStatusCodes,
+        source: "db",
+        error,
+      };
     }
 
     if (error instanceof QueryExecutionError) {
-      return { status: 500, error };
+      return {
+        status: HttpStatusCodes.INTERNAL_SERVER_ERROR as TStatusCodes,
+        error,
+      };
     }
+
     throw error;
   }
 };

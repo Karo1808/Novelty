@@ -4,7 +4,7 @@ import {
   checkRedisHealth,
 } from "@novelty/services/healthcheck.service";
 import env from "@/env";
-import { HttpStatusCodes } from "@/lib/http-status-codes";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import type { HealthcheckRoute } from "./healthcheck.routes";
 import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
