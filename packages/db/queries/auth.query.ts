@@ -4,7 +4,10 @@ import { createDBQuery } from "../lib/create-db-query";
 import type { Dependencies } from "../lib/types";
 import { eq } from "drizzle-orm";
 
-export const getUserByEmail = (dependencies: Dependencies, email: string) => {
+export const getUserByEmailQuery = (
+  dependencies: Dependencies,
+  email: string,
+) => {
   return createDBQuery({
     dependencies,
     queryName: "getUserByEmail",
@@ -16,7 +19,7 @@ export const getUserByEmail = (dependencies: Dependencies, email: string) => {
   });
 };
 
-export const createUser = (
+export const createUserQuery = (
   dependencies: Dependencies,
   newUser: InsertUser["register"],
 ) => {
