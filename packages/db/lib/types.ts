@@ -5,7 +5,7 @@ import type { Registry } from "prom-client";
 export type DBClient = typeof db;
 
 export interface Dependencies {
-  dbInstance: DBClient;
+  dbInstance: Omit<DBClient, "$client"> | DBClient;
   reqId: string;
   logger: Logger;
   prometheusRegistry: Registry;
