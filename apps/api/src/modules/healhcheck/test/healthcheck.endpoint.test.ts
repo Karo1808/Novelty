@@ -7,7 +7,7 @@ import { RedisContainer } from "@testcontainers/redis";
 import type { StartedRedisContainer } from "@testcontainers/redis";
 import env from "@/env";
 import createApp from "@/lib/create-app";
-import { HttpStatusCodes } from "@/lib/http-status-codes";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { healthcheckRouter } from "../healthcheck.index";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Redis } from "ioredis";

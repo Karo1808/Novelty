@@ -10,8 +10,8 @@ export interface ServiceDependencies {
   prometheusRegistry: PrometheusRegistry;
 }
 
-export interface ServiceResponse {
-  status: number;
+export interface ServiceResponse<TStatusCodes> {
+  status: TStatusCodes;
   body?: any;
   source?: "db" | "redis";
   error?: Error;
