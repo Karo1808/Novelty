@@ -7,6 +7,7 @@ import {
   it,
   vi,
 } from "vitest";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { createUserQuery, getUserByEmailQuery } from "../auth.query";
@@ -28,7 +29,7 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 describe("auth queries", () => {
-  let container: any;
+  let container: StartedPostgreSqlContainer;
   let pool: TPool;
   let dbClient: DBClient;
   let dependencies: Dependencies;
@@ -94,11 +95,11 @@ describe("auth queries", () => {
       expect(result).toMatchObject({
         id: expect.stringMatching(/^[\w-]{21}$/),
         email: expect.stringMatching(dummyUser.email),
-        password: dummyUser.password,
         isEmailVerified: false,
         createdAt: expect.any(Date),
         updatedAt: expect.any(Date),
       });
+      expect(result).not.toHaveProperty("password");
 
       const endTime = Date.now();
       expect(new Date(result!.createdAt).getTime()).toBeGreaterThanOrEqual(

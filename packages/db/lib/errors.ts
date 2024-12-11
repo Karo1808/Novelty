@@ -1,11 +1,13 @@
 export class QueryExecutionError extends Error {
   constructor(
     public queryName: string,
-    originalError: Error,
+    originalError?: Error,
   ) {
-    super(`Error in database query "${queryName}": ${originalError.message}`);
+    super(
+      `Error in database query "${queryName}": ${originalError?.message ?? ""}`,
+    );
     this.name = "QueryExecutionError";
-    this.stack = originalError.stack;
+    this.stack = originalError?.stack ?? "";
   }
 }
 
