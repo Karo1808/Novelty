@@ -1,6 +1,9 @@
 import type { ServiceDependencies, ServiceResponse } from "types";
 import type { InsertUser } from "@novelty/db/schemas/user.schema";
-import { createUser, getUserByEmail } from "@novelty/db/queries/auth.query";
+import {
+  createUserQuery,
+  getUserByEmailQuery,
+} from "@novelty/db/queries/auth.query";
 import { hashPassword } from "./lib/auth";
 import {
   DatabaseConnectionError,
@@ -20,18 +23,46 @@ export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
   const deps = prepareDependencies(dependencies, "redisClient");
 
   try {
-    const doesEmailAlreadyExist = !!(await getUserByEmail(deps, body.email));
+    const existingUser = await getUserByEmailQuery(deps, body.email);
 
-    if (doesEmailAlreadyExist) {
+    if (
+      existingUser !== undefined
+      && (typeof existingUser !== "object" || Array.isArray(existingUser))
+    ) {
+      throw new QueryExecutionError(
+        "Invalid data returned from getUserByEmailQuery",
+      );
+    }
+
+    if (existingUser) {
       return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
     }
 
     const hashedPassword = await hashPassword(body.password);
 
-    const newUser = await createUser(deps, {
-      email: body.email,
-      password: hashedPassword,
-    });
+    let newUser;
+    try {
+      [newUser] = await createUserQuery(deps, {
+        email: body.email,
+        password: hashedPassword,
+      });
+    }
+    catch (err: any) {
+      if (
+        err?.message
+        && err.message.includes("duplicate key value violates unique constraint")
+      ) {
+        return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+      }
+      throw new QueryExecutionError("Failed to create user", err);
+    }
+
+    if (!newUser || typeof newUser !== "object") {
+      throw new QueryExecutionError(
+        "Failed to create user",
+        new Error("Unknown error"),
+      );
+    }
 
     return {
       status: HttpStatusCodes.CREATED as TStatusCodes,
@@ -40,18 +71,11 @@ export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
   }
   catch (error) {
     if (error instanceof DatabaseConnectionError) {
-      return {
-        status: HttpStatusCodes.SERVICE_UNAVAILABLE as TStatusCodes,
-        source: "db",
-        error,
-      };
+      throw error;
     }
 
     if (error instanceof QueryExecutionError) {
-      return {
-        status: HttpStatusCodes.INTERNAL_SERVER_ERROR as TStatusCodes,
-        error,
-      };
+      throw error;
     }
 
     throw error;
