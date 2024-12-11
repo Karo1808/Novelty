@@ -21,21 +21,9 @@ export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
       body,
     );
 
-  if (res.error) {
-    return c.json(
-      {
-        message:
-          "The server is currently unable to handle the request. Please try again later.",
-      },
-      HttpStatusCodes.SERVICE_UNAVAILABLE,
-    );
-  }
-
   if (res.status === HttpStatusCodes.CONFLICT) {
     return c.json(
-      {
-        message: "An account with that email already exists.",
-      },
+      { message: "An account with that email already exists." },
       HttpStatusCodes.CONFLICT,
     );
   }
@@ -43,7 +31,7 @@ export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   return c.json(
     {
       message:
-        "Registration successful please verify your email to activate your account",
+        "Registration successful. Please verify your email to activate your account.",
       user: res.body,
     },
     HttpStatusCodes.CREATED,

@@ -14,6 +14,9 @@ export const getUserByEmailQuery = (
     query: (db) => {
       return db.query.usersTable.findFirst({
         where: eq(usersTable.email, email),
+        columns: {
+          password: false,
+        },
       });
     },
   });

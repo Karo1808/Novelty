@@ -37,4 +37,5 @@ export const insertUserSchema = z.object({
   }),
 });
 
+export type SelectUser = z.infer<typeof selectUserSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
