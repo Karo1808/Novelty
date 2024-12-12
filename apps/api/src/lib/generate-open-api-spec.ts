@@ -13,10 +13,10 @@ function removeRequiredFields(obj: any): any {
   else if (obj && typeof obj === "object") {
     const { required, ...rest } = obj;
     return Object.fromEntries(
-      Object.entries(rest).map(([key, value]) => [
-        key,
-        removeRequiredFields(value),
-      ]),
+      Object.entries(rest)
+        // Filter out functions
+        .filter(([_, value]) => typeof value !== "function")
+        .map(([key, value]) => [key, removeRequiredFields(value)]),
     );
   }
   return obj;
@@ -31,7 +31,3 @@ const sanitizedDoc = removeRequiredFields(doc);
 const openApiYaml = yaml.dump(sanitizedDoc);
 
 writeFileSync("open-api-spec.yaml", openApiYaml);
-
-// TODO: REmove this line
-// eslint-disable-next-line no-console
-console.log("OpenAPI spec generated without `required` fields.");

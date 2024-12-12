@@ -58,6 +58,9 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}       
 
+      - name: run docker compose script
+        run: pnpm compose:dev:up
+
       - name: generate open api specification
         run: pnpm turbo open-api:generate
 
