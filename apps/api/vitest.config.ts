@@ -9,6 +9,7 @@ export default defineConfig({
       "src/middleware/**/*.test.ts",
       "src/cron/**/*.test.ts",
     ],
+    pool: "vmForks",
     environment: "node",
     reporters: ["default"],
     hookTimeout: 100000,

@@ -1,4 +1,4 @@
-import type { ServiceDependencies, ServiceResponse } from "types";
+import type { ServiceDependencies, ServiceResponse } from "./types";
 import type { InsertUser } from "@novelty/db/schemas/user.schema";
 import {
   createUserQuery,
