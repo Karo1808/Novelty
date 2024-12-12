@@ -14,8 +14,8 @@ export const registerCreatedSchema = z
         id: "V1StGXR8_Z5jdHi6B-myT",
         email: "email@mail.com",
         isEmailVerified: false,
-        createdAt: new Date("2024-12-09T12:34:56.789Z"),
-        updatedAt: new Date("2024-12-09T12:34:56.789Z"),
+        createdAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        updatedAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
       },
     },
   });
