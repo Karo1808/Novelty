@@ -111,12 +111,12 @@ export const sendVerificationEmail = async <
     return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
   }
 
-  const token = generateVerificationToken();
+  const token = generateVerificationToken(5);
 
   await setWithExpiry(
     redisDependencies,
-    `email-verification-send:${token}`,
-    body.email,
+    `verify-email:${body.email}`,
+    token,
     15 * 60,
   );
 
@@ -124,7 +124,7 @@ export const sendVerificationEmail = async <
     from: "novelty@mail.novelty.im",
     to: body.email,
     subject: "Email verification link",
-    react: <VerifyEmail />,
+    react: <VerifyEmail validationCode={token} />,
   });
 
   if (error) {
