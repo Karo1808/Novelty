@@ -9,3 +9,10 @@ export interface ServiceDependencies {
   logger: Logger;
   prometheusRegistry: PrometheusRegistry;
 }
+
+export interface ServiceResponse<TStatusCodes> {
+  status: TStatusCodes;
+  body?: any;
+  source?: "db" | "redis";
+  error?: Error;
+}

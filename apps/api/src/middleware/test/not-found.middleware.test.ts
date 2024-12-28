@@ -2,7 +2,7 @@ import type { Context } from "hono";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { HttpStatusCodes } from "@/lib/http-status-codes";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import notFound from "@/middleware/not-found.middleware";
 
 describe("notFound handler", () => {

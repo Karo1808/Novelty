@@ -1,9 +1,11 @@
-import "dotenv/config";
+import { configDotenv } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+
+configDotenv({ path: ".env.local" });
 
 export default defineConfig({
   out: "./migrations",
-  schema: "./schemas/test.schema.ts",
+  schema: "./schemas/index.schema.ts",
   dialect: "postgresql",
   dbCredentials: {
     // eslint-disable-next-line node/no-process-env
