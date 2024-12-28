@@ -6,7 +6,7 @@ const logger = configureLogger({
   hostUrl: `${env.BASE_URL}:${env.LOKI_PORT}`,
   labels: {
     source: "api",
-    enviornment: env.NODE_ENV,
+    environment: env.NODE_ENV,
   },
   logLevel: env.LOG_LEVEL ?? "info",
 });

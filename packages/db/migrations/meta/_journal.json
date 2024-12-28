@@ -8,6 +8,20 @@
       "when": 1733147388413,
       "tag": "0000_loud_spitfire",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1733754725625,
+      "tag": "0001_first_the_santerians",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1733755063593,
+      "tag": "0002_empty_colossus",
+      "breakpoints": true
     }
   ]
 }

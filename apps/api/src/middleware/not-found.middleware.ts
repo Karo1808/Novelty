@@ -1,6 +1,6 @@
 import type { NotFoundHandler } from "hono";
 
-import { HttpStatusCodes } from "@/lib/http-status-codes";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 
 const notFound: NotFoundHandler = (c) => {
   return c.json(

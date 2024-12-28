@@ -12,7 +12,7 @@ import notFound from "@/middleware/not-found.middleware";
 import onError from "@/middleware/on-error.middleware";
 import { requestLogger } from "@/middleware/request-logger.middleware";
 
-import { HttpStatusCodes } from "./http-status-codes";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { sentry } from "@hono/sentry";
 import env from "@/env";
 import { sentryConfigureScope } from "@/middleware/sentry-configure-scope.middleware";

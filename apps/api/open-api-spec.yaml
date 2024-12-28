@@ -87,3 +87,127 @@ paths:
                   readiness:
                     database: disconnected
                     redis: disconnected
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      description: Creates the unverified user in the database
+      requestBody:
+        description: The user inputted data
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  maxLength: 255
+                  format: email
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+      responses:
+        '201':
+          description: Successful registration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        maxLength: 255
+                      email:
+                        type: string
+                        maxLength: 255
+                      isEmailVerified:
+                        type: boolean
+                      createdAt:
+                        type: string
+                      updatedAt:
+                        type: string
+                example:
+                  message: >-
+                    Registration successful. Please verify your email to
+                    activate your account.
+                  user:
+                    id: V1StGXR8_Z5jdHi6B-myT
+                    email: email@mail.com
+                    isEmailVerified: false
+                    createdAt: '2024-12-09T12:34:56.789Z'
+                    updatedAt: '2024-12-09T12:34:56.789Z'
+        '409':
+          description: Existing email
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: An account with that email already exists.
+        '422':
+          description: Validation error(s)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+                    properties:
+                      issues:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            code:
+                              type: string
+                            path:
+                              type: array
+                              items:
+                                anyOf:
+                                  - type: string
+                                  - type: number
+                            message:
+                              type: string
+                      name:
+                        type: string
+                    example:
+                      issues:
+                        - code: invalid_type
+                          expected: string
+                          received: undefined
+                          path:
+                            - email
+                          message: Required
+                        - code: invalid_type
+                          expected: string
+                          received: undefined
+                          path:
+                            - password
+                          message: Required
+                      name: ZodError
+        '503':
+          description: Services unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: >-
+                    The server is currently unable to handle the request. Please
+                    try again later.

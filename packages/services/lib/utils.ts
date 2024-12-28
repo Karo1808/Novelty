@@ -1,5 +1,5 @@
 import type { RequireAllExcept } from "@novelty/lib/types";
-import type { ServiceDependencies } from "./types";
+import type { ServiceDependencies } from "../types";
 
 export function prepareDependencies<T extends keyof ServiceDependencies>(
   dependencies: any,

@@ -1,4 +1,4 @@
-import type { DBClient, Dependencies } from "./types";
+import type { Dependencies } from "./types";
 import { timeoutQuery } from "@novelty/lib/timeout-query";
 import {
   DatabaseConnectionError,
@@ -9,7 +9,7 @@ import { captureException } from "@novelty/lib/sentry";
 import { dbQueryDurationHistogram } from "./metrics";
 
 interface CreateDBQueryParams<T> {
-  query: (db: DBClient) => Promise<T>;
+  query: (db: Dependencies["dbInstance"]) => Promise<T>;
   queryName?: string;
   timeoutDurationMs?: number;
   dependencies: Dependencies;

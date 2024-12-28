@@ -4,7 +4,7 @@ import type { StatusCode } from "hono/utils/http-status";
 import { getConnInfo } from "@hono/node-server/conninfo";
 
 import env from "@/env";
-import { HttpStatusCodes } from "@/lib/http-status-codes";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import logger from "@/lib/logger";
 
 const onError: ErrorHandler = (err, c) => {
