@@ -40,3 +40,21 @@ export const createUserQuery = (
     },
   });
 };
+
+export const getIsEmailVerifiedQuery = (
+  dependencies: Dependencies,
+  email: string,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getIsEmailVerifiedQuery",
+    query: (db) => {
+      return db.query.usersTable.findFirst({
+        where: eq(usersTable.email, email),
+        columns: {
+          isEmailVerified: true,
+        },
+      });
+    },
+  });
+};
