@@ -1,5 +1,7 @@
-import { randomBytes } from "node:crypto";
+import { randomInt } from "node:crypto";
 
-export function generateVerificationToken(): string {
-  return randomBytes(32).toString("hex");
+export function generateVerificationToken(length = 0): string {
+  const min = 10 ** (length - 1);
+  const max = 10 ** length - 1;
+  return randomInt(min, max).toString();
 }
