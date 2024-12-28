@@ -2,6 +2,7 @@ import type { ServiceDependencies, ServiceResponse } from "./types";
 import type { InsertUser } from "@novelty/db/schemas/user.schema";
 import {
   createUserQuery,
+  getIsEmailVerifiedQuery,
   getUserByEmailQuery,
 } from "@novelty/db/queries/auth.query";
 import { hashPassword } from "./lib/auth";
@@ -15,6 +16,12 @@ import {
   HttpStatusCodes,
   type HttpStatusCodeValue,
 } from "@novelty/lib/http-status-codes";
+import { generateVerificationToken } from "@novelty/lib/generate-verification-token";
+import { setWithExpiry } from "@novelty/redis/queries/index.query";
+import { emailClient } from "@novelty/email/client";
+import { EmailDeliveryError } from "@novelty/email/error";
+import VerifyEmail from "@novelty/email/templates/prototype.email";
+import * as React from "react";
 
 export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
   dependencies: MarkKeysAsPartial<ServiceDependencies, "redisClient">,
@@ -80,4 +87,51 @@ export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
 
     throw error;
   }
+};
+
+export const sendVerificationEmail = async <
+  TStatusCodes extends HttpStatusCodeValue,
+>(
+  dependencies: ServiceDependencies,
+  body: InsertUser["sendVerificationEmail"],
+): Promise<ServiceResponse<TStatusCodes>> => {
+  const dbDependencies = prepareDependencies(dependencies, "redisClient");
+  const redisDependencies = prepareDependencies(dependencies, "dbInstance");
+
+  const isEmailVerified = await getIsEmailVerifiedQuery(
+    dbDependencies,
+    body.email,
+  );
+
+  if (isEmailVerified?.isEmailVerified === undefined) {
+    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+  }
+
+  if (isEmailVerified.isEmailVerified === true) {
+    return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+  }
+
+  const token = generateVerificationToken();
+
+  await setWithExpiry(
+    redisDependencies,
+    `email-verification-send:${token}`,
+    body.email,
+    15 * 60,
+  );
+
+  const { error } = await emailClient.emails.send({
+    from: "novelty@mail.novelty.im",
+    to: body.email,
+    subject: "Email verification link",
+    react: <VerifyEmail />,
+  });
+
+  if (error) {
+    throw new EmailDeliveryError(`${error.message}`);
+  }
+
+  return {
+    status: HttpStatusCodes.OK as TStatusCodes,
+  };
 };
