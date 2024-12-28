@@ -31,3 +31,37 @@ export const registerConflictSchema = z
   });
 
 export type RegisterCreatedResponse = z.infer<typeof registerCreatedSchema>;
+
+export const sendVerificationEmailSuccessSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Email verification sent successfully",
+    },
+  });
+
+export const sendVerificationEmailNotFoundSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "This email does not exist",
+    },
+  });
+
+export const sendVerificationEmailConflictSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "This email has already been verified",
+    },
+  });
+
+export type SendVerificationEmailSuccessResponse = z.infer<
+  typeof sendVerificationEmailSuccessSchema
+>;
