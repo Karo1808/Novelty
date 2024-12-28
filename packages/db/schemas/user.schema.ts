@@ -35,6 +35,9 @@ export const insertUserSchema = z.object({
     email: baseSchema.shape.email,
     password: baseSchema.shape.password,
   }),
+  sendVerificationEmail: z.object({
+    email: baseSchema.shape.email,
+  }),
 });
 
 export type SelectUser = z.infer<typeof selectUserSchema>;

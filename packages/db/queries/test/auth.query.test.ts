@@ -10,7 +10,11 @@ import {
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { createUserQuery, getUserByEmailQuery } from "../auth.query";
+import {
+  createUserQuery,
+  getIsEmailVerifiedQuery,
+  getUserByEmailQuery,
+} from "../auth.query";
 import type { DBClient, Dependencies } from "../../lib/types";
 import { configureLogger } from "@novelty/lib/logger";
 import { Pool } from "pg";
@@ -168,6 +172,41 @@ describe("auth queries", () => {
         ),
         name: "QueryExecutionError",
       });
+    });
+  });
+
+  describe("getIsEmailVerifiedQuery", () => {
+    const dummyUser = {
+      email: "mail@email.com",
+      password: "password123",
+    };
+
+    it("should return the isEmailVerified column value", async () => {
+      await dbClient.insert(usersTable).values(dummyUser);
+
+      const result = await getIsEmailVerifiedQuery(
+        {
+          ...dependencies,
+          dbInstance: dbClient,
+        },
+        dummyUser.email,
+      );
+
+      expect(result).toBeTruthy();
+      expect(result).toMatchObject({
+        isEmailVerified: false,
+      });
+      expect(result).not.toHaveProperty("password");
+
+      await dbClient
+        .delete(usersTable)
+        .where(eq(usersTable.email, dummyUser.email));
+    });
+
+    it("should return undefined when user does not exist", async () => {
+      const res = await getIsEmailVerifiedQuery(dependencies, dummyUser.email);
+
+      expect(res).toBeUndefined();
     });
   });
 });
