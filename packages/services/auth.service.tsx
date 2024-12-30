@@ -21,6 +21,10 @@ import { setWithExpiry } from "@novelty/redis/queries/index.query";
 import { emailClient } from "@novelty/email/client";
 import { EmailDeliveryError } from "@novelty/email/error";
 import VerifyEmail from "@novelty/email/templates/prototype.email";
+import {
+  VERIFICATION_EMAIL_EXPIRY_TIME,
+  VERIFICATION_EMAIL_TOKEN_LENGTH,
+} from "./lib/config";
 import * as React from "react";
 
 export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
@@ -94,6 +98,7 @@ export const sendVerificationEmail = async <
 >(
   dependencies: ServiceDependencies,
   body: InsertUser["sendVerificationEmail"],
+  senderEmail: string,
 ): Promise<ServiceResponse<TStatusCodes>> => {
   const dbDependencies = prepareDependencies(dependencies, "redisClient");
   const redisDependencies = prepareDependencies(dependencies, "dbInstance");
@@ -111,17 +116,10 @@ export const sendVerificationEmail = async <
     return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
   }
 
-  const token = generateVerificationToken(5);
-
-  await setWithExpiry(
-    redisDependencies,
-    `verify-email:${body.email}`,
-    token,
-    15 * 60,
-  );
+  const token = generateVerificationToken(VERIFICATION_EMAIL_TOKEN_LENGTH);
 
   const { error } = await emailClient.emails.send({
-    from: "novelty@mail.novelty.im",
+    from: senderEmail,
     to: body.email,
     subject: "Email verification link",
     react: <VerifyEmail validationCode={token} />,
@@ -130,6 +128,13 @@ export const sendVerificationEmail = async <
   if (error) {
     throw new EmailDeliveryError(`${error.message}`);
   }
+
+  await setWithExpiry(
+    redisDependencies,
+    `verify-email:${body.email}`,
+    token,
+    VERIFICATION_EMAIL_EXPIRY_TIME,
+  );
 
   return {
     status: HttpStatusCodes.OK as TStatusCodes,
