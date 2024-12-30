@@ -5,7 +5,7 @@ import type { Dependencies } from "../lib/types";
 export const pingRedisQuery = (dependencies: Dependencies) => {
   return createRedisQuery({
     dependencies,
-    queryName: "pingRedis",
+    queryName: "pingRedisQuery",
     query: (redis) => {
       return redis.ping();
     },
