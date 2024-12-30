@@ -5,7 +5,8 @@
     "lib": ["ESNext"],
     "baseUrl": "./",
     "module": "ESNext",
-    "moduleResolution": "bundler", // Ensure JSX support for .tsx files
+    "moduleResolution": "bundler",
+    "types": ["@testing-library/jest-dom"], // Ensure JSX support for .tsx files
     "allowJs": true, // Use appropriate module resolution
     "strict": true, // Enable compatibility with CommonJS modules
     "allowSyntheticDefaultImports": true, // Allow importing JavaScript files
