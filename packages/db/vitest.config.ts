@@ -6,5 +6,6 @@ export default defineConfig({
     reporters: ["default"],
     hookTimeout: 100000,
     include: ["**/*.test.ts", "!**/docker-data/**"],
+    setupFiles: "./test-setup.ts",
   },
 });
