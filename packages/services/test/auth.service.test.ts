@@ -185,6 +185,7 @@ describe("auth service", () => {
         tokenGenerationUtils,
         "generateVerificationToken",
       );
+
       generateVerificationTokenSpy.mockReturnValue(dummyToken);
 
       const setWithExpirySpy = vi.spyOn(redisQueries, "setWithExpiry");
