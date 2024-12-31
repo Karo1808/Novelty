@@ -74,10 +74,10 @@ export const handleSendVerificationEmail: AppRouteHandler<
   if (res.status === HttpStatusCodes.CONFLICT) {
     return c.json(
       {
-        message: "This email has already been verified",
+        message: res?.body?.message ?? "This email has already been verified",
         success: false,
       },
-      HttpStatusCodes.NOT_FOUND,
+      HttpStatusCodes.CONFLICT,
     );
   }
 

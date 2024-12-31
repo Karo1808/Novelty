@@ -1,34 +1,19 @@
-import { testClient } from "hono/testing";
 import { insertUserSchema, usersTable } from "@novelty/db/schemas/user.schema";
-import { Pool, type Pool as TPool } from "pg";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { RedisContainer } from "@testcontainers/redis";
-import type { StartedRedisContainer } from "@testcontainers/redis";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import env from "@/env";
+import * as email from "@novelty/email/client";
 import createApp from "@/lib/create-app";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { authRouter } from "../auth.index";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { InsertUser } from "@novelty/db/schemas/user.schema";
-import * as schema from "@novelty/db/schemas/index.schema";
-import path from "node:path";
-import { eq } from "drizzle-orm";
 import createErrorSchema from "@/lib/create-error-schema";
 import type { z } from "zod";
 import * as queries from "@novelty/db/queries/auth.query";
 import * as authServices from "@novelty/services/auth.service";
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
+import { testDb, testRedis } from "@/test-setup";
+import { testClient } from "hono/testing";
+import { eq } from "drizzle-orm";
 
 vi.mock("@hono/node-server/conninfo", () => ({
   getConnInfo: vi.fn(() => ({
@@ -38,24 +23,20 @@ vi.mock("@hono/node-server/conninfo", () => ({
   })),
 }));
 
-let dbClient: any;
-
 vi.mock("@novelty/db/index", () => ({
   get db() {
-    return dbClient;
+    return testDb;
   },
 }));
 
-let redis: any;
-
 vi.mock("@novelty/redis/index", () => ({
   get redis() {
-    return redis;
+    return testRedis;
   },
 }));
 
 vi.mock("@/middleware/rate-limit.ts", () => ({
-  mainLimiter: vi.fn(),
+  emailVerificationLimiter: vi.fn((c, next) => next()),
 }));
 
 if (env.NODE_ENV !== "test") {
@@ -65,38 +46,6 @@ if (env.NODE_ENV !== "test") {
 const client = testClient(createApp().route("/", authRouter));
 
 describe("auth routes", () => {
-  let pgContainer: StartedPostgreSqlContainer;
-  let redisContainer: StartedRedisContainer;
-  let pool: TPool;
-
-  beforeAll(async () => {
-    pgContainer = await new PostgreSqlContainer()
-      .withStartupTimeout(12000)
-      .start();
-
-    redisContainer = await new RedisContainer().start();
-
-    pool = new Pool({
-      connectionString: pgContainer.getConnectionUri(),
-    });
-
-    dbClient = drizzle({ client: pool, schema });
-    const migrationsFolder = path.resolve(
-      __dirname,
-      "../../../../../../packages/db/migrations",
-    );
-    await migrate(dbClient, {
-      migrationsFolder,
-    });
-  });
-
-  afterAll(async () => {
-    await pool.end();
-    await pgContainer.stop();
-    await redisContainer.stop();
-    vi.clearAllMocks();
-  });
-
   describe("post /register", () => {
     const dummyBody: InsertUser["register"] = {
       email: "email@mail.com",
@@ -104,7 +53,7 @@ describe("auth routes", () => {
     };
 
     afterEach(async () => {
-      await dbClient
+      await testDb
         .delete(usersTable)
         .where(eq(usersTable.email, dummyBody.email));
       vi.clearAllMocks();
@@ -136,7 +85,7 @@ describe("auth routes", () => {
     });
 
     it("returns conflict if email already exists", async () => {
-      await dbClient.insert(usersTable).values({
+      await testDb.insert(usersTable).values({
         email: dummyBody.email,
         password: "somehashedpassword",
       });
@@ -196,6 +145,181 @@ describe("auth routes", () => {
       expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
       const json = await response.json();
       expect(json).toHaveProperty("message");
+    });
+
+    it("handles concurrent requests correctly", async () => {
+      const numberOfRequests = 10;
+
+      const requests = Array.from({ length: numberOfRequests }).map(() =>
+        client.auth.register.$post({ json: dummyBody }),
+      );
+
+      const responses = await Promise.all(requests);
+
+      const successResponses = responses.filter(
+        res => res.status === HttpStatusCodes.CREATED,
+      );
+      expect(successResponses).toHaveLength(1);
+
+      const conflictResponses = responses.filter(
+        res => res.status === HttpStatusCodes.CONFLICT,
+      );
+      expect(conflictResponses).toHaveLength(numberOfRequests - 1);
+    });
+  });
+
+  describe("post /send-verification-email", () => {
+    const dummyBody: InsertUser["sendVerificationEmail"] = {
+      email: "email@mail.com",
+    };
+
+    const dummyUser: InsertUser["register"] = {
+      email: "email@mail.com",
+      password: "password",
+    };
+
+    const dummyId = "resend-response-id";
+
+    beforeEach(async () => {
+      await testDb
+        .delete(usersTable)
+        .where(eq(usersTable.email, dummyBody.email));
+      await testDb.insert(usersTable).values(dummyUser);
+      vi.clearAllMocks();
+    });
+
+    it("handles success", async () => {
+      vi.spyOn(email.emailClient.emails, "send").mockResolvedValue({
+        data: {
+          id: dummyId,
+        },
+        error: null,
+      });
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/email sent/i),
+        success: true,
+      });
+    });
+
+    it("returns not found if email does not exist", async () => {
+      await testDb
+        .delete(usersTable)
+        .where(eq(usersTable.email, dummyBody.email));
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+      const json = await response.json();
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/not exist/i),
+        success: false,
+      });
+    });
+
+    it("returns conflict if email is already verified", async () => {
+      await testDb
+        .update(usersTable)
+        .set({ isEmailVerified: true, ...dummyBody });
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.CONFLICT);
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/verified/i),
+        success: false,
+      });
+    });
+
+    it("returns unprocessable entity if request body is invalid", async () => {
+      const invalidBody = { email: "newuser" };
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(
+        insertUserSchema.shape.sendVerificationEmail,
+      );
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("returns service unavailable if database connection fails", async () => {
+      vi.spyOn(queries, "getIsEmailVerifiedQuery").mockImplementationOnce(
+        () => {
+          throw new DatabaseConnectionError("Database connection failed");
+        },
+      );
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("returns internal server error on unexpected error", async () => {
+      vi.spyOn(authServices, "sendVerificationEmail").mockImplementationOnce(
+        () => {
+          throw new Error("Unexpected error");
+        },
+      );
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("handles concurrent requests correctly", async () => {
+      const numberOfRequests = 3;
+
+      const requests = Array.from({ length: numberOfRequests }).map(() =>
+        client.auth["send-verification-email"].$post({ json: dummyBody }),
+      );
+
+      const responses = await Promise.all(requests);
+
+      const successResponses = responses.filter(
+        res => res.status === HttpStatusCodes.OK,
+      );
+      expect(successResponses).toHaveLength(1);
+
+      const conflictResponses = responses.filter(
+        res => res.status === HttpStatusCodes.CONFLICT,
+      );
+
+      const conflictJson = await conflictResponses[0]?.json();
+
+      expect(conflictJson?.message).toMatch(/another process/i);
+
+      expect(conflictResponses).toHaveLength(numberOfRequests - 1);
     });
   });
 });
