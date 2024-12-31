@@ -49,7 +49,7 @@ export default function createApp() {
   app.use("*", sentry({ dsn: env.SENTRY_DSN }));
   app.use("*", sentryConfigureScope());
   app.use(requestLogger());
-  app.use("/auth/send-email", emailVerificationLimiter);
+  app.use("/auth/send-verification-email", emailVerificationLimiter);
 
   app.onError(onError);
   app.notFound(notFound);

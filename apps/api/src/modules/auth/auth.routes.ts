@@ -52,7 +52,7 @@ export type RegisterRoute = typeof registerRoute;
 export const sendVerificationEmailRoute = createRoute({
   tags,
   method: "post",
-  path: "/auth/send-email",
+  path: "/auth/send-verification-email",
   description: "Sends the verification email to the user",
   request: {
     body: jsonContentRequired(
