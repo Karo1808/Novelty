@@ -1,5 +1,10 @@
 import type { RedisKey, RedisValue } from "ioredis";
-import { pingRedisQuery, setWithExpiry } from "queries/index.query";
+import {
+  acquireLock,
+  pingRedisQuery,
+  releaseLock,
+  setWithExpiry,
+} from "queries/index.query";
 import { testClient, testDependencies } from "test-setup";
 import { describe, expect, it } from "vitest";
 
@@ -55,5 +60,65 @@ describe("index redis queries", () => {
     await new Promise(resolve => setTimeout(resolve, 2000));
     const expiredValue = await testClient.get(key);
     expect(expiredValue).toBeNull();
+  });
+
+  describe("acquireLock", () => {
+    const key: RedisKey = "test-key";
+    const value: RedisValue = "test-value";
+    const expiryTime = 5;
+
+    it("should acquire lock when key does not exist", async () => {
+      await testClient.del(key);
+      const result = await acquireLock(
+        testDependencies,
+        key,
+        value,
+        expiryTime,
+      );
+
+      expect(result).toBeTruthy();
+    });
+
+    it("should fail to acquire the lock when key already exists", async () => {
+      const key = "test-key";
+      const value = "test-value";
+      const expiryTime = 60;
+
+      const result = await acquireLock(
+        testDependencies,
+        key,
+        value,
+        expiryTime,
+      );
+
+      expect(result).toBeFalsy();
+    });
+  });
+
+  describe("releaseLock", () => {
+    const key: RedisKey = "test-key";
+    const value: RedisValue = "test-value";
+
+    it("should release the lock if key exists", async () => {
+      const result = await releaseLock(testDependencies, key, value);
+
+      expect(result).toBeTruthy();
+    });
+
+    it("should not release the lock if the key does not exist", async () => {
+      await testClient.del(key);
+
+      const result = await releaseLock(testDependencies, key, value);
+
+      expect(result).toBeFalsy();
+    });
+
+    it("should not release the lock when the value does not match", async () => {
+      const nonMatchingValue = "incorrect-value";
+
+      const result = await releaseLock(testDependencies, key, nonMatchingValue);
+
+      expect(result).toBeFalsy();
+    });
   });
 });
