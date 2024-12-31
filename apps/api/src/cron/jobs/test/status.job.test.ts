@@ -4,9 +4,6 @@ import { callHealthcheck } from "../status.job";
 import * as Sentry from "@sentry/node";
 import logger from "@/lib/logger";
 import env from "@/env";
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { Pool, type Pool as TPool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
 import type { HealthcheckOKResponse } from "$/healhcheck/healthcheck.validations";
 
 vi.mock("@sentry/node", () => ({
@@ -38,28 +35,16 @@ describe("callHealthcheck", () => {
   const mockMonitorSlug = "healthcheck-cron";
   const mockCheckInId = "mock-checkin-id";
 
-  let container: any;
-  let pool: TPool;
-
   beforeEach(async () => {
-    container = await new PostgreSqlContainer()
-      .withStartupTimeout(12000)
-      .start();
-    pool = new Pool({
-      connectionString: container.getConnectionUri(),
-    });
     vi.clearAllMocks();
     (Sentry.captureCheckIn as Mock).mockReturnValue(mockCheckInId);
   });
 
   afterEach(async () => {
     vi.clearAllMocks();
-    await pool.end();
-    await container.stop();
   });
 
   it("should call the healthcheck endpoint and mark it as successful", async () => {
-    dbClient = drizzle({ client: pool });
     // eslint-disable-next-line ts/ban-ts-comment
     // @ts-expect-error
     globalThis.fetch = vi.fn(() =>
