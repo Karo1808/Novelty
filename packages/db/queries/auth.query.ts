@@ -11,8 +11,8 @@ export const getUserByEmailQuery = (
   return createDBQuery({
     dependencies,
     queryName: "getUserByEmail",
-    query: (db) => {
-      return db.query.usersTable.findFirst({
+    query: async (db) => {
+      return await db.query.usersTable.findFirst({
         where: eq(usersTable.email, email),
         columns: {
           password: false,
@@ -29,8 +29,8 @@ export const createUserQuery = (
   return createDBQuery({
     dependencies,
     queryName: "createUser",
-    query: (db) => {
-      return db.insert(usersTable).values(newUser).returning({
+    query: async (db) => {
+      return await db.insert(usersTable).values(newUser).returning({
         id: usersTable.id,
         email: usersTable.email,
         isEmailVerified: usersTable.isEmailVerified,
@@ -48,8 +48,8 @@ export const getIsEmailVerifiedQuery = (
   return createDBQuery({
     dependencies,
     queryName: "getIsEmailVerifiedQuery",
-    query: (db) => {
-      return db.query.usersTable.findFirst({
+    query: async (db) => {
+      return await db.query.usersTable.findFirst({
         where: eq(usersTable.email, email),
         columns: {
           isEmailVerified: true,
