@@ -1,16 +1,13 @@
 import { testClient } from "hono/testing";
-import { Pool, type Pool as TPool } from "pg";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { RedisContainer } from "@testcontainers/redis";
-import type { StartedRedisContainer } from "@testcontainers/redis";
+import type { Pool as TPool } from "pg";
+import { describe, expect, it, vi } from "vitest";
 import env from "@/env";
 import createApp from "@/lib/create-app";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { healthcheckRouter } from "../healthcheck.index";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Redis } from "ioredis";
+import { testDb, testRedis } from "@/test-setup";
 
 vi.mock("@hono/node-server/conninfo", () => ({
   getConnInfo: vi.fn(() => ({
@@ -38,6 +35,7 @@ vi.mock("@novelty/redis/index", () => ({
 
 vi.mock("@/middleware/rate-limit.ts", () => ({
   mainLimiter: vi.fn(),
+  emailVerificationLimiter: vi.fn(),
 }));
 
 if (env.NODE_ENV !== "test") {
@@ -47,32 +45,9 @@ if (env.NODE_ENV !== "test") {
 const client = testClient(createApp().route("/", healthcheckRouter));
 
 describe("healthcheck routes", () => {
-  let pgContainer: StartedPostgreSqlContainer;
-  let redisContainer: StartedRedisContainer;
-  let pool: TPool;
-
-  beforeAll(async () => {
-    pgContainer = await new PostgreSqlContainer()
-      .withStartupTimeout(12000)
-      .start();
-
-    redisContainer = await new RedisContainer().start();
-
-    pool = new Pool({
-      connectionString: pgContainer.getConnectionUri(),
-    });
-  });
-
-  afterAll(async () => {
-    await pool.end();
-    await pgContainer.stop();
-    await redisContainer.stop();
-    vi.clearAllMocks();
-  });
-
   it("get /healthcheck handles service available", async () => {
-    dbClient = drizzle({ client: pool });
-    redis = new Redis(redisContainer.getConnectionUrl());
+    dbClient = testDb;
+    redis = testRedis;
 
     const response = await client.healthcheck.$get();
 
@@ -105,7 +80,7 @@ describe("healthcheck routes", () => {
 
   it("get /healthcheck handles database service unavailable", async () => {
     dbClient = drizzle({ client: "" as unknown as TPool });
-    redis = new Redis(redisContainer.getConnectionUrl());
+    redis = testRedis;
 
     const response = await client.healthcheck.$get();
 
@@ -119,7 +94,7 @@ describe("healthcheck routes", () => {
   });
 
   it("get /healthcheck handles redis service unavailable", async () => {
-    dbClient = drizzle({ client: pool });
+    dbClient = testDb;
     redis = new Redis({
       port: 0,
       retryStrategy: () => {},
