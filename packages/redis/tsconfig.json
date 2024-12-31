@@ -5,6 +5,7 @@
     "baseUrl": "./",
     "module": "ESNext",
     "moduleResolution": "Node",
+    "types": [],
     "inlineSources": true,
     "outDir": "dist",
     "sourceMap": true
