@@ -6,8 +6,8 @@ export const pingRedisQuery = (dependencies: Dependencies) => {
   return createRedisQuery({
     dependencies,
     queryName: "pingRedisQuery",
-    query: (redis) => {
-      return redis.ping();
+    query: async (redis) => {
+      return await redis.ping();
     },
   });
 };
@@ -21,8 +21,44 @@ export const setWithExpiry = (
   return createRedisQuery({
     dependencies,
     queryName: "setWithExpiryQuery",
-    query: (redis) => {
-      return redis.set(key, value, "EX", expiryTime);
+    query: async (redis) => {
+      return await redis.set(key, value, "EX", expiryTime);
+    },
+  });
+};
+
+export const acquireLock = (
+  dependencies: Dependencies,
+  key: RedisKey,
+  value: RedisValue,
+  expiryTime: number,
+) => {
+  return createRedisQuery({
+    dependencies,
+    queryName: "acquireLockQuery",
+    query: async (redis) => {
+      return await redis.set(key, value, "EX", expiryTime, "NX");
+    },
+  });
+};
+
+export const releaseLock = (
+  dependencies: Dependencies,
+  key: RedisKey,
+  value: RedisValue,
+) => {
+  return createRedisQuery({
+    dependencies,
+    queryName: "releaseLockQuery",
+    query: async (redis) => {
+      const script = `
+      if redis.call("GET", KEYS[1]) == ARGV[1] then
+          return redis.call("DEL", KEYS[1])
+      else
+          return 0
+      end
+    `;
+      return await redis.eval(script, 1, key, value);
     },
   });
 };
