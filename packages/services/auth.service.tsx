@@ -17,7 +17,11 @@ import {
   type HttpStatusCodeValue,
 } from "@novelty/lib/http-status-codes";
 import { generateVerificationToken } from "@novelty/lib/generate-verification-token";
-import { setWithExpiry } from "@novelty/redis/queries/index.query";
+import {
+  acquireLock,
+  releaseLock,
+  setWithExpiry,
+} from "@novelty/redis/queries/index.query";
 import { emailClient } from "@novelty/email/client";
 import { EmailDeliveryError } from "@novelty/email/error";
 import VerifyEmail from "@novelty/email/templates/prototype.email";
@@ -103,40 +107,65 @@ export const sendVerificationEmail = async <
   const dbDependencies = prepareDependencies(dependencies, "redisClient");
   const redisDependencies = prepareDependencies(dependencies, "dbInstance");
 
-  const isEmailVerified = await getIsEmailVerifiedQuery(
-    dbDependencies,
-    body.email,
-  );
+  const lockKey = `lock:send-email-verification:${body.email}`;
+  const lockValue = `unique-lock-value-${Date.now()}`;
+  const ttl = 5;
 
-  if (isEmailVerified?.isEmailVerified === undefined) {
-    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
-  }
-
-  if (isEmailVerified.isEmailVerified === true) {
-    return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
-  }
-
-  const token = generateVerificationToken(VERIFICATION_EMAIL_TOKEN_LENGTH);
-
-  const { error } = await emailClient.emails.send({
-    from: senderEmail,
-    to: body.email,
-    subject: "Email verification link",
-    react: <VerifyEmail validationCode={token} />,
-  });
-
-  if (error) {
-    throw new EmailDeliveryError(`${error.message}`);
-  }
-
-  await setWithExpiry(
+  const isLockAcquired = await acquireLock(
     redisDependencies,
-    `verify-email:${body.email}`,
-    token,
-    VERIFICATION_EMAIL_EXPIRY_TIME,
+    lockKey,
+    lockValue,
+    ttl,
   );
 
-  return {
-    status: HttpStatusCodes.OK as TStatusCodes,
-  };
+  if (!isLockAcquired) {
+    return {
+      status: HttpStatusCodes.CONFLICT as TStatusCodes,
+      body: {
+        message: "Another process is already handling this email",
+      },
+    };
+  }
+
+  try {
+    const isEmailVerified = await getIsEmailVerifiedQuery(
+      dbDependencies,
+      body.email,
+    );
+
+    if (isEmailVerified?.isEmailVerified === undefined) {
+      return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+    }
+
+    if (isEmailVerified.isEmailVerified === true) {
+      return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+    }
+
+    const token = generateVerificationToken(VERIFICATION_EMAIL_TOKEN_LENGTH);
+
+    const { error } = await emailClient.emails.send({
+      from: senderEmail,
+      to: body.email,
+      subject: "Email verification link",
+      react: <VerifyEmail validationCode={token} />,
+    });
+
+    if (error) {
+      throw new EmailDeliveryError(`${error.message}`);
+    }
+
+    await setWithExpiry(
+      redisDependencies,
+      `verify-email:${body.email}`,
+      token,
+      VERIFICATION_EMAIL_EXPIRY_TIME,
+    );
+
+    return {
+      status: HttpStatusCodes.OK as TStatusCodes,
+    };
+  }
+  finally {
+    await releaseLock(redisDependencies, lockKey, lockValue);
+  }
 };
