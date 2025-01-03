@@ -10,7 +10,6 @@ import { prometheusRegistry } from "@/lib/metrics";
 import type { ServiceResponse } from "@novelty/services/types";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
-import env from "@/env";
 
 export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   const body = c.req.valid("json");
@@ -58,7 +57,6 @@ export const handleSendVerificationEmail: AppRouteHandler<
         reqId: c.var.requestId,
       },
       body,
-      env.EMAIL_ADDRESS,
     );
 
   if (res.status === HttpStatusCodes.NOT_FOUND) {
