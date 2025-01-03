@@ -19,12 +19,12 @@
     "@novelty/email": "workspace:*",
     "@novelty/lib": "workspace:*",
     "@novelty/redis": "workspace:*",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.4.7",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^3.9.2",
+    "@antfu/eslint-config": "^3.12.1",
     "@novelty/typescript-config": "workspace:*",
     "@testcontainers/postgresql": "^10.16.0",
     "@testcontainers/redis": "^10.16.0",
@@ -35,7 +35,7 @@
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "drizzle-orm": "^0.36.4",
-    "ioredis": "^5.4.1",
+    "ioredis": "^5.4.2",
     "jsdom": "^25.0.1",
     "pg": "^8.13.1",
     "prom-client": "^15.1.3",
