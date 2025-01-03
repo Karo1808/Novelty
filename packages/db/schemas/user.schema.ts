@@ -19,8 +19,8 @@ export const usersTable = pgTable("users", {
 });
 
 const baseSchema = createInsertSchema(usersTable, {
-  email: schema => schema.email.email(),
-  password: schema => schema.password.min(1),
+  email: schema => schema.email(),
+  password: schema => schema.min(1),
 }).pick({
   email: true,
   password: true,
