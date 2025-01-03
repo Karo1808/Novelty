@@ -18,10 +18,9 @@
     "@novelty/db": "workspace:*",
     "@novelty/email": "workspace:*",
     "@novelty/lib": "workspace:*",
+    "@novelty/message-queue": "workspace:*",
     "@novelty/redis": "workspace:*",
-    "dotenv": "^16.4.7",
-    "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "dotenv": "^16.4.7"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^3.12.1",
@@ -31,9 +30,6 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/pg": "^8.11.10",
-    "@types/react": "^19.0.2",
-    "@types/react-dom": "^19.0.2",
-    "@vitejs/plugin-react": "^4.3.4",
     "drizzle-orm": "^0.36.4",
     "ioredis": "^5.4.2",
     "jsdom": "^25.0.1",

@@ -22,14 +22,13 @@ import {
   releaseLock,
   setWithExpiry,
 } from "@novelty/redis/queries/index.query";
-import { emailClient } from "@novelty/email/client";
 import { EmailDeliveryError } from "@novelty/email/error";
-import VerifyEmail from "@novelty/email/templates/prototype.email";
 import {
   VERIFICATION_EMAIL_EXPIRY_TIME,
   VERIFICATION_EMAIL_TOKEN_LENGTH,
 } from "./lib/config";
-import * as React from "react";
+import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
+import { emailQueue } from "@novelty/message-queue/queues/email.queue";
 
 export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
   dependencies: MarkKeysAsPartial<ServiceDependencies, "redisClient">,
@@ -102,7 +101,6 @@ export const sendVerificationEmail = async <
 >(
   dependencies: ServiceDependencies,
   body: InsertUser["sendVerificationEmail"],
-  senderEmail: string,
 ): Promise<ServiceResponse<TStatusCodes>> => {
   const dbDependencies = prepareDependencies(dependencies, "redisClient");
   const redisDependencies = prepareDependencies(dependencies, "dbInstance");
@@ -143,15 +141,16 @@ export const sendVerificationEmail = async <
 
     const token = generateVerificationToken(VERIFICATION_EMAIL_TOKEN_LENGTH);
 
-    const { error } = await emailClient.emails.send({
-      from: senderEmail,
-      to: body.email,
-      subject: "Email verification link",
-      react: <VerifyEmail validationCode={token} />,
-    });
-
-    if (error) {
-      throw new EmailDeliveryError(`${error.message}`);
+    try {
+      await addJobToQueue(emailQueue, "send-verification-email", {
+        email: body.email,
+        token,
+      });
+    }
+    catch (err: unknown) {
+      throw new EmailDeliveryError(
+        `Failed to enqueue email job: ${(err as Error).message}`,
+      );
     }
 
     await setWithExpiry(
