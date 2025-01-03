@@ -13,6 +13,7 @@ export default defineConfig({
     environment: "node",
     reporters: ["default"],
     hookTimeout: 100000,
+    setupFiles: "./src/test-setup.ts",
   },
   resolve: {
     alias: {

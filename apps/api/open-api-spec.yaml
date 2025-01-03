@@ -211,3 +211,116 @@ paths:
                   message: >-
                     The server is currently unable to handle the request. Please
                     try again later.
+  /auth/send-verification-email:
+    post:
+      tags:
+        - Auth
+      description: Sends the verification email to the user
+      requestBody:
+        description: The user email
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  maxLength: 255
+                  format: email
+      responses:
+        '200':
+          description: Email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: Email verification sent successfully
+        '404':
+          description: Email not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: This email does not exist
+        '409':
+          description: Email already verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: This email has already been verified
+        '422':
+          description: Validation error(s)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+                    properties:
+                      issues:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            code:
+                              type: string
+                            path:
+                              type: array
+                              items:
+                                anyOf:
+                                  - type: string
+                                  - type: number
+                            message:
+                              type: string
+                      name:
+                        type: string
+                    example:
+                      issues:
+                        - code: invalid_type
+                          expected: string
+                          received: undefined
+                          path:
+                            - email
+                          message: Required
+                      name: ZodError
+        '429':
+          description: Rate limiter
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: Too many requests, try again later
+        '503':
+          description: Services unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: >-
+                    The server is currently unable to handle the request. Please
+                    try again later.

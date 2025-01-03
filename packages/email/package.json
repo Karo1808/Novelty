@@ -1,0 +1,29 @@
+{
+  "name": "@novelty/email",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "dev": "email dev --dir templates --port 3003",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "clean": "rm -rf node_modules .turbo dist "
+  },
+  "dependencies": {
+    "@react-email/components": "0.0.31",
+    "dotenv": "^16.4.7",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "resend": "^4.0.1"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^3.12.1",
+    "@novelty/typescript-config": "workspace:*",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "react-email": "^3.0.4",
+    "typescript": "5.5.4"
+  }
+}
