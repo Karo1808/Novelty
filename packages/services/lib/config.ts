@@ -1,0 +1,2 @@
+export const VERIFICATION_EMAIL_TOKEN_LENGTH = 5 as const;
+export const VERIFICATION_EMAIL_EXPIRY_TIME = 15 * 60;

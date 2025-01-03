@@ -1,5 +1,5 @@
 import type { ErrorHandler } from "hono";
-import type { StatusCode } from "hono/utils/http-status";
+import type { ContentfulStatusCode, StatusCode } from "hono/utils/http-status";
 
 import { getConnInfo } from "@hono/node-server/conninfo";
 
@@ -14,6 +14,12 @@ const onError: ErrorHandler = (err, c) => {
     = currentStatus !== HttpStatusCodes.OK
       ? (currentStatus as StatusCode)
       : HttpStatusCodes.INTERNAL_SERVER_ERROR;
+
+  const validStatusCode: ContentfulStatusCode = [204, 205, 304].includes(
+    statusCode,
+  )
+    ? HttpStatusCodes.INTERNAL_SERVER_ERROR // fallback to a default
+    : (statusCode as ContentfulStatusCode);
 
   const nodeEnv = env.NODE_ENV ?? "development";
 
@@ -38,7 +44,7 @@ const onError: ErrorHandler = (err, c) => {
       message: err.message,
       stack: nodeEnv === "production" ? undefined : err.stack,
     },
-    statusCode,
+    validStatusCode,
   );
 };
 

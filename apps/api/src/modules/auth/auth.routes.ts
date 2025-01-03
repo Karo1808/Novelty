@@ -4,11 +4,15 @@ import { jsonContent, jsonContentRequired } from "@/lib/json-content";
 import {
   registerConflictSchema,
   registerCreatedSchema,
+  sendVerificationEmailConflictSchema,
+  sendVerificationEmailNotFoundSchema,
+  sendVerificationEmailSuccessSchema,
 } from "./auth.validations";
 
 import { insertUserSchema } from "@novelty/db/schemas/user.schema";
 import createErrorSchema from "@/lib/create-error-schema";
 import { serviceUnavailableSchema } from "@/lib/service-unavailable-schema";
+import { tooManyRequestsSchema } from "@/lib/too-many-requests-schema";
 
 const tags = ["Auth"];
 
@@ -44,3 +48,44 @@ export const registerRoute = createRoute({
 });
 
 export type RegisterRoute = typeof registerRoute;
+
+export const sendVerificationEmailRoute = createRoute({
+  tags,
+  method: "post",
+  path: "/auth/send-verification-email",
+  description: "Sends the verification email to the user",
+  request: {
+    body: jsonContentRequired(
+      insertUserSchema.shape.sendVerificationEmail,
+      "The user email",
+    ),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      sendVerificationEmailSuccessSchema,
+      "Email sent",
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      sendVerificationEmailNotFoundSchema,
+      "Email not found",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      sendVerificationEmailConflictSchema,
+      "Email already verified",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertUserSchema.shape.sendVerificationEmail),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type SendVerificationEmailRoute = typeof sendVerificationEmailRoute;

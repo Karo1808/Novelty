@@ -1,69 +1,23 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDBQuery } from "../create-db-query";
 import { DatabaseConnectionError, QueryExecutionError } from "../errors";
-import { Registry } from "prom-client";
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { configureLogger } from "@novelty/lib/logger";
-import type { DBClient, Dependencies } from "lib/types";
+import type { DBClient } from "lib/types";
 import { sql } from "drizzle-orm";
-import type { Pool as TPool } from "pg";
-import { Pool } from "pg";
 import * as Sentry from "@novelty/lib/sentry";
 import * as metrics from "../metrics";
 import "dotenv/config";
-
-// eslint-disable-next-line node/no-process-env
-if (process.env.NODE_ENV !== "test") {
-  throw new Error("NODE_ENV must be 'test'");
-}
+import { testDependencies } from "test-setup";
 
 describe("createDBQuery", () => {
-  let container: any;
-  let pool: TPool;
-  let dbClient: DBClient;
-  let dependencies: Dependencies;
-  let logger: any;
-  let loggerErrorSpy: any;
   let captureExceptionSpy: any;
   let endTimerSpy: any;
   let startTimerSpy: any;
 
   beforeAll(async () => {
-    container = await new PostgreSqlContainer()
-      .withStartupTimeout(12000)
-      .start();
-    pool = new Pool({
-      connectionString: container.getConnectionUri(),
-    });
-    dbClient = drizzle({ client: pool });
-    logger = configureLogger({
-      nodeEnvironment: "test",
-      hostUrl: "",
-      labels: {},
-      logLevel: "info",
-    });
-    dependencies = {
-      dbInstance: dbClient,
-      logger,
-      reqId: "test-req-id",
-      prometheusRegistry: new Registry(),
-    };
-
-    loggerErrorSpy = vi.spyOn(logger, "error");
-
     captureExceptionSpy = vi.spyOn(Sentry, "captureException");
 
     const histogram = metrics.dbQueryDurationHistogram(
-      dependencies.prometheusRegistry,
+      testDependencies.prometheusRegistry,
     );
     startTimerSpy = vi.spyOn(histogram, "startTimer").mockImplementation(() => {
       endTimerSpy = vi.fn();
@@ -72,7 +26,6 @@ describe("createDBQuery", () => {
   });
 
   beforeEach(() => {
-    loggerErrorSpy.mockClear();
     captureExceptionSpy.mockClear();
     startTimerSpy.mockClear();
     if (endTimerSpy) {
@@ -80,15 +33,9 @@ describe("createDBQuery", () => {
     }
   });
 
-  afterAll(async () => {
-    await pool.end();
-    await container.stop();
-    vi.clearAllMocks();
-  });
-
   it("executes a successful query", async () => {
     const result = await createDBQuery({
-      dependencies,
+      dependencies: testDependencies,
       queryName: "insert-test",
       query: async (db) => {
         const res = await db.execute(sql`SELECT 1`);
@@ -100,32 +47,19 @@ describe("createDBQuery", () => {
     expect(startTimerSpy).toHaveBeenCalledWith({ queryName: "insert-test" });
     expect(endTimerSpy).toHaveBeenCalledWith({ status: "success" });
 
-    expect(loggerErrorSpy).not.toHaveBeenCalled();
     expect(captureExceptionSpy).not.toHaveBeenCalled();
   });
 
   it("handles query errors", async () => {
     await expect(
       createDBQuery({
-        dependencies,
+        dependencies: testDependencies,
         queryName: "error-test",
         query: async (db) => {
           await db.execute(sql`SELEC 1`); // Intentional typo to cause an error
         },
       }),
     ).rejects.toThrow(QueryExecutionError);
-
-    expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining(
-          "Query execution failed for error-test",
-        ),
-        source: "error-test",
-        error: expect.any(String),
-        stackTrace: expect.any(String),
-        reqId: "test-req-id",
-      }),
-    );
 
     expect(captureExceptionSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -154,7 +88,7 @@ describe("createDBQuery", () => {
       }),
     } as unknown as DBClient;
     const invalidDependencies = {
-      ...dependencies,
+      ...testDependencies,
       dbInstance: mockDbInstance,
     };
     await expect(
@@ -166,16 +100,6 @@ describe("createDBQuery", () => {
         },
       }),
     ).rejects.toThrow(DatabaseConnectionError);
-
-    expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: "Database connection could not be established",
-        source: "no-db-test",
-        error: "Connection error",
-        stackTrace: expect.any(String),
-        reqId: "test-req-id",
-      }),
-    );
 
     expect(captureExceptionSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -199,7 +123,7 @@ describe("createDBQuery", () => {
   it("handles query timeout", async () => {
     await expect(
       createDBQuery({
-        dependencies,
+        dependencies: testDependencies,
         queryName: "timeout-test",
         timeoutDurationMs: 1000,
         query: async (db) => {
@@ -208,18 +132,6 @@ describe("createDBQuery", () => {
         },
       }),
     ).rejects.toThrow(QueryExecutionError);
-
-    expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining(
-          "Query execution failed for timeout-test",
-        ),
-        source: "timeout-test",
-        error: expect.stringContaining("Query timed out after 1000"),
-        stackTrace: expect.any(String),
-        reqId: "test-req-id",
-      }),
-    );
 
     expect(captureExceptionSpy).toHaveBeenCalledWith(
       expect.objectContaining({

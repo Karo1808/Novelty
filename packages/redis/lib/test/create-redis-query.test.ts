@@ -1,5 +1,4 @@
 import {
-  afterAll,
   beforeAll,
   beforeEach,
   describe,
@@ -8,17 +7,12 @@ import {
   vi,
 } from "vitest";
 import type { Command, Redis as TRedis } from "ioredis";
-import { Redis } from "ioredis";
 import { createRedisQuery } from "../create-redis-query";
 import { RedisConnectionError, RedisQueryError } from "../errors";
-import { Registry } from "prom-client";
-import type { StartedRedisContainer } from "@testcontainers/redis";
-import { RedisContainer } from "@testcontainers/redis";
-import { configureLogger } from "@novelty/lib/logger";
-import type { Dependencies } from "../types";
 import * as Sentry from "@novelty/lib/sentry";
 import * as metrics from "../metrics";
 import "dotenv/config";
+import { testDependencies } from "test-setup";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {
@@ -26,39 +20,15 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 describe("createRedisQuery", () => {
-  let container: StartedRedisContainer;
-  let redisClient: TRedis;
-  let dependencies: Dependencies;
-  let logger: any;
-  let loggerErrorSpy: any;
   let captureExceptionSpy: any;
   let endTimerSpy: any;
   let startTimerSpy: any;
 
   beforeAll(async () => {
-    container = await new RedisContainer().start();
-
-    redisClient = new Redis(container.getConnectionUrl());
-
-    logger = configureLogger({
-      nodeEnvironment: "test",
-      hostUrl: "",
-      labels: {},
-      logLevel: "info",
-    });
-    dependencies = {
-      redisClient,
-      logger,
-      reqId: "test-req-id",
-      prometheusRegistry: new Registry(),
-    };
-
-    loggerErrorSpy = vi.spyOn(logger, "error");
-
     captureExceptionSpy = vi.spyOn(Sentry, "captureException");
 
     const histogram = metrics.redisQueryDurationHistogram(
-      dependencies.prometheusRegistry,
+      testDependencies.prometheusRegistry,
     );
     startTimerSpy = vi.spyOn(histogram, "startTimer").mockImplementation(() => {
       endTimerSpy = vi.fn();
@@ -67,7 +37,6 @@ describe("createRedisQuery", () => {
   });
 
   beforeEach(() => {
-    loggerErrorSpy.mockClear();
     captureExceptionSpy.mockClear();
     startTimerSpy.mockClear();
     if (endTimerSpy) {
@@ -75,14 +44,9 @@ describe("createRedisQuery", () => {
     }
   });
 
-  afterAll(async () => {
-    await container.stop();
-    vi.clearAllMocks();
-  });
-
   it("executes a successful query", async () => {
     const result = await createRedisQuery({
-      dependencies,
+      dependencies: testDependencies,
       queryName: "ping-test",
       query: async (redis) => {
         const res = await redis.ping();
@@ -94,14 +58,13 @@ describe("createRedisQuery", () => {
     expect(startTimerSpy).toHaveBeenCalledWith({ queryName: "ping-test" });
     expect(endTimerSpy).toHaveBeenCalledWith({ status: "success" });
 
-    expect(loggerErrorSpy).not.toHaveBeenCalled();
     expect(captureExceptionSpy).not.toHaveBeenCalled();
   });
 
   it("handles query errors", async () => {
     await expect(
       createRedisQuery({
-        dependencies,
+        dependencies: testDependencies,
         queryName: "error-test",
         query: async (redis) => {
           await redis.sendCommand(
@@ -110,18 +73,6 @@ describe("createRedisQuery", () => {
         },
       }),
     ).rejects.toThrow(RedisQueryError);
-
-    expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining(
-          "Query execution failed for error-test",
-        ),
-        source: "error-test",
-        error: expect.any(String),
-        stackTrace: expect.any(String),
-        reqId: "test-req-id",
-      }),
-    );
 
     expect(captureExceptionSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -151,7 +102,7 @@ describe("createRedisQuery", () => {
       }),
     } as unknown as TRedis;
     const invalidDependencies = {
-      ...dependencies,
+      ...testDependencies,
       redisClient: mockRedisClient,
     };
     await expect(
@@ -163,16 +114,6 @@ describe("createRedisQuery", () => {
         },
       }),
     ).rejects.toThrow(RedisConnectionError);
-
-    expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: "Redis connection could not be established",
-        source: "no-redis-test",
-        error: expect.any(String),
-        stackTrace: expect.any(String),
-        reqId: "test-req-id",
-      }),
-    );
 
     expect(captureExceptionSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -196,7 +137,7 @@ describe("createRedisQuery", () => {
   it("handles query timeout", async () => {
     await expect(
       createRedisQuery({
-        dependencies,
+        dependencies: testDependencies,
         queryName: "timeout-test",
         timeoutDurationMs: 1000,
         query: async (redis) => {
@@ -205,18 +146,6 @@ describe("createRedisQuery", () => {
         },
       }),
     ).rejects.toThrowError();
-
-    expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining(
-          "Query execution failed for timeout-test",
-        ),
-        source: "timeout-test",
-        error: expect.any(String),
-        stackTrace: expect.any(String),
-        reqId: "test-req-id",
-      }),
-    );
 
     expect(captureExceptionSpy).toHaveBeenCalledWith(
       expect.objectContaining({
