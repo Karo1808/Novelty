@@ -70,7 +70,7 @@
     "@types/node": "^20.17.11",
     "@types/node-cron": "^3.0.11",
     "cross-env": "^7.0.3",
-    "drizzle-orm": "^0.36.4",
+    "drizzle-orm": "^0.38.03",
     "ioredis": "^5.4.2",
     "pg": "^8.13.1",
     "testcontainers": "^10.16.0",
