@@ -24,6 +24,9 @@ import {
 } from "@novelty/redis/queries/index.query";
 import { EmailDeliveryError } from "@novelty/email/error";
 import {
+  EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
+  EMAIL_QUEUE_COMPLETED_JOBS_TIME,
+  EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
   VERIFICATION_EMAIL_EXPIRY_TIME,
   VERIFICATION_EMAIL_TOKEN_LENGTH,
 } from "./lib/config";
@@ -142,10 +145,25 @@ export const sendVerificationEmail = async <
     const token = generateVerificationToken(VERIFICATION_EMAIL_TOKEN_LENGTH);
 
     try {
-      await addJobToQueue(emailQueue, "send-verification-email", {
-        email: body.email,
-        token,
-      });
+      await addJobToQueue(
+        emailQueue,
+        "send-verification-email",
+        {
+          email: body.email,
+          token,
+        },
+        {
+          jobId: dependencies.reqId,
+          removeOnComplete: {
+            age: EMAIL_QUEUE_COMPLETED_JOBS_TIME,
+            count: EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
+          },
+          removeOnFail: {
+            age: EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
+            count: EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
+          },
+        },
+      );
     }
     catch (err: unknown) {
       throw new EmailDeliveryError(
