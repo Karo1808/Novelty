@@ -10,6 +10,7 @@ import { prometheusRegistry } from "@/lib/metrics";
 import type { ServiceResponse } from "@novelty/services/types";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
+import { emailQueue } from "@novelty/message-queue/queues/email.queue";
 
 export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   const body = c.req.valid("json");
@@ -52,6 +53,7 @@ export const handleSendVerificationEmail: AppRouteHandler<
       {
         dbInstance: db,
         redisClient: redis,
+        messageQueueInstance: emailQueue,
         logger,
         prometheusRegistry,
         reqId: c.var.requestId,
