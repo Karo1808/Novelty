@@ -1,14 +1,18 @@
+import type { ConnectionOptions } from "bullmq";
 import { Queue, QueueEvents } from "bullmq";
 import { redisConfig } from "../config/index";
 import { logger } from "./logger";
 import { captureException } from "@novelty/lib/sentry";
 
-export const createQueue = (queueName: string) => {
+export const createQueue = (
+  queueName: string,
+  redisConnection: ConnectionOptions = redisConfig,
+) => {
   const queue = new Queue(queueName, {
-    connection: redisConfig,
+    connection: redisConnection,
   });
   const events = new QueueEvents(queueName, {
-    connection: redisConfig,
+    connection: redisConnection,
   });
 
   events.on("completed", ({ jobId, returnvalue }) => {
@@ -54,9 +58,9 @@ export const createQueue = (queueName: string) => {
     }
     catch (error) {
       logger.error({
-        message: `Queue:${queueName}] Shutdown error: ${error.message}`,
+        message: `Queue:${queueName}] Shutdown error: ${(error as Error).message}`,
         queueName,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   };
