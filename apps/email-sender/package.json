@@ -3,7 +3,6 @@
   "type": "module",
   "version": "0.0.0",
   "private": true,
-  "main": "index.ts",
   "exports": {
     "./email-sender.handler.tsx": {
       "import": {
@@ -12,6 +11,7 @@
       }
     }
   },
+  "main": "index.ts",
   "scripts": {
     "dev": "tsx watch ./index.ts",
     "start": "ts-node ./dist/src/index.js",

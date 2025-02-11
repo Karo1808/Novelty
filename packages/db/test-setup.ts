@@ -1,13 +1,12 @@
 /* eslint-disable import/no-mutable-exports */
 import path from "node:path";
 import * as schema from "./schemas/index.schema";
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from "@testcontainers/postgresql";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { afterAll, beforeAll, vi } from "vitest";
-import { Pool, type Pool as TPool } from "pg";
+import { Pool } from "pg";
+import type { Pool as TPool } from "pg";
 import type { DBClient, Dependencies } from "lib/types";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { configureLogger } from "@novelty/lib/logger";
