@@ -15,7 +15,7 @@
   "scripts": {
     "dev": "tsx watch ./index.ts",
     "start": "ts-node ./dist/src/index.js",
-    "build": "tsc ",
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
