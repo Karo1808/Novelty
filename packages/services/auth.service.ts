@@ -12,17 +12,16 @@ import {
 } from "@novelty/db/lib/errors";
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
 import { prepareDependencies } from "./lib/utils";
-import {
-  HttpStatusCodes,
-  type HttpStatusCodeValue,
-} from "@novelty/lib/http-status-codes";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import type { HttpStatusCodeValue } from "@novelty/lib/http-status-codes";
 import { generateVerificationToken } from "@novelty/lib/generate-verification-token";
 import {
   acquireLock,
+  deleteByKey,
   releaseLock,
   setWithExpiry,
 } from "@novelty/redis/queries/index.query";
-import { EmailDeliveryError } from "@novelty/email/error";
+import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import {
   EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
   EMAIL_QUEUE_COMPLETED_JOBS_TIME,
@@ -31,16 +30,18 @@ import {
   VERIFICATION_EMAIL_TOKEN_LENGTH,
 } from "./lib/config";
 import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
-import { emailQueue } from "@novelty/message-queue/queues/email.queue";
 
 export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
-  dependencies: MarkKeysAsPartial<ServiceDependencies, "redisClient">,
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["redisClient", "messageQueueInstance"]
+  >,
   body: InsertUser["register"],
 ): Promise<ServiceResponse<TStatusCodes>> => {
   const deps = prepareDependencies(dependencies, "redisClient");
 
   try {
-    const existingUser = await getUserByEmailQuery(deps, body.email);
+    const existingUser = await getUserByEmailQuery(deps, body.email as string);
 
     if (
       existingUser !== undefined
@@ -55,7 +56,7 @@ export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
       return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
     }
 
-    const hashedPassword = await hashPassword(body.password);
+    const hashedPassword = await hashPassword(body.password as string);
 
     let newUser;
     try {
@@ -102,7 +103,7 @@ export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
 export const sendVerificationEmail = async <
   TStatusCodes extends HttpStatusCodeValue,
 >(
-  dependencies: ServiceDependencies,
+  dependencies: Required<ServiceDependencies>,
   body: InsertUser["sendVerificationEmail"],
 ): Promise<ServiceResponse<TStatusCodes>> => {
   const dbDependencies = prepareDependencies(dependencies, "redisClient");
@@ -110,7 +111,7 @@ export const sendVerificationEmail = async <
 
   const lockKey = `lock:send-email-verification:${body.email}`;
   const lockValue = `unique-lock-value-${Date.now()}`;
-  const ttl = 5;
+  const ttl = 30;
 
   const isLockAcquired = await acquireLock(
     redisDependencies,
@@ -131,7 +132,7 @@ export const sendVerificationEmail = async <
   try {
     const isEmailVerified = await getIsEmailVerifiedQuery(
       dbDependencies,
-      body.email,
+      body.email as string,
     );
 
     if (isEmailVerified?.isEmailVerified === undefined) {
@@ -144,9 +145,18 @@ export const sendVerificationEmail = async <
 
     const token = generateVerificationToken(VERIFICATION_EMAIL_TOKEN_LENGTH);
 
+    const redisKey = `verify-email:${body.email}`;
+
+    await setWithExpiry(
+      redisDependencies,
+      redisKey,
+      token,
+      VERIFICATION_EMAIL_EXPIRY_TIME,
+    );
+
     try {
       await addJobToQueue(
-        emailQueue,
+        dependencies.messageQueueInstance!,
         "send-verification-email",
         {
           email: body.email,
@@ -166,17 +176,9 @@ export const sendVerificationEmail = async <
       );
     }
     catch (err: unknown) {
-      throw new EmailDeliveryError(
-        `Failed to enqueue email job: ${(err as Error).message}`,
-      );
+      deleteByKey(redisDependencies, redisKey);
+      throw new EnqueuingError("send-verification-email", err as Error);
     }
-
-    await setWithExpiry(
-      redisDependencies,
-      `verify-email:${body.email}`,
-      token,
-      VERIFICATION_EMAIL_EXPIRY_TIME,
-    );
 
     return {
       status: HttpStatusCodes.OK as TStatusCodes,
