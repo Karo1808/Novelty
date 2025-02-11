@@ -62,6 +62,49 @@ describe("index redis queries", () => {
     expect(expiredValue).toBeNull();
   });
 
+  // describe("deleteByKey", () => {
+  //   it("should delete an existing key", async () => {
+  //     const key: RedisKey = "test-delete-key";
+  //     const value: RedisValue = "test-value";
+
+  //     await testClient.set(key, value);
+
+  //     const result = await deleteByKey(testDependencies, key);
+
+  //     expect(result).toBe(1);
+  //     const storedValue = await testClient.get(key);
+  //     expect(storedValue).toBeNull();
+  //   });
+
+  //   it("should return 0 when deleting non-existent key", async () => {
+  //     const key: RedisKey = "non-existent-key";
+
+  //     await testClient.del(key);
+
+  //     const result = await deleteByKey(testDependencies, key);
+
+  //     expect(result).toBe(0);
+  //     const storedValue = await testClient.get(key);
+  //     expect(storedValue).toBeNull();
+  //   });
+
+  //   it("should handle multiple key deletions", async () => {
+  //     const key1: RedisKey = "test-key1";
+  //     const key2: RedisKey = "test-key2";
+
+  //     await testClient.set(key1, "value1");
+  //     await testClient.set(key2, "value2");
+
+  //     const result1 = await deleteByKey(testDependencies, key1);
+  //     const result2 = await deleteByKey(testDependencies, key2);
+
+  //     expect(result1).toBe(1);
+  //     expect(result2).toBe(1);
+  //     expect(await testClient.get(key1)).toBeNull();
+  //     expect(await testClient.get(key2)).toBeNull();
+  //   });
+  // });
+
   describe("acquireLock", () => {
     const key: RedisKey = "test-key";
     const value: RedisValue = "test-value";
