@@ -1,5 +1,6 @@
 import { emailClient } from "@novelty/email/client";
 import VerifyEmail from "@novelty/email/templates/prototype.email";
+import React from "react";
 
 export const processVerificationEmail = async (
   data: {
