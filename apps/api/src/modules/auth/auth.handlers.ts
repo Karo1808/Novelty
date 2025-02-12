@@ -1,8 +1,13 @@
 import type { AppRouteHandler } from "@/types/index.types";
-import type { RegisterRoute, SendVerificationEmailRoute } from "./auth.routes";
+import type {
+  RegisterRoute,
+  SendVerificationEmailRoute,
+  VerifyEmailRoute,
+} from "./auth.routes";
 import {
   registerUser,
   sendVerificationEmail,
+  verifyEmail,
 } from "@novelty/services/auth.service";
 import { db } from "@novelty/db";
 import logger from "@/lib/logger";
@@ -84,6 +89,63 @@ export const handleSendVerificationEmail: AppRouteHandler<
   return c.json(
     {
       message: "Email sent to the recipient",
+      success: true,
+      data: res.body,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleVerifyEmail: AppRouteHandler<VerifyEmailRoute> = async (
+  c,
+) => {
+  const body = c.req.valid("json");
+
+  const res: ServiceResponse<keyof VerifyEmailRoute["responses"]>
+    = await verifyEmail<keyof VerifyEmailRoute["responses"]>(
+      {
+        dbInstance: db,
+        redisClient: redis,
+        logger,
+        prometheusRegistry,
+        reqId: c.var.requestId,
+      },
+      body,
+    );
+
+  if (res.status === HttpStatusCodes.NOT_FOUND) {
+    return c.json(
+      {
+        message: "User not found",
+        success: false,
+      },
+      HttpStatusCodes.NOT_FOUND,
+    );
+  }
+
+  if (res.status === HttpStatusCodes.BAD_REQUEST) {
+    return c.json(
+      {
+        message: "The code is invalid or it has already expired",
+        success: false,
+      },
+      HttpStatusCodes.BAD_REQUEST,
+    );
+  }
+
+  if (res.status === HttpStatusCodes.CONFLICT) {
+    return c.json(
+      {
+        message: "This email has already been verified",
+        success: false,
+      },
+      HttpStatusCodes.CONFLICT,
+    );
+  }
+
+  return c.json(
+    {
+      message: "Email verified",
       success: true,
     },
     HttpStatusCodes.OK,
