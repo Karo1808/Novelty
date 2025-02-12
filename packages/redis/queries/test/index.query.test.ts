@@ -1,6 +1,8 @@
 import type { RedisKey, RedisValue } from "ioredis";
 import {
   acquireLock,
+  deleteByKey,
+  getByKey,
   pingRedisQuery,
   releaseLock,
   setWithExpiry,
@@ -62,48 +64,102 @@ describe("index redis queries", () => {
     expect(expiredValue).toBeNull();
   });
 
-  // describe("deleteByKey", () => {
-  //   it("should delete an existing key", async () => {
-  //     const key: RedisKey = "test-delete-key";
-  //     const value: RedisValue = "test-value";
+  describe("deleteByKey", () => {
+    it("should delete an existing key", async () => {
+      const key: RedisKey = "test-delete-key";
+      const value: RedisValue = "test-value";
 
-  //     await testClient.set(key, value);
+      await testClient.set(key, value);
 
-  //     const result = await deleteByKey(testDependencies, key);
+      const result = await deleteByKey(testDependencies, key);
 
-  //     expect(result).toBe(1);
-  //     const storedValue = await testClient.get(key);
-  //     expect(storedValue).toBeNull();
-  //   });
+      expect(result).toBe(1);
+      const storedValue = await testClient.get(key);
+      expect(storedValue).toBeNull();
+    });
 
-  //   it("should return 0 when deleting non-existent key", async () => {
-  //     const key: RedisKey = "non-existent-key";
+    it("should return 0 when deleting non-existent key", async () => {
+      const key: RedisKey = "non-existent-key";
 
-  //     await testClient.del(key);
+      await testClient.del(key);
 
-  //     const result = await deleteByKey(testDependencies, key);
+      const result = await deleteByKey(testDependencies, key);
 
-  //     expect(result).toBe(0);
-  //     const storedValue = await testClient.get(key);
-  //     expect(storedValue).toBeNull();
-  //   });
+      expect(result).toBe(0);
+      const storedValue = await testClient.get(key);
+      expect(storedValue).toBeNull();
+    });
 
-  //   it("should handle multiple key deletions", async () => {
-  //     const key1: RedisKey = "test-key1";
-  //     const key2: RedisKey = "test-key2";
+    it("should handle multiple key deletions", async () => {
+      const key1: RedisKey = "test-key1";
+      const key2: RedisKey = "test-key2";
 
-  //     await testClient.set(key1, "value1");
-  //     await testClient.set(key2, "value2");
+      await testClient.set(key1, "value1");
+      await testClient.set(key2, "value2");
 
-  //     const result1 = await deleteByKey(testDependencies, key1);
-  //     const result2 = await deleteByKey(testDependencies, key2);
+      const result1 = await deleteByKey(testDependencies, key1);
+      const result2 = await deleteByKey(testDependencies, key2);
 
-  //     expect(result1).toBe(1);
-  //     expect(result2).toBe(1);
-  //     expect(await testClient.get(key1)).toBeNull();
-  //     expect(await testClient.get(key2)).toBeNull();
-  //   });
-  // });
+      expect(result1).toBe(1);
+      expect(result2).toBe(1);
+      expect(await testClient.get(key1)).toBeNull();
+      expect(await testClient.get(key2)).toBeNull();
+    });
+  });
+
+  describe("getByKey", () => {
+    it("should return the correct value for an existing key", async () => {
+      const key: RedisKey = "test-key";
+      const value: RedisValue = "test-value";
+
+      await testClient.set(key, value);
+
+      const result = await getByKey(testDependencies, key);
+
+      expect(result).toBe(value);
+    });
+
+    it("should return null for a non-existent key", async () => {
+      const key: RedisKey = "non-existent-key";
+
+      await testClient.del(key);
+
+      const result = await getByKey(testDependencies, key);
+
+      expect(result).toBeNull();
+    });
+
+    it("should handle keys with empty string values", async () => {
+      const key: RedisKey = "empty-string-key";
+      const value: RedisValue = "";
+
+      await testClient.set(key, value);
+
+      const result = await getByKey(testDependencies, key);
+      expect(result).toBe(value);
+    });
+
+    it("should handle keys with binary data", async () => {
+      const key: RedisKey = "binary-key";
+      // eslint-disable-next-line node/prefer-global/buffer
+      const value: RedisValue = Buffer.from("binary-data");
+
+      await testClient.set(key, value);
+
+      const result = await getByKey(testDependencies, key);
+      expect(result).toBe("binary-data");
+    });
+
+    it("should handle large string values", async () => {
+      const key: RedisKey = "large-string-key";
+      const value: RedisValue = "a".repeat(10_000);
+
+      await testClient.set(key, value);
+
+      const result = await getByKey(testDependencies, key);
+      expect(result).toBe(value);
+    });
+  });
 
   describe("acquireLock", () => {
     const key: RedisKey = "test-key";
