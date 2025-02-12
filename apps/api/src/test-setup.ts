@@ -1,18 +1,21 @@
 /* eslint-disable import/no-mutable-exports */
 import path from "node:path";
 import * as schema from "@novelty/db/schemas/index.schema";
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from "@testcontainers/postgresql";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { afterAll, beforeAll, vi } from "vitest";
-import { Pool, type Pool as TPool } from "pg";
+import { Pool } from "pg";
+import type { Pool as TPool } from "pg";
 import type { DBClient } from "@novelty/db/lib/types";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Redis, type Redis as TRedis } from "ioredis";
+import { Redis } from "ioredis";
+import type { Redis as TRedis } from "ioredis";
 import type { StartedRedisContainer } from "@testcontainers/redis";
 import { RedisContainer } from "@testcontainers/redis";
+import { createQueue } from "@novelty/message-queue/lib/create-queue";
+import type { Queue } from "bullmq";
+import { createWorker } from "@novelty/message-queue/lib/create-worker";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {
@@ -24,14 +27,30 @@ let redisContainer: StartedRedisContainer;
 let pool: TPool;
 let testDb: DBClient;
 let testRedis: TRedis;
+let testQueue: Queue;
 
 beforeAll(async () => {
   dbContainer = await new PostgreSqlContainer()
     .withStartupTimeout(12000)
     .start();
+
   redisContainer = await new RedisContainer().start();
 
   testRedis = new Redis(redisContainer.getConnectionUrl());
+
+  const connectionOptions = {
+    host: redisContainer.getHost(),
+    port: redisContainer.getPort(),
+  };
+
+  const queueName = "email-queue";
+  const jobProcessors: Record<string, (data: any) => Promise<void>> = {
+    "send-verification-email": async () => {},
+  };
+
+  testQueue = createQueue(queueName, connectionOptions);
+
+  createWorker(queueName, jobProcessors, connectionOptions);
 
   pool = new Pool({
     connectionString: dbContainer.getConnectionUri(),
@@ -54,4 +73,4 @@ afterAll(async () => {
   vi.clearAllMocks();
 });
 
-export { testDb, testRedis };
+export { testDb, testQueue, testRedis };

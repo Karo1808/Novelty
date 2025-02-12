@@ -18,8 +18,8 @@ export type PrometheusRegistry = Registry;
 export type RequireAllExcept<T, K extends keyof T> = Required<Omit<T, K>> &
   Pick<T, K>;
 
-export type MarkKeysAsPartial<T, K extends keyof T> = {
-  [P in Exclude<keyof T, K>]: T[P];
-} & {
-  [P in K]?: T[P];
-};
+export type MarkKeysAsPartial<
+  T,
+  K extends keyof T | readonly (keyof T)[],
+> = Omit<T, K extends readonly (keyof T)[] ? K[number] : K> &
+  Partial<Pick<T, K extends readonly (keyof T)[] ? K[number] : K>>;

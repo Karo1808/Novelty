@@ -11,7 +11,7 @@ import type { z } from "zod";
 import * as queries from "@novelty/db/queries/auth.query";
 import * as authServices from "@novelty/services/auth.service";
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
-import { testDb, testRedis } from "@/test-setup";
+import { testDb, testQueue, testRedis } from "@/test-setup";
 import { testClient } from "hono/testing";
 import { eq } from "drizzle-orm";
 
@@ -32,6 +32,12 @@ vi.mock("@novelty/db/index", () => ({
 vi.mock("@novelty/redis/index", () => ({
   get redis() {
     return testRedis;
+  },
+}));
+
+vi.mock("@novelty/message-queue/queues/email.queue", () => ({
+  get emailQueue() {
+    return testQueue;
   },
 }));
 
@@ -57,6 +63,11 @@ describe("auth routes", () => {
         .delete(usersTable)
         .where(eq(usersTable.email, dummyBody.email));
       vi.clearAllMocks();
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testQueue.obliterate();
     });
 
     it("handles success", async () => {

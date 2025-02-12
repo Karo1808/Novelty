@@ -1,29 +1,33 @@
 {
-  "name": "@novelty/email",
+  "name": "@novelty/message-queue",
   "type": "module",
   "version": "0.0.0",
   "private": true,
   "main": "./index.ts",
   "types": "./index.ts",
   "scripts": {
-    "dev": "email dev --dir templates --port 3003",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "clean": "rm -rf node_modules .turbo dist "
+    "clean": "rm -rf node_modules .turbo dist coverage"
   },
   "dependencies": {
-    "@react-email/components": "0.0.32",
+    "@novelty/email": "workspace:*",
+    "@novelty/lib": "workspace:*",
+    "bullmq": "^5.40.2",
     "dotenv": "^16.4.7",
+    "dotenv-expand": "^12.0.1",
+    "ioredis": "^5.5.0",
+    "prom-client": "^15.1.3",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "resend": "^4.1.1"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^4.1.0",
+    "@antfu/eslint-config": "^4.2.0",
     "@novelty/typescript-config": "workspace:*",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
-    "react-email": "^3.0.6",
     "typescript": "5.7.3"
   }
 }

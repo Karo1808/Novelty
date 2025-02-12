@@ -2,7 +2,8 @@
 import { RedisContainer } from "@testcontainers/redis";
 import type { StartedRedisContainer } from "@testcontainers/redis";
 import { afterAll, beforeAll, vi } from "vitest";
-import { Redis, type Redis as TRedis } from "ioredis";
+import { Redis } from "ioredis";
+import type { Redis as TRedis } from "ioredis";
 import { configureLogger } from "@novelty/lib/logger";
 import { Registry } from "prom-client";
 import type { Logger } from "@novelty/lib/types";
