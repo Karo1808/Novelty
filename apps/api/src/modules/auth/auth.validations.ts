@@ -35,10 +35,16 @@ export type RegisterCreatedResponse = z.infer<typeof registerCreatedSchema>;
 export const sendVerificationEmailSuccessSchema = z
   .object({
     message: z.string(),
+    data: z.object({
+      encryptedUserId: z.string(),
+    }),
   })
   .openapi({
     example: {
       message: "Email verification sent successfully",
+      data: {
+        encryptedUserId: "encrypted_user_id",
+      },
     },
   });
 
@@ -64,4 +70,48 @@ export const sendVerificationEmailConflictSchema = z
 
 export type SendVerificationEmailSuccessResponse = z.infer<
   typeof sendVerificationEmailSuccessSchema
+>;
+
+export const verifyEmailSuccessSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Email verified",
+    },
+  });
+
+export const verifyEmailNotFoundSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "This user does not exist",
+    },
+  });
+
+export const verifyEmailBadRequestSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "The code is incorrect or it has already expired",
+    },
+  });
+
+export const verifyEmailConflictSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "This email has already been verified",
+    },
+  });
+
+export type VerifyEmailSuccessResponse = z.infer<
+  typeof verifyEmailSuccessSchema
 >;
