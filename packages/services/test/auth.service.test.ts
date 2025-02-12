@@ -4,7 +4,6 @@ import * as dbQueries from "@novelty/db/queries/auth.query";
 import * as redisQueries from "@novelty/redis/queries/index.query";
 import * as authUtils from "../lib/auth";
 import * as tokenGenerationUtils from "@novelty/lib/generate-verification-token";
-import * as email from "@novelty/email/client";
 import { verify } from "@node-rs/argon2";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { eq, sql } from "drizzle-orm";
@@ -14,14 +13,20 @@ import {
   DatabaseConnectionError,
   QueryExecutionError,
 } from "@novelty/db/lib/errors";
-import { testDb, testDependencies, testRedis } from "../test-setup";
+import {
+  testDb,
+  testDependencies,
+  testDependenciesWithQueue,
+  testQueue,
+  testRedis,
+} from "../test-setup";
 import { prepareDependencies } from "../lib/utils";
-import { cleanup, render } from "@testing-library/react";
-import { EmailDeliveryError } from "@novelty/email/error";
 import {
   VERIFICATION_EMAIL_EXPIRY_TIME,
   VERIFICATION_EMAIL_TOKEN_LENGTH,
 } from "../lib/config";
+import * as queueUtils from "@novelty/message-queue/lib/add-job-to-queue";
+import { EnqueuingError } from "@novelty/message-queue/lib/error";
 
 const dummyBody: InsertUser["register"] = {
   email: "email@mail.com",
@@ -50,14 +55,14 @@ describe("auth service", () => {
       expect(result).toHaveProperty("status", HttpStatusCodes.CREATED);
       expect(result.body).toMatchObject({
         id: expect.stringMatching(/^[\w-]{21}$/),
-        email: expect.stringMatching(dummyBody.email),
+        email: expect.stringMatching(dummyBody.email as string),
         isEmailVerified: false,
         createdAt: expect.any(Date),
         updatedAt: expect.any(Date),
       });
 
       const user = await testDb.query.usersTable.findFirst({
-        where: eq(usersTable.email, dummyBody.email),
+        where: eq(usersTable.email, dummyBody.email as string),
       });
       expect(new Date(user!.createdAt).getTime()).toBeLessThanOrEqual(
         Date.now(),
@@ -67,14 +72,15 @@ describe("auth service", () => {
       );
       expect(user).toMatchObject({
         id: expect.stringMatching(/^[\w-]{21}$/),
-        email: expect.stringMatching(dummyBody.email),
+        email: expect.stringMatching(dummyBody.email as string),
         isEmailVerified: false,
         createdAt: expect.any(Date),
         updatedAt: expect.any(Date),
       });
 
-      // Verify password hashing
-      expect(await verify(user!.password, dummyBody.password)).toBe(true);
+      expect(await verify(user!.password, dummyBody.password as string)).toBe(
+        true,
+      );
     });
 
     it("should handle email already existing", async () => {
@@ -83,8 +89,8 @@ describe("auth service", () => {
       const hashPasswordSpy = vi.spyOn(authUtils, "hashPassword");
 
       await testDb.insert(usersTable).values({
-        email: dummyBody.email,
-        password: dummyBody.password,
+        email: dummyBody.email as string,
+        password: dummyBody.password as string,
       });
 
       const result = await registerUser(testDependencies, dummyBody);
@@ -96,7 +102,7 @@ describe("auth service", () => {
       });
 
       const users = await testDb.query.usersTable.findMany({
-        where: eq(usersTable.email, dummyBody.email),
+        where: eq(usersTable.email, dummyBody.email as string),
       });
       expect(users).toHaveLength(1);
     });
@@ -155,7 +161,6 @@ describe("auth service", () => {
           registerUser(testDependencies, body),
         ]);
 
-        // One of these should have succeeded and the other should return CONFLICT
         const statuses = [result1.status, result2.status];
         expect(statuses).toContain(HttpStatusCodes.CONFLICT);
         expect(statuses).toContain(HttpStatusCodes.CREATED);
@@ -164,18 +169,19 @@ describe("auth service", () => {
   });
 
   describe("sendVerificationEmail", () => {
-    const dummySenderEmail = "test@mail.com";
     const dummyToken = "12345";
     const dummyKey = `verify-email:${dummyBody.email}`;
-    const dummyId = "resend-response-id";
 
     afterEach(async () => {
       vi.restoreAllMocks();
+      await testQueue.obliterate();
       await testDb.execute(sql`TRUNCATE table users CASCADE`);
-      cleanup();
     });
 
     it("should successfully complete all operations", async () => {
+      const isLockAcquiredSpy = vi.spyOn(redisQueries, "acquireLock");
+      const releaseLockSpy = vi.spyOn(redisQueries, "releaseLock");
+
       const getIsEmailVerifiedQuerySpy = vi.spyOn(
         dbQueries,
         "getIsEmailVerifiedQuery",
@@ -189,23 +195,18 @@ describe("auth service", () => {
       generateVerificationTokenSpy.mockReturnValue(dummyToken);
 
       const setWithExpirySpy = vi.spyOn(redisQueries, "setWithExpiry");
+      const deleteByKeySpy = vi.spyOn(redisQueries, "deleteByKey");
 
-      const sendEmailSpy = vi
-        .spyOn(email.emailClient.emails, "send")
-        .mockResolvedValue({
-          data: {
-            id: dummyId,
-          },
-          error: null,
-        });
+      const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
 
       await registerUser(testDependencies, dummyBody);
 
-      const result = await sendVerificationEmail(
-        testDependencies,
-        { email: dummyBody.email },
-        dummySenderEmail,
-      );
+      const result = await sendVerificationEmail(testDependenciesWithQueue, {
+        email: dummyBody.email as string,
+      });
+
+      expect(isLockAcquiredSpy).toHaveBeenCalledOnce();
+      expect(isLockAcquiredSpy).toHaveResolvedWith("OK");
 
       expect(getIsEmailVerifiedQuerySpy).toHaveBeenCalledOnce();
       expect(getIsEmailVerifiedQuerySpy).toHaveResolvedWith({
@@ -220,20 +221,34 @@ describe("auth service", () => {
 
       expect(setWithExpirySpy).toHaveBeenCalledOnce();
       expect(setWithExpirySpy).toHaveBeenCalledWith(
-        prepareDependencies(testDependencies, "dbInstance"),
+        prepareDependencies(testDependenciesWithQueue, "dbInstance"),
         dummyKey,
         dummyToken,
         VERIFICATION_EMAIL_EXPIRY_TIME,
       );
       expect(setWithExpirySpy).toHaveResolved();
 
-      expect(sendEmailSpy).toHaveBeenCalledOnce();
-      expect(sendEmailSpy).toHaveBeenCalledWith({
-        from: dummySenderEmail,
-        to: dummyBody.email,
-        subject: "Email verification link",
-        react: expect.anything(),
+      expect(addJobToQueueSpy).toHaveBeenCalledOnce();
+      expect(addJobToQueueSpy).toHaveBeenCalledWith(
+        expect.any(Object),
+        "send-verification-email",
+        expect.objectContaining({ email: dummyBody.email, token: dummyToken }),
+        expect.any(Object),
+      );
+
+      const [completedJob] = await testQueue.getCompleted();
+
+      expect(completedJob.queue.name).toBe("email-queue");
+      expect(completedJob.name).toBe("send-verification-email");
+      expect(completedJob.data).toEqual({
+        email: dummyBody.email,
+        token: dummyToken,
       });
+      expect(completedJob.id).toBe("test-req-id");
+
+      expect(deleteByKeySpy).not.toHaveBeenCalled();
+
+      expect(releaseLockSpy).toHaveBeenCalledOnce();
 
       expect(result.status).toBe(HttpStatusCodes.OK);
 
@@ -243,13 +258,93 @@ describe("auth service", () => {
       const ttl = await testRedis.ttl(dummyKey);
       expect(ttl).toBeGreaterThan(0);
       expect(ttl).toBeLessThanOrEqual(VERIFICATION_EMAIL_EXPIRY_TIME);
+    });
 
-      const emailComponent = sendEmailSpy?.mock?.calls?.[0]?.[0].react;
+    it("should handle lock not acquired", async () => {
+      const acquireLockSpy = vi
+        .spyOn(redisQueries, "acquireLock")
+        .mockResolvedValue(null);
 
-      const { getByText } = render(emailComponent);
+      const releaseLockSpy = vi.spyOn(redisQueries, "releaseLock");
+      const getIsEmailVerifiedQuerySpy = vi.spyOn(
+        dbQueries,
+        "getIsEmailVerifiedQuery",
+      );
+      const generateVerificationTokenSpy = vi.spyOn(
+        tokenGenerationUtils,
+        "generateVerificationToken",
+      );
+      const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
 
-      // Validate the rendered content
-      expect(getByText(dummyToken)).toBeInTheDocument();
+      const result = await sendVerificationEmail(testDependenciesWithQueue, {
+        email: dummyBody.email as string,
+      });
+
+      expect(acquireLockSpy).toHaveBeenCalledOnce();
+      expect(acquireLockSpy).toHaveResolvedWith(null);
+
+      expect(getIsEmailVerifiedQuerySpy).not.toHaveBeenCalled();
+      expect(generateVerificationTokenSpy).not.toHaveBeenCalled();
+      expect(addJobToQueueSpy).not.toHaveBeenCalled();
+      expect(releaseLockSpy).not.toHaveBeenCalled();
+
+      expect(result).toEqual({
+        status: HttpStatusCodes.CONFLICT,
+        body: { message: "Another process is already handling this email" },
+      });
+    });
+
+    it("should allow only one process to acquire the lock (simulate race condition)", async () => {
+      let lockAcquired = false;
+
+      const acquireLockSpy = vi
+        .spyOn(redisQueries, "acquireLock")
+        .mockImplementation(async () => {
+          if (!lockAcquired) {
+            lockAcquired = true;
+            return "OK";
+          }
+          return null;
+        });
+
+      const releaseLockSpy = vi.spyOn(redisQueries, "releaseLock");
+      const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
+
+      await registerUser(testDependencies, dummyBody);
+
+      const [firstCall, secondCall] = await Promise.allSettled([
+        sendVerificationEmail(testDependenciesWithQueue, {
+          email: dummyBody.email,
+        }),
+        sendVerificationEmail(testDependenciesWithQueue, {
+          email: dummyBody.email,
+        }),
+      ]);
+
+      expect(acquireLockSpy).toHaveBeenCalledTimes(2);
+      expect(acquireLockSpy).toHaveResolvedWith("OK");
+      expect(acquireLockSpy).toHaveResolvedWith(null);
+
+      if (firstCall.status === "fulfilled") {
+        expect(firstCall.value).toEqual({ status: HttpStatusCodes.OK });
+      }
+      else {
+        throw new Error(`First call was rejected: ${firstCall.reason}`);
+      }
+
+      if (secondCall.status === "fulfilled") {
+        expect(secondCall.value).toEqual({
+          status: HttpStatusCodes.CONFLICT,
+          body: { message: "Another process is already handling this email" },
+        });
+      }
+      else {
+        throw new Error(`Second call was rejected: ${secondCall.reason}`);
+      }
+
+      expect(addJobToQueueSpy).toHaveBeenCalledTimes(1);
+
+      expect(releaseLockSpy).toHaveBeenCalledTimes(1);
     });
 
     it("should handle user not found", async () => {
@@ -265,20 +360,18 @@ describe("auth service", () => {
 
       const setWithExpirySpy = vi.spyOn(redisQueries, "setWithExpiry");
 
-      const sendEmailSpy = vi.spyOn(email.emailClient.emails, "send");
+      const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
 
-      const result = await sendVerificationEmail(
-        testDependencies,
-        { email: dummyBody.email },
-        dummySenderEmail,
-      );
+      const result = await sendVerificationEmail(testDependenciesWithQueue, {
+        email: dummyBody.email as string,
+      });
 
       expect(getIsEmailVerifiedQuerySpy).toHaveBeenCalledOnce();
       expect(getIsEmailVerifiedQuerySpy).toHaveResolvedWith(undefined);
 
       expect(generateVerificationTokenSpy).not.toHaveBeenCalled();
       expect(setWithExpirySpy).not.toHaveBeenCalled();
-      expect(sendEmailSpy).not.toHaveBeenCalled();
+      expect(addJobToQueueSpy).not.toHaveBeenCalled();
 
       expect(result.status).toBe(HttpStatusCodes.NOT_FOUND);
     });
@@ -296,19 +389,17 @@ describe("auth service", () => {
 
       const setWithExpirySpy = vi.spyOn(redisQueries, "setWithExpiry");
 
-      const sendEmailSpy = vi.spyOn(email.emailClient.emails, "send");
+      const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
 
       await testDb.insert(usersTable).values({
-        email: dummyBody.email,
-        password: dummyBody.password,
+        email: dummyBody.email as string,
+        password: dummyBody.password as string,
         isEmailVerified: true,
       });
 
-      const result = await sendVerificationEmail(
-        testDependencies,
-        { email: dummyBody.email },
-        dummySenderEmail,
-      );
+      const result = await sendVerificationEmail(testDependenciesWithQueue, {
+        email: dummyBody.email as string,
+      });
 
       expect(getIsEmailVerifiedQuerySpy).toHaveBeenCalledOnce();
       expect(getIsEmailVerifiedQuerySpy).toHaveResolvedWith({
@@ -317,33 +408,75 @@ describe("auth service", () => {
 
       expect(generateVerificationTokenSpy).not.toHaveBeenCalled();
       expect(setWithExpirySpy).not.toHaveBeenCalled();
-      expect(sendEmailSpy).not.toHaveBeenCalled();
+      expect(addJobToQueueSpy).not.toHaveBeenCalled();
 
       expect(result.status).toBe(HttpStatusCodes.CONFLICT);
     });
 
-    it("should handle error when sending email", async () => {
-      const setWithExpirySpy = vi.spyOn(redisQueries, "setWithExpiry");
+    it("should handle error when enqueueing the job", async () => {
+      const releaseLockSpy = vi.spyOn(redisQueries, "releaseLock");
+      const addJobToQueueSpy = vi
+        .spyOn(queueUtils, "addJobToQueue")
+        .mockRejectedValue(new Error("Queue failure"));
+      const deleteByKeySpy = vi.spyOn(redisQueries, "deleteByKey");
 
-      vi.spyOn(email.emailClient.emails, "send").mockResolvedValueOnce({
-        error: {
-          message: "Sending email error",
-          name: "internal_server_error",
-        },
-        data: null,
-      });
+      await registerUser(testDependenciesWithQueue, dummyBody);
+
+      await expect(
+        sendVerificationEmail(testDependenciesWithQueue, {
+          email: dummyBody.email as string,
+        }),
+      ).rejects.toThrowError(EnqueuingError);
+
+      const jobs = await testQueue.getJobs();
+
+      expect(jobs.length).toBe(0);
+
+      expect(addJobToQueueSpy).toHaveBeenCalledOnce();
+      expect(deleteByKeySpy).toHaveBeenCalledOnce();
+
+      // verify that the token has been deleted successfully
+      const queryResult = await testRedis.get(
+        `verify-email:${dummyBody.email}`,
+      );
+      expect(queryResult).toBeFalsy();
+
+      expect(releaseLockSpy).toHaveBeenCalledOnce();
+    });
+
+    it("should handle Redis setWithExpiry failure", async () => {
+      const releaseLockSpy = vi.spyOn(redisQueries, "releaseLock");
+      const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
+
+      vi.spyOn(redisQueries, "setWithExpiry").mockRejectedValue(
+        new Error("Redis error"),
+      );
 
       await registerUser(testDependencies, dummyBody);
 
       await expect(
-        sendVerificationEmail(
-          testDependencies,
-          { email: dummyBody.email },
-          dummySenderEmail,
-        ),
-      ).rejects.toThrow(new EmailDeliveryError("Sending email error"));
+        sendVerificationEmail(testDependenciesWithQueue, {
+          email: dummyBody.email,
+        }),
+      ).rejects.toThrowError("Redis error");
 
-      expect(setWithExpirySpy).not.toHaveBeenCalled();
+      expect(addJobToQueueSpy).not.toHaveBeenCalled();
+      expect(releaseLockSpy).toHaveBeenCalled();
+    });
+
+    it("should handle database errors", async () => {
+      const releaseLockSpy = vi.spyOn(redisQueries, "releaseLock");
+      vi.spyOn(dbQueries, "getIsEmailVerifiedQuery").mockRejectedValue(
+        new Error("DB error"),
+      );
+
+      await expect(
+        sendVerificationEmail(testDependenciesWithQueue, {
+          email: dummyBody.email,
+        }),
+      ).rejects.toThrowError("DB error");
+
+      expect(releaseLockSpy).toHaveBeenCalled();
     });
   });
 });
