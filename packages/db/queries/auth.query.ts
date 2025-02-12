@@ -43,14 +43,15 @@ export const createUserQuery = (
 
 export const getIsEmailVerifiedQuery = (
   dependencies: Dependencies,
-  email: string,
+  fieldName: keyof SelectUser,
+  value: any,
 ) => {
   return createDBQuery({
     dependencies,
     queryName: "getIsEmailVerifiedQuery",
     query: async (db) => {
       return await db.query.usersTable.findFirst({
-        where: eq(usersTable.email, email),
+        where: eq(usersTable[fieldName], value),
         columns: {
           isEmailVerified: true,
         },
