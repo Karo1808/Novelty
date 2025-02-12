@@ -1,4 +1,8 @@
-import type { InsertUser } from "../schemas/user.schema";
+import type {
+  InsertUser,
+  SelectUser,
+  UpdateUser,
+} from "../schemas/user.schema";
 import { usersTable } from "../schemas/user.schema";
 import { createDBQuery } from "../lib/create-db-query";
 import type { Dependencies } from "../lib/types";
@@ -43,18 +47,55 @@ export const createUserQuery = (
 
 export const getIsEmailVerifiedQuery = (
   dependencies: Dependencies,
-  email: string,
+  fieldName: keyof SelectUser,
+  value: any,
 ) => {
   return createDBQuery({
     dependencies,
     queryName: "getIsEmailVerifiedQuery",
     query: async (db) => {
       return await db.query.usersTable.findFirst({
-        where: eq(usersTable.email, email),
+        where: eq(usersTable[fieldName], value),
         columns: {
           isEmailVerified: true,
         },
       });
+    },
+  });
+};
+
+export const getUserByIdQuery = (
+  dependencies: Dependencies,
+  userId: string,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getUserByIdQuery",
+    query: async (db) => {
+      return await db.query.usersTable.findFirst({
+        where: eq(usersTable.id, userId),
+        columns: {
+          password: false,
+        },
+      });
+    },
+  });
+};
+
+export const updateUserByIdQuery = (
+  dependencies: Dependencies,
+  body: UpdateUser,
+  userId: SelectUser["id"],
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "updateUserByIdQuery",
+    query: async (db) => {
+      return await db
+        .update(usersTable)
+        .set(body)
+        .where(eq(usersTable.id, userId))
+        .returning();
     },
   });
 };

@@ -1,5 +1,9 @@
 import { boolean, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import {
+  createInsertSchema,
+  createSelectSchema,
+  createUpdateSchema,
+} from "drizzle-zod";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 
@@ -40,5 +44,12 @@ export const insertUserSchema = z.object({
   }),
 });
 
+export const updateUserSchema = createUpdateSchema(usersTable).omit({
+  createdAt: true,
+  id: true,
+  updatedAt: true,
+});
+
 export type SelectUser = z.infer<typeof selectUserSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpdateUser = z.infer<typeof updateUserSchema>;

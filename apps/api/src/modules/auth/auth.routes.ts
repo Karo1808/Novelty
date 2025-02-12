@@ -7,12 +7,17 @@ import {
   sendVerificationEmailConflictSchema,
   sendVerificationEmailNotFoundSchema,
   sendVerificationEmailSuccessSchema,
+  verifyEmailBadRequestSchema,
+  verifyEmailConflictSchema,
+  verifyEmailNotFoundSchema,
+  verifyEmailSuccessSchema,
 } from "./auth.validations";
 
 import { insertUserSchema } from "@novelty/db/schemas/user.schema";
 import createErrorSchema from "@/lib/create-error-schema";
 import { serviceUnavailableSchema } from "@/lib/service-unavailable-schema";
 import { tooManyRequestsSchema } from "@/lib/too-many-requests-schema";
+import { verifyEmailBodySchema } from "@novelty/lib/validations/auth";
 
 const tags = ["Auth"];
 
@@ -89,3 +94,49 @@ export const sendVerificationEmailRoute = createRoute({
 });
 
 export type SendVerificationEmailRoute = typeof sendVerificationEmailRoute;
+
+export const verifyEmailRoute = createRoute({
+  tags,
+  method: "post",
+  path: "/auth/verify-email",
+  description:
+    "Verifies the PIN provided by the user and updates the isEmailVerified field in the database",
+  request: {
+    body: jsonContentRequired(
+      verifyEmailBodySchema,
+      "The verification code and encrypted userId",
+    ),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      verifyEmailSuccessSchema,
+      "Email verified",
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      verifyEmailNotFoundSchema,
+      "User not found",
+    ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      verifyEmailBadRequestSchema,
+      "Verification code does not match or it has expired",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      verifyEmailConflictSchema,
+      "Email already verified",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertUserSchema.shape.sendVerificationEmail),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type VerifyEmailRoute = typeof verifyEmailRoute;

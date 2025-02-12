@@ -4,8 +4,9 @@ import {
   createUserQuery,
   getIsEmailVerifiedQuery,
   getUserByEmailQuery,
+  updateUserByIdQuery,
 } from "@novelty/db/queries/auth.query";
-import { hashPassword } from "./lib/auth";
+import { decryptString, encryptString, hashPassword } from "./lib/auth";
 import {
   DatabaseConnectionError,
   QueryExecutionError,
@@ -18,6 +19,7 @@ import { generateVerificationToken } from "@novelty/lib/generate-verification-to
 import {
   acquireLock,
   deleteByKey,
+  getByKey,
   releaseLock,
   setWithExpiry,
 } from "@novelty/redis/queries/index.query";
@@ -30,6 +32,7 @@ import {
   VERIFICATION_EMAIL_TOKEN_LENGTH,
 } from "./lib/config";
 import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
+import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
 
 export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
   dependencies: MarkKeysAsPartial<
@@ -130,22 +133,24 @@ export const sendVerificationEmail = async <
   }
 
   try {
-    const isEmailVerified = await getIsEmailVerifiedQuery(
+    const user = await getUserByEmailQuery(
       dbDependencies,
       body.email as string,
     );
 
-    if (isEmailVerified?.isEmailVerified === undefined) {
+    if (!user) {
       return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
     }
 
-    if (isEmailVerified.isEmailVerified === true) {
+    if (user.isEmailVerified === true) {
       return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
     }
 
+    const encryptedId = encryptString(user.id);
+
     const token = generateVerificationToken(VERIFICATION_EMAIL_TOKEN_LENGTH);
 
-    const redisKey = `verify-email:${body.email}`;
+    const redisKey = `verify-email:${encryptedId}`;
 
     await setWithExpiry(
       redisDependencies,
@@ -182,9 +187,65 @@ export const sendVerificationEmail = async <
 
     return {
       status: HttpStatusCodes.OK as TStatusCodes,
+      body: { encryptedUserId: encryptedId },
     };
   }
   finally {
     await releaseLock(redisDependencies, lockKey, lockValue);
   }
+};
+
+export const verifyEmail = async <TStatusCodes extends HttpStatusCodeValue>(
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["messageQueueInstance"]
+  >,
+  body: VerifyEmailBodySchema,
+): Promise<ServiceResponse<TStatusCodes>> => {
+  const dbDependencies = prepareDependencies(dependencies, "redisClient");
+  const redisDependencies = prepareDependencies(dependencies, "dbInstance");
+
+  const { encryptedUserId, verificationCode } = body;
+
+  const redisVerificationCode = await getByKey(
+    redisDependencies,
+    `verify-email:${encryptedUserId}`,
+  );
+
+  if (redisVerificationCode !== verificationCode) {
+    return { status: HttpStatusCodes.BAD_REQUEST as TStatusCodes };
+  }
+
+  const userId = decryptString(encryptedUserId);
+
+  const queryResult = await getIsEmailVerifiedQuery(
+    dbDependencies,
+    "id",
+    userId,
+  );
+
+  if (queryResult === undefined) {
+    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+  }
+
+  if (queryResult?.isEmailVerified) {
+    await deleteByKey(redisDependencies, `verify-email:${encryptedUserId}`);
+    return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+  }
+
+  const [updatedUser] = await updateUserByIdQuery(
+    dbDependencies,
+    { isEmailVerified: true },
+    userId,
+  );
+
+  if (updatedUser?.isEmailVerified === false || !updatedUser) {
+    throw new QueryExecutionError("Failed to update user");
+  }
+
+  await deleteByKey(redisDependencies, `verify-email:${encryptedUserId}`);
+
+  return {
+    status: HttpStatusCodes.OK as TStatusCodes,
+  };
 };
