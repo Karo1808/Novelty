@@ -1,5 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { registerUser, sendVerificationEmail } from "../auth.service";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  registerUser,
+  sendVerificationEmail,
+  verifyEmail,
+} from "../auth.service";
 import * as dbQueries from "@novelty/db/queries/auth.query";
 import * as redisQueries from "@novelty/redis/queries/index.query";
 import * as authUtils from "../lib/auth";
@@ -27,6 +31,8 @@ import {
 } from "../lib/config";
 import * as queueUtils from "@novelty/message-queue/lib/add-job-to-queue";
 import { EnqueuingError } from "@novelty/message-queue/lib/error";
+import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
+import type { ServiceResponse } from "types";
 
 const dummyBody: InsertUser["register"] = {
   email: "email@mail.com",
@@ -38,6 +44,7 @@ describe("auth service", () => {
     afterEach(async () => {
       vi.restoreAllMocks();
       await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testRedis.flushall();
     });
 
     it("should handle successful signup", async () => {
@@ -172,20 +179,23 @@ describe("auth service", () => {
     const dummyToken = "12345";
     const dummyKey = `verify-email:${dummyBody.email}`;
 
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyBody);
+    });
+
     afterEach(async () => {
       vi.restoreAllMocks();
       await testQueue.obliterate();
       await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testRedis.flushall();
     });
 
     it("should successfully complete all operations", async () => {
       const isLockAcquiredSpy = vi.spyOn(redisQueries, "acquireLock");
       const releaseLockSpy = vi.spyOn(redisQueries, "releaseLock");
+      vi.spyOn(authUtils, "encryptString").mockReturnValue(dummyBody.email);
 
-      const getIsEmailVerifiedQuerySpy = vi.spyOn(
-        dbQueries,
-        "getIsEmailVerifiedQuery",
-      );
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
 
       const generateVerificationTokenSpy = vi.spyOn(
         tokenGenerationUtils,
@@ -199,8 +209,6 @@ describe("auth service", () => {
 
       const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
 
-      await registerUser(testDependencies, dummyBody);
-
       const result = await sendVerificationEmail(testDependenciesWithQueue, {
         email: dummyBody.email as string,
       });
@@ -208,10 +216,7 @@ describe("auth service", () => {
       expect(isLockAcquiredSpy).toHaveBeenCalledOnce();
       expect(isLockAcquiredSpy).toHaveResolvedWith("OK");
 
-      expect(getIsEmailVerifiedQuerySpy).toHaveBeenCalledOnce();
-      expect(getIsEmailVerifiedQuerySpy).toHaveResolvedWith({
-        isEmailVerified: false,
-      });
+      expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
 
       expect(generateVerificationTokenSpy).toHaveBeenCalledOnce();
       expect(generateVerificationTokenSpy).toHaveBeenCalledWith(
@@ -234,6 +239,16 @@ describe("auth service", () => {
         "send-verification-email",
         expect.objectContaining({ email: dummyBody.email, token: dummyToken }),
         expect.any(Object),
+      );
+
+      await vi.waitFor(
+        async () => {
+          const completedJobs = await testQueue.getCompleted();
+          if (completedJobs.length === 0) {
+            throw new Error("Job not completed yet");
+          }
+        },
+        { timeout: 500, interval: 20 },
       );
 
       const [completedJob] = await testQueue.getCompleted();
@@ -266,10 +281,9 @@ describe("auth service", () => {
         .mockResolvedValue(null);
 
       const releaseLockSpy = vi.spyOn(redisQueries, "releaseLock");
-      const getIsEmailVerifiedQuerySpy = vi.spyOn(
-        dbQueries,
-        "getIsEmailVerifiedQuery",
-      );
+
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
+
       const generateVerificationTokenSpy = vi.spyOn(
         tokenGenerationUtils,
         "generateVerificationToken",
@@ -283,7 +297,7 @@ describe("auth service", () => {
       expect(acquireLockSpy).toHaveBeenCalledOnce();
       expect(acquireLockSpy).toHaveResolvedWith(null);
 
-      expect(getIsEmailVerifiedQuerySpy).not.toHaveBeenCalled();
+      expect(getUserByEmailQuerySpy).not.toHaveBeenCalled();
       expect(generateVerificationTokenSpy).not.toHaveBeenCalled();
       expect(addJobToQueueSpy).not.toHaveBeenCalled();
       expect(releaseLockSpy).not.toHaveBeenCalled();
@@ -310,7 +324,7 @@ describe("auth service", () => {
       const releaseLockSpy = vi.spyOn(redisQueries, "releaseLock");
       const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
 
-      await registerUser(testDependencies, dummyBody);
+      vi.clearAllMocks();
 
       const [firstCall, secondCall] = await Promise.allSettled([
         sendVerificationEmail(testDependenciesWithQueue, {
@@ -326,7 +340,7 @@ describe("auth service", () => {
       expect(acquireLockSpy).toHaveResolvedWith(null);
 
       if (firstCall.status === "fulfilled") {
-        expect(firstCall.value).toEqual({ status: HttpStatusCodes.OK });
+        expect(firstCall.value).toMatchObject({ status: HttpStatusCodes.OK });
       }
       else {
         throw new Error(`First call was rejected: ${firstCall.reason}`);
@@ -348,10 +362,7 @@ describe("auth service", () => {
     });
 
     it("should handle user not found", async () => {
-      const getIsEmailVerifiedQuerySpy = vi.spyOn(
-        dbQueries,
-        "getIsEmailVerifiedQuery",
-      );
+      const getUserByEmailQuery = vi.spyOn(dbQueries, "getUserByEmailQuery");
 
       const generateVerificationTokenSpy = vi.spyOn(
         tokenGenerationUtils,
@@ -362,12 +373,14 @@ describe("auth service", () => {
 
       const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
 
+      await testDb.delete(usersTable);
+
       const result = await sendVerificationEmail(testDependenciesWithQueue, {
         email: dummyBody.email as string,
       });
 
-      expect(getIsEmailVerifiedQuerySpy).toHaveBeenCalledOnce();
-      expect(getIsEmailVerifiedQuerySpy).toHaveResolvedWith(undefined);
+      expect(getUserByEmailQuery).toHaveBeenCalledOnce();
+      expect(getUserByEmailQuery).toHaveResolvedWith(undefined);
 
       expect(generateVerificationTokenSpy).not.toHaveBeenCalled();
       expect(setWithExpirySpy).not.toHaveBeenCalled();
@@ -377,10 +390,7 @@ describe("auth service", () => {
     });
 
     it("should handle user already verified", async () => {
-      const getIsEmailVerifiedQuerySpy = vi.spyOn(
-        dbQueries,
-        "getIsEmailVerifiedQuery",
-      );
+      const getUserByEmailQuery = vi.spyOn(dbQueries, "getUserByEmailQuery");
 
       const generateVerificationTokenSpy = vi.spyOn(
         tokenGenerationUtils,
@@ -391,20 +401,27 @@ describe("auth service", () => {
 
       const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
 
-      await testDb.insert(usersTable).values({
-        email: dummyBody.email as string,
-        password: dummyBody.password as string,
-        isEmailVerified: true,
-      });
+      await testDb
+        .update(usersTable)
+        .set({
+          isEmailVerified: true,
+        })
+        .where(eq(usersTable.email, dummyBody.email));
 
       const result = await sendVerificationEmail(testDependenciesWithQueue, {
         email: dummyBody.email as string,
       });
 
-      expect(getIsEmailVerifiedQuerySpy).toHaveBeenCalledOnce();
-      expect(getIsEmailVerifiedQuerySpy).toHaveResolvedWith({
-        isEmailVerified: true,
-      });
+      expect(getUserByEmailQuery).toHaveBeenCalledOnce();
+      expect(getUserByEmailQuery).toHaveResolvedWith(
+        expect.objectContaining({
+          id: expect.stringMatching(/^[\w-]{21}$/),
+          email: expect.stringMatching(dummyBody.email as string),
+          isEmailVerified: true,
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        }),
+      );
 
       expect(generateVerificationTokenSpy).not.toHaveBeenCalled();
       expect(setWithExpirySpy).not.toHaveBeenCalled();
@@ -420,7 +437,7 @@ describe("auth service", () => {
         .mockRejectedValue(new Error("Queue failure"));
       const deleteByKeySpy = vi.spyOn(redisQueries, "deleteByKey");
 
-      await registerUser(testDependenciesWithQueue, dummyBody);
+      vi.clearAllMocks();
 
       await expect(
         sendVerificationEmail(testDependenciesWithQueue, {
@@ -452,7 +469,7 @@ describe("auth service", () => {
         new Error("Redis error"),
       );
 
-      await registerUser(testDependencies, dummyBody);
+      vi.clearAllMocks();
 
       await expect(
         sendVerificationEmail(testDependenciesWithQueue, {
@@ -466,7 +483,7 @@ describe("auth service", () => {
 
     it("should handle database errors", async () => {
       const releaseLockSpy = vi.spyOn(redisQueries, "releaseLock");
-      vi.spyOn(dbQueries, "getIsEmailVerifiedQuery").mockRejectedValue(
+      vi.spyOn(dbQueries, "getUserByEmailQuery").mockRejectedValue(
         new Error("DB error"),
       );
 
@@ -477,6 +494,262 @@ describe("auth service", () => {
       ).rejects.toThrowError("DB error");
 
       expect(releaseLockSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe("verifyEmail", () => {
+    const dummyUser = {
+      id: "dummy-id",
+      email: "email@mail.com",
+      password: "password123",
+    };
+
+    const dummyKey = `verify-email:${dummyUser.id}`;
+    const dummyToken = "12345";
+
+    const dummyBody: VerifyEmailBodySchema = {
+      encryptedUserId: dummyUser.id,
+      verificationCode: dummyToken,
+    };
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+      await testRedis.set(dummyKey, dummyToken);
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testRedis.flushall();
+    });
+
+    it("should successfully complete all operations", async () => {
+      const getByKeySpy = vi.spyOn(redisQueries, "getByKey");
+      const decryptStringSpy = vi
+        .spyOn(authUtils, "decryptString")
+        .mockReturnValue(dummyUser.id);
+      const getIsEmailVerifiedQuerySpy = vi.spyOn(
+        dbQueries,
+        "getIsEmailVerifiedQuery",
+      );
+      const updateUserByIdQuerySpy = vi.spyOn(dbQueries, "updateUserByIdQuery");
+      const deleteByKeySpy = vi.spyOn(redisQueries, "deleteByKey");
+
+      await testRedis.set(dummyKey, dummyToken);
+
+      const result = await verifyEmail(testDependencies, dummyBody);
+
+      expect(getByKeySpy).toHaveBeenCalledOnce();
+      expect(getByKeySpy).toHaveResolvedWith(dummyToken);
+
+      expect(decryptStringSpy).toHaveBeenCalledOnce();
+      expect(decryptStringSpy).toHaveReturnedWith(dummyUser.id);
+
+      expect(getIsEmailVerifiedQuerySpy).toHaveBeenCalledOnce();
+      expect(getIsEmailVerifiedQuerySpy).toHaveResolvedWith({
+        isEmailVerified: false,
+      });
+
+      expect(updateUserByIdQuerySpy).toHaveBeenCalledOnce();
+      const dbQueryResult = await testDb.query.usersTable.findFirst({
+        where: eq(usersTable.id, dummyUser.id),
+      });
+      expect(dbQueryResult?.isEmailVerified).toBe(true);
+
+      expect(deleteByKeySpy).toHaveBeenCalledOnce();
+      const redisQueryResult = await testRedis.get(dummyKey);
+      expect(redisQueryResult).toBe(null);
+
+      expect(result.status).toBe(HttpStatusCodes.OK);
+    });
+
+    it("should handle invalid verification code", async () => {
+      const getByKeySpy = vi.spyOn(redisQueries, "getByKey");
+      const decryptStringSpy = vi
+        .spyOn(authUtils, "decryptString")
+        .mockReturnValue(dummyUser.id);
+      const getIsEmailVerifiedQuerySpy = vi.spyOn(
+        dbQueries,
+        "getIsEmailVerifiedQuery",
+      );
+      const updateUserByIdQuerySpy = vi.spyOn(dbQueries, "updateUserByIdQuery");
+      const deleteByKeySpy = vi.spyOn(redisQueries, "deleteByKey");
+
+      await testRedis.del(dummyKey);
+
+      const result = await verifyEmail(testDependencies, dummyBody);
+
+      expect(getByKeySpy).toHaveBeenCalledOnce();
+      expect(getByKeySpy).toHaveResolvedWith(null);
+
+      expect(decryptStringSpy).not.toHaveBeenCalled();
+      expect(deleteByKeySpy).not.toHaveBeenCalled();
+      expect(getIsEmailVerifiedQuerySpy).not.toHaveBeenCalled();
+      expect(updateUserByIdQuerySpy).not.toHaveBeenCalled();
+
+      expect(result.status).toBe(HttpStatusCodes.BAD_REQUEST);
+    });
+
+    it("should handle email already verified", async () => {
+      const getByKeySpy = vi.spyOn(redisQueries, "getByKey");
+      const decryptStringSpy = vi
+        .spyOn(authUtils, "decryptString")
+        .mockReturnValue(dummyUser.id);
+      const getIsEmailVerifiedQuerySpy = vi.spyOn(
+        dbQueries,
+        "getIsEmailVerifiedQuery",
+      );
+      const updateUserByIdQuerySpy = vi.spyOn(dbQueries, "updateUserByIdQuery");
+      const deleteByKeySpy = vi.spyOn(redisQueries, "deleteByKey");
+
+      await testRedis.set(dummyKey, dummyToken);
+
+      await testDb
+        .update(usersTable)
+        .set({ isEmailVerified: true })
+        .where(eq(usersTable.id, dummyUser.id));
+
+      const result = await verifyEmail(testDependencies, dummyBody);
+
+      expect(getByKeySpy).toHaveBeenCalledOnce();
+      expect(getByKeySpy).toHaveResolvedWith(dummyToken);
+      expect(decryptStringSpy).toHaveBeenCalledOnce();
+      expect(deleteByKeySpy).toHaveBeenCalled();
+      expect(getIsEmailVerifiedQuerySpy).toHaveBeenCalled();
+
+      expect(updateUserByIdQuerySpy).not.toHaveBeenCalled();
+
+      expect(result.status).toBe(HttpStatusCodes.CONFLICT);
+    });
+
+    it("should handle non-existent user", async () => {
+      vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
+
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+
+      const result = await verifyEmail(testDependencies, dummyBody);
+
+      expect(result.status).toBe(HttpStatusCodes.NOT_FOUND);
+    });
+
+    it("should throw error when updateUserByIdQuery returns an empty array", async () => {
+      vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
+
+      vi.spyOn(dbQueries, "updateUserByIdQuery").mockResolvedValueOnce([]);
+
+      await expect(verifyEmail(testDependencies, dummyBody)).rejects.toThrow(
+        QueryExecutionError,
+      );
+    });
+
+    it("should handle field not updated", async () => {
+      const currentUser = await testDb.query.usersTable.findFirst();
+      vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
+
+      const updateUserByIdQuerySpy = vi.spyOn(dbQueries, "updateUserByIdQuery");
+      updateUserByIdQuerySpy.mockImplementationOnce(() =>
+        Promise.resolve([currentUser!]),
+      );
+
+      await expect(verifyEmail(testDependencies, dummyBody)).rejects.toThrow(
+        QueryExecutionError,
+      );
+    });
+
+    it("should handle database connection error", async () => {
+      vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
+
+      const dbClientSpy = vi
+        .spyOn(testDependencies.dbInstance, "execute")
+        .mockImplementation(() => {
+          throw new DatabaseConnectionError("Database connection failed");
+        });
+
+      await expect(verifyEmail(testDependencies, dummyBody)).rejects.toThrow(
+        DatabaseConnectionError,
+      );
+      dbClientSpy.mockRestore();
+    });
+
+    it("should propagate errors thrown during Redis key deletion", async () => {
+      vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
+
+      vi.spyOn(redisQueries, "deleteByKey").mockRejectedValueOnce(
+        new Error("Redis deletion failed"),
+      );
+
+      await expect(verifyEmail(testDependencies, dummyBody)).rejects.toThrow(
+        "Redis deletion failed",
+      );
+    });
+
+    it("should handle unexpected exceptions", async () => {
+      vi.spyOn(authUtils, "decryptString").mockImplementation(() => {
+        throw new Error("Unexpected Error");
+      });
+
+      await expect(verifyEmail(testDependencies, dummyBody)).rejects.toThrow(
+        Error,
+      );
+    });
+
+    it("should return conflict on a second verification attempt", async () => {
+      vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
+
+      const firstResult = await verifyEmail(testDependencies, dummyBody);
+      expect(firstResult.status).toBe(HttpStatusCodes.OK);
+
+      await testRedis.set(dummyKey, dummyToken);
+
+      const secondResult = await verifyEmail(testDependencies, dummyBody);
+      expect(secondResult.status).toBe(HttpStatusCodes.CONFLICT);
+    });
+
+    describe("verifyEmail - concurrency", () => {
+      it("should handle concurrent verification requests properly", async () => {
+        vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
+
+        const concurrentCalls = 5;
+        const promises = Array.from({ length: concurrentCalls }, () =>
+          verifyEmail(testDependencies, dummyBody));
+
+        const results = await Promise.allSettled(promises);
+
+        const okResults = results.filter(
+          result =>
+            result.status === "fulfilled"
+            && (result as PromiseFulfilledResult<ServiceResponse<any>>).value.status === HttpStatusCodes.OK,
+        );
+        const conflictResults = results.filter(
+          result =>
+            result.status === "fulfilled"
+            && (result as PromiseFulfilledResult<ServiceResponse<any>>).value.status === HttpStatusCodes.CONFLICT,
+        );
+
+        expect(okResults.length).toBe(1);
+        expect(conflictResults.length).toBe(concurrentCalls - 1);
+
+        const redisResult = await testRedis.get(dummyKey);
+        expect(redisResult).toBe(null);
+      });
+    });
+
+    describe("verifyEmail - concurrency with invalid code", () => {
+      it("should have all concurrent calls return BAD_REQUEST if the verification code is missing", async () => {
+        await testRedis.del(dummyKey);
+
+        const concurrentCalls = 3;
+        const promises = Array.from({ length: concurrentCalls }, () =>
+          verifyEmail(testDependencies, dummyBody));
+
+        const results = await Promise.allSettled(promises);
+
+        results.forEach((result) => {
+          if (result.status === "fulfilled") {
+            expect(result.value.status).toBe(HttpStatusCodes.BAD_REQUEST);
+          }
+        });
+      });
     });
   });
 });

@@ -50,6 +50,7 @@ export default function createApp() {
   app.use("*", sentryConfigureScope());
   app.use(requestLogger());
   app.use("/auth/send-verification-email", emailVerificationLimiter);
+  app.use("/auth/verify-email", emailVerificationLimiter);
 
   app.onError(onError);
   app.notFound(notFound);

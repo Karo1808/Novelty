@@ -1,4 +1,7 @@
+/* eslint-disable node/prefer-global/buffer */
 import { hash } from "@node-rs/argon2";
+import crypto from "node:crypto";
+import "dotenv/config";
 
 export async function hashPassword(password: string): Promise<string> {
   return await hash(password, {
@@ -7,4 +10,44 @@ export async function hashPassword(password: string): Promise<string> {
     outputLen: 32,
     parallelism: 1,
   });
+}
+
+export function encryptString(input: string): string {
+  const iv = crypto.randomBytes(16);
+  // eslint-disable-next-line node/no-process-env
+  const encryptionKey = process.env.ENCRYPTION_KEY!;
+
+  const cipher = crypto.createCipheriv(
+    "aes-256-cbc",
+    Buffer.from(encryptionKey, "utf8"),
+    iv,
+  );
+
+  let encrypted = cipher.update(input, "utf8", "hex");
+  encrypted += cipher.final("hex");
+
+  return `${iv.toString("hex")}:${encrypted}`;
+}
+
+export function decryptString(encryptedInput: string): string {
+  // eslint-disable-next-line node/no-process-env
+  const encryptionKey = process.env.ENCRYPTION_KEY!;
+
+  const [ivHex, encryptedData] = encryptedInput.split(":");
+  if (!ivHex || !encryptedData) {
+    throw new Error("Invalid encrypted input format.");
+  }
+
+  const iv = Buffer.from(ivHex, "hex");
+
+  const decipher = crypto.createDecipheriv(
+    "aes-256-cbc",
+    Buffer.from(encryptionKey, "utf8"),
+    iv,
+  );
+
+  let decrypted = decipher.update(encryptedData, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+
+  return decrypted;
 }

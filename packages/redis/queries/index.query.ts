@@ -37,6 +37,16 @@ export const deleteByKey = (dependencies: Dependencies, key: RedisKey) => {
   });
 };
 
+export const getByKey = (dependencies: Dependencies, key: RedisKey) => {
+  return createRedisQuery({
+    dependencies,
+    queryName: "deleteByKey",
+    query: async (redis) => {
+      return await redis.get(key);
+    },
+  });
+};
+
 export const acquireLock = (
   dependencies: Dependencies,
   key: RedisKey,
