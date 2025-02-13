@@ -8,7 +8,6 @@ import type {
 } from "prom-client";
 import { Counter, Gauge, Histogram, Summary } from "prom-client";
 
-// Overloads
 export function createMetric(
   type: "Histogram",
   options: HistogramConfiguration<string> & { registry: Registry },
@@ -26,14 +25,12 @@ export function createMetric(
   options: SummaryConfiguration<string> & { registry: Registry },
 ): Summary<string>;
 
-// Implementation
 export function createMetric(
   type: "Histogram" | "Counter" | "Gauge" | "Summary",
   options: any,
 ): any {
   const { name, registry } = options;
 
-  // Check if the metric already exists
   const existingMetric = registry.getSingleMetric(name) as
     | Metric<string>
     | undefined;
@@ -41,10 +38,8 @@ export function createMetric(
     return existingMetric;
   }
 
-  // Ensure the metric registers with the correct registry
   options.registers = [registry];
 
-  // Create and register the new metric
   switch (type) {
     case "Histogram":
       return new Histogram(options);
