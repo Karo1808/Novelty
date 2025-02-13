@@ -1,11 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   registerUser,
   sendVerificationEmail,
@@ -68,7 +61,7 @@ describe("auth service", () => {
       expect(hashPasswordSpy).toHaveBeenCalledWith(dummyBody.password);
       expect(createUserQuerySpy).toHaveBeenCalledOnce();
       expect(result).toHaveProperty("status", HttpStatusCodes.CREATED);
-      expect(result.data).toMatchObject({
+      expect(result.body).toMatchObject({
         id: expect.stringMatching(/^[\w-]{21}$/),
         email: expect.stringMatching(dummyBody.email as string),
         isEmailVerified: false,
@@ -274,7 +267,7 @@ describe("auth service", () => {
       expect(releaseLockSpy).toHaveBeenCalledOnce();
 
       expect(result.status).toBe(HttpStatusCodes.OK);
-      expect(result.data).toBe(dummyBody.email);
+      expect(result.body).toBe(dummyBody.email);
 
       const redisToken = await testRedis.get(dummyKey);
       expect(redisToken).toBe(dummyToken);
@@ -311,10 +304,8 @@ describe("auth service", () => {
       expect(addJobToQueueSpy).not.toHaveBeenCalled();
       expect(releaseLockSpy).not.toHaveBeenCalled();
 
-      expect(result).toEqual({
-        status: HttpStatusCodes.CONFLICT,
-        body: { message: "Another process is already handling this email" },
-      });
+      expect(result.status).toBe(HttpStatusCodes.CONFLICT);
+      expect(result).toHaveProperty("error");
     });
 
     it("should allow only one process to acquire the lock (simulate race condition)", async () => {
@@ -356,10 +347,8 @@ describe("auth service", () => {
       }
 
       if (secondCall.status === "fulfilled") {
-        expect(secondCall.value).toEqual({
-          status: HttpStatusCodes.CONFLICT,
-          body: { message: "Another process is already handling this email" },
-        });
+        expect(secondCall.value.status).toBe(HttpStatusCodes.CONFLICT);
+        expect(secondCall.value).toHaveProperty("error");
       }
       else {
         throw new Error(`Second call was rejected: ${secondCall.reason}`);

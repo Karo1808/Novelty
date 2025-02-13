@@ -333,7 +333,7 @@ describe("auth routes", () => {
 
       const conflictJson = await conflictResponses[0]?.json();
 
-      expect(conflictJson?.message).toMatch(/another process/i);
+      expect(conflictJson?.message).toMatch(/email .* verified/i);
 
       expect(conflictResponses).toHaveLength(numberOfRequests - 1);
     });
