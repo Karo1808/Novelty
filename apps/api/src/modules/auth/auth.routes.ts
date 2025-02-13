@@ -100,7 +100,7 @@ export const verifyEmailRoute = createRoute({
   method: "post",
   path: "/auth/verify-email",
   description:
-    "Verifies the PIN provided by the user and updates the isEmailVerified field in the database",
+    "Verifies the PIN provided by the use, updates the isEmailVerified field in the database and sets the session cookie",
   request: {
     body: jsonContentRequired(
       verifyEmailBodySchema,

@@ -15,14 +15,6 @@ export const timeoutQuery = <T, U extends Error>({
   logger,
   queryName = "unknown_query",
 }: TimeoutQueryParams<T, U>): Promise<T> => {
-  if (!query || typeof query.then !== "function") {
-    throw new TypeError("Provided query is not a promise");
-  }
-
-  if (typeof timeoutDuration !== "number" || timeoutDuration <= 0) {
-    throw new TypeError("timeoutDuration must be a positive number");
-  }
-
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       if (logger) {
