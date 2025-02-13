@@ -47,6 +47,44 @@ export const getByKey = (dependencies: Dependencies, key: RedisKey) => {
   });
 };
 
+export const getSetMembers = (dependencies: Dependencies, key: RedisKey) => {
+  return createRedisQuery({
+    dependencies,
+    queryName: "getSetMembers",
+    query: async (redis) => {
+      return await redis.smembers(key);
+    },
+  });
+};
+
+export const addToSet = (
+  dependencies: Dependencies,
+  key: RedisKey,
+  members: any,
+) => {
+  return createRedisQuery({
+    dependencies,
+    queryName: "addToSet",
+    query: async (redis) => {
+      return await redis.sadd(key, members);
+    },
+  });
+};
+
+export const removeFromSet = (
+  dependencies: Dependencies,
+  key: RedisKey,
+  members: any,
+) => {
+  return createRedisQuery({
+    dependencies,
+    queryName: "removeFromSet",
+    query: async (redis) => {
+      return await redis.srem(key, members);
+    },
+  });
+};
+
 export const acquireLock = (
   dependencies: Dependencies,
   key: RedisKey,

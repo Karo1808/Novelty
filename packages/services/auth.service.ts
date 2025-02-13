@@ -1,12 +1,16 @@
 import type { ServiceDependencies, ServiceResponse } from "./types";
-import type { InsertUser } from "@novelty/db/schemas/user.schema";
+import type { InsertUser, SelectUser } from "@novelty/db/schemas/user.schema";
 import {
   createUserQuery,
   getIsEmailVerifiedQuery,
   getUserByEmailQuery,
   updateUserByIdQuery,
 } from "@novelty/db/queries/auth.query";
-import { decryptString, encryptString, hashPassword } from "./lib/auth";
+import {
+  decryptString,
+  encryptString,
+  hashPassword,
+} from "@novelty/lib/auth/cryptography";
 import {
   DatabaseConnectionError,
   QueryExecutionError,
@@ -33,6 +37,7 @@ import {
 } from "./lib/config";
 import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
 import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
+import { createSession, generateSessionToken } from "./session.service";
 
 export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
   dependencies: MarkKeysAsPartial<
@@ -40,7 +45,7 @@ export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
     ["redisClient", "messageQueueInstance"]
   >,
   body: InsertUser["register"],
-): Promise<ServiceResponse<TStatusCodes>> => {
+): Promise<ServiceResponse<TStatusCodes> & { body?: SelectUser }> => {
   const deps = prepareDependencies(dependencies, "redisClient");
 
   try {
@@ -108,7 +113,7 @@ export const sendVerificationEmail = async <
 >(
   dependencies: Required<ServiceDependencies>,
   body: InsertUser["sendVerificationEmail"],
-): Promise<ServiceResponse<TStatusCodes>> => {
+): Promise<ServiceResponse<TStatusCodes> & { body?: string }> => {
   const dbDependencies = prepareDependencies(dependencies, "redisClient");
   const redisDependencies = prepareDependencies(dependencies, "dbInstance");
 
@@ -126,7 +131,8 @@ export const sendVerificationEmail = async <
   if (!isLockAcquired) {
     return {
       status: HttpStatusCodes.CONFLICT as TStatusCodes,
-      body: {
+      error: {
+        name: "Locker failure",
         message: "Another process is already handling this email",
       },
     };
@@ -187,7 +193,7 @@ export const sendVerificationEmail = async <
 
     return {
       status: HttpStatusCodes.OK as TStatusCodes,
-      body: { encryptedUserId: encryptedId },
+      body: encryptedId,
     };
   }
   finally {
@@ -201,7 +207,14 @@ export const verifyEmail = async <TStatusCodes extends HttpStatusCodeValue>(
     ["messageQueueInstance"]
   >,
   body: VerifyEmailBodySchema,
-): Promise<ServiceResponse<TStatusCodes>> => {
+): Promise<
+  ServiceResponse<TStatusCodes> & {
+    data?: {
+      sessionToken: string;
+      expiresAt: Date;
+    };
+  }
+> => {
   const dbDependencies = prepareDependencies(dependencies, "redisClient");
   const redisDependencies = prepareDependencies(dependencies, "dbInstance");
 
@@ -245,7 +258,19 @@ export const verifyEmail = async <TStatusCodes extends HttpStatusCodeValue>(
 
   await deleteByKey(redisDependencies, `verify-email:${encryptedUserId}`);
 
+  const sessionToken = generateSessionToken();
+
+  const { expiresAt } = await createSession(
+    redisDependencies,
+    sessionToken,
+    userId,
+  );
+
   return {
     status: HttpStatusCodes.OK as TStatusCodes,
+    data: {
+      sessionToken,
+      expiresAt,
+    },
   };
 };

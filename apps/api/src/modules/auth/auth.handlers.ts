@@ -12,24 +12,24 @@ import {
 import { db } from "@novelty/db";
 import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
-import type { ServiceResponse } from "@novelty/services/types";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
 import { emailQueue } from "@novelty/message-queue/queues/email.queue";
+import { setCookie } from "hono/cookie";
+import env from "@/env";
 
 export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   const body = c.req.valid("json");
 
-  const res: ServiceResponse<keyof RegisterRoute["responses"]>
-    = await registerUser<keyof RegisterRoute["responses"]>(
-      {
-        dbInstance: db,
-        logger,
-        prometheusRegistry,
-        reqId: c.var.requestId,
-      },
-      body,
-    );
+  const res = await registerUser<keyof RegisterRoute["responses"]>(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
 
   if (res.status === HttpStatusCodes.CONFLICT) {
     return c.json(
@@ -53,18 +53,19 @@ export const handleSendVerificationEmail: AppRouteHandler<
 > = async (c) => {
   const body = c.req.valid("json");
 
-  const res: ServiceResponse<keyof SendVerificationEmailRoute["responses"]>
-    = await sendVerificationEmail<keyof SendVerificationEmailRoute["responses"]>(
-      {
-        dbInstance: db,
-        redisClient: redis,
-        messageQueueInstance: emailQueue,
-        logger,
-        prometheusRegistry,
-        reqId: c.var.requestId,
-      },
-      body,
-    );
+  const res = await sendVerificationEmail<
+    keyof SendVerificationEmailRoute["responses"]
+  >(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      messageQueueInstance: emailQueue,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
 
   if (res.status === HttpStatusCodes.NOT_FOUND) {
     return c.json(
@@ -79,7 +80,8 @@ export const handleSendVerificationEmail: AppRouteHandler<
   if (res.status === HttpStatusCodes.CONFLICT) {
     return c.json(
       {
-        message: res?.body?.message ?? "This email has already been verified",
+        message:
+          res?.body?.error.message ?? "This email has already been verified",
         success: false,
       },
       HttpStatusCodes.CONFLICT,
@@ -90,7 +92,7 @@ export const handleSendVerificationEmail: AppRouteHandler<
     {
       message: "Email sent to the recipient",
       success: true,
-      data: res.body,
+      encryptedUserId: res.body,
     },
     HttpStatusCodes.OK,
   );
@@ -101,17 +103,16 @@ export const handleVerifyEmail: AppRouteHandler<VerifyEmailRoute> = async (
 ) => {
   const body = c.req.valid("json");
 
-  const res: ServiceResponse<keyof VerifyEmailRoute["responses"]>
-    = await verifyEmail<keyof VerifyEmailRoute["responses"]>(
-      {
-        dbInstance: db,
-        redisClient: redis,
-        logger,
-        prometheusRegistry,
-        reqId: c.var.requestId,
-      },
-      body,
-    );
+  const res = await verifyEmail<keyof VerifyEmailRoute["responses"]>(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
 
   if (res.status === HttpStatusCodes.NOT_FOUND) {
     return c.json(
@@ -141,6 +142,19 @@ export const handleVerifyEmail: AppRouteHandler<VerifyEmailRoute> = async (
       },
       HttpStatusCodes.CONFLICT,
     );
+  }
+
+  if (res.data) {
+    const { sessionToken, expiresAt } = res.data;
+
+    setCookie(c, "session", sessionToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      maxAge: 0,
+      path: "/",
+      expires: new Date(expiresAt.getUTCDate()),
+    });
   }
 
   return c.json(

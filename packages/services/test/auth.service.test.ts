@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   registerUser,
   sendVerificationEmail,
@@ -6,7 +13,7 @@ import {
 } from "../auth.service";
 import * as dbQueries from "@novelty/db/queries/auth.query";
 import * as redisQueries from "@novelty/redis/queries/index.query";
-import * as authUtils from "../lib/auth";
+import * as authUtils from "@novelty/lib/auth/cryptography";
 import * as tokenGenerationUtils from "@novelty/lib/generate-verification-token";
 import { verify } from "@node-rs/argon2";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
@@ -30,6 +37,7 @@ import {
   VERIFICATION_EMAIL_TOKEN_LENGTH,
 } from "../lib/config";
 import * as queueUtils from "@novelty/message-queue/lib/add-job-to-queue";
+import * as sessionService from "../session.service";
 import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import type { ServiceResponse } from "types";
@@ -60,7 +68,7 @@ describe("auth service", () => {
       expect(hashPasswordSpy).toHaveBeenCalledWith(dummyBody.password);
       expect(createUserQuerySpy).toHaveBeenCalledOnce();
       expect(result).toHaveProperty("status", HttpStatusCodes.CREATED);
-      expect(result.body).toMatchObject({
+      expect(result.data).toMatchObject({
         id: expect.stringMatching(/^[\w-]{21}$/),
         email: expect.stringMatching(dummyBody.email as string),
         isEmailVerified: false,
@@ -266,6 +274,7 @@ describe("auth service", () => {
       expect(releaseLockSpy).toHaveBeenCalledOnce();
 
       expect(result.status).toBe(HttpStatusCodes.OK);
+      expect(result.data).toBe(dummyBody.email);
 
       const redisToken = await testRedis.get(dummyKey);
       expect(redisToken).toBe(dummyToken);
@@ -506,6 +515,7 @@ describe("auth service", () => {
 
     const dummyKey = `verify-email:${dummyUser.id}`;
     const dummyToken = "12345";
+    const dummySessionToken = "session123";
 
     const dummyBody: VerifyEmailBodySchema = {
       encryptedUserId: dummyUser.id,
@@ -534,6 +544,10 @@ describe("auth service", () => {
       );
       const updateUserByIdQuerySpy = vi.spyOn(dbQueries, "updateUserByIdQuery");
       const deleteByKeySpy = vi.spyOn(redisQueries, "deleteByKey");
+      const generateSessionTokenSpy = vi
+        .spyOn(sessionService, "generateSessionToken")
+        .mockReturnValue(dummySessionToken);
+      const createSessionSpy = vi.spyOn(sessionService, "createSession");
 
       await testRedis.set(dummyKey, dummyToken);
 
@@ -560,7 +574,26 @@ describe("auth service", () => {
       const redisQueryResult = await testRedis.get(dummyKey);
       expect(redisQueryResult).toBe(null);
 
+      expect(generateSessionTokenSpy).toHaveBeenCalledOnce();
+      expect(generateSessionTokenSpy).toHaveReturnedWith(dummySessionToken);
+
+      expect(createSessionSpy).toHaveBeenCalledOnce();
+      const mockReturnPromise: Promise<sessionService.Session>
+        = createSessionSpy.mock.results[0]?.value;
+
+      const { id, userId } = await mockReturnPromise;
+
+      const key = `session:${id}`;
+      const session = JSON.parse((await testRedis.get(key)) as string);
+
+      expect(session).toMatchObject({
+        user_id: userId,
+      });
+
       expect(result.status).toBe(HttpStatusCodes.OK);
+      expect(result.data).toMatchObject({
+        sessionToken: dummySessionToken,
+      });
     });
 
     it("should handle invalid verification code", async () => {

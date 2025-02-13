@@ -35,16 +35,12 @@ export type RegisterCreatedResponse = z.infer<typeof registerCreatedSchema>;
 export const sendVerificationEmailSuccessSchema = z
   .object({
     message: z.string(),
-    data: z.object({
-      encryptedUserId: z.string(),
-    }),
+    encryptedUserId: z.string(),
   })
   .openapi({
     example: {
       message: "Email verification sent successfully",
-      data: {
-        encryptedUserId: "encrypted_user_id",
-      },
+      encryptedUserId: "encrypted_user_id",
     },
   });
 
