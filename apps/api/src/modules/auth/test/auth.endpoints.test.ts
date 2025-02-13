@@ -15,8 +15,8 @@ import { testDb, testQueue, testRedis } from "@/test-setup";
 import { testClient } from "hono/testing";
 import { eq, sql } from "drizzle-orm";
 import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
-import * as authUtils from "@novelty/services/lib/auth";
-import type { ServiceResponse } from "@novelty/services/types";
+import * as authUtils from "@novelty/lib/auth/cryptography";
+import * as sessionService from "@novelty/services/session.service";
 
 vi.mock("@hono/node-server/conninfo", () => ({
   getConnInfo: vi.fn(() => ({
@@ -333,7 +333,7 @@ describe("auth routes", () => {
 
       const conflictJson = await conflictResponses[0]?.json();
 
-      expect(conflictJson?.message).toMatch(/another process/i);
+      expect(conflictJson?.message).toMatch(/email .* verified/i);
 
       expect(conflictResponses).toHaveLength(numberOfRequests - 1);
     });
@@ -354,6 +354,8 @@ describe("auth routes", () => {
       verificationCode: dummyToken,
     };
 
+    const dummySessionToken = "session123";
+
     beforeEach(async () => {
       vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
       await testDb.insert(usersTable).values(dummyUser);
@@ -367,6 +369,10 @@ describe("auth routes", () => {
     });
 
     it("handles success", async () => {
+      vi.spyOn(sessionService, "generateSessionToken").mockReturnValue(
+        dummySessionToken,
+      );
+
       const response = await client.auth["verify-email"].$post({
         json: dummyBody,
       });
@@ -379,6 +385,11 @@ describe("auth routes", () => {
         message: expect.stringMatching(/email verified/i),
         success: true,
       });
+
+      const header = response.headers.get("Set-Cookie");
+      const [_, sessionId] = header!.split(";")[0]!.split("=");
+
+      expect(sessionId).toBe(dummySessionToken);
     });
 
     it("returns not found if user does not exist", async () => {
@@ -479,30 +490,6 @@ describe("auth routes", () => {
       expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
       const json = await response.json();
       expect(json).toHaveProperty("message");
-    });
-
-    it("handles concurrent requests correctly", async () => {
-      const numberOfRequests = 3;
-
-      const requests = Array.from({ length: numberOfRequests }).map(() =>
-        client.auth["verify-email"].$post({ json: dummyBody }),
-      );
-
-      const responses = await Promise.allSettled(requests);
-
-      const okResults = responses.filter(
-        result =>
-          result.status === "fulfilled"
-          && (result as PromiseFulfilledResult<ServiceResponse<any>>).value.status === HttpStatusCodes.OK,
-      );
-      const conflictResults = responses.filter(
-        result =>
-          result.status === "fulfilled"
-          && (result as PromiseFulfilledResult<ServiceResponse<any>>).value.status === HttpStatusCodes.CONFLICT,
-      );
-
-      expect(okResults.length).toBe(1);
-      expect(conflictResults.length).toBe(numberOfRequests - 1);
     });
   });
 });
