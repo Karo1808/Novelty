@@ -1,5 +1,5 @@
 services:
-  redis:
+  redis-queue:
     container_name: novelty-redis-queue
     image: redis
     restart: always
@@ -7,7 +7,8 @@ services:
       - "6380:6380"
     volumes:
       - redis-queue-data:/data
-    entrypoint: redis-server --appendonly yes
+    entrypoint: redis-server --port 6380 --appendonly yes
+
 
 volumes:
   redis-queue-data:

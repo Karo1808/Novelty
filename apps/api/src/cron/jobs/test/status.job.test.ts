@@ -57,6 +57,7 @@ describe("callHealthcheck", () => {
             readiness: {
               database: "connected",
               redis: "connected",
+              emailQueue: "connected",
             },
           }),
       }),

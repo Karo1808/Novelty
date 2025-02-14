@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/node";
 import type { MiddlewareHandler } from "hono";
-import type { Span } from "@sentry/types";
+import type { Span } from "@sentry/core";
 import { createMiddleware } from "hono/factory";
 
 export const sentryTransactionMiddleware = (): MiddlewareHandler => {
