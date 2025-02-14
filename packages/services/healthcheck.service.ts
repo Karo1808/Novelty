@@ -19,3 +19,12 @@ export const checkRedisHealth = async (
 
   return await pingRedisQuery(deps);
 };
+
+export const checkEmailQueueHealth = async (
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["dbInstance", "redisClient"]
+  >,
+) => {
+  return await dependencies.messageQueueInstance?.getJobCounts();
+};

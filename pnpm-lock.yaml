@@ -163,6 +163,9 @@ importers:
       '@novelty/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
+      '@sentry/core':
+        specifier: ^9.1.0
+        version: 9.1.0
       '@sentry/types':
         specifier: ^8.54.0
         version: 8.54.0
@@ -4488,6 +4491,11 @@ packages:
       '@sentry/types': 8.9.2
       '@sentry/utils': 8.9.2
     dev: false
+
+  /@sentry/core@9.1.0:
+    resolution: {integrity: sha512-djWEzSBpMgqdF3GQuxO+kXCUX+Mgq42G4Uah/HSUBvPDHKipMmyWlutGRoFyVPPOnCDgpHu3wCt83wbpEyVmDw==}
+    engines: {node: '>=18'}
+    dev: true
 
   /@sentry/node@8.52.0:
     resolution: {integrity: sha512-k+GuWbLDcqIS766zF+TvVRnfbshNy6XKRd+HRNIEaeYa9Tm4LH/ZgCxz39AhFAQGWlZUHm/G2KkCt3AvgswJEg==}
