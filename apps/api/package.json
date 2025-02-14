@@ -64,6 +64,7 @@
   "devDependencies": {
     "@antfu/eslint-config": "^4.2.0",
     "@novelty/typescript-config": "workspace:*",
+    "@sentry/core": "^9.1.0",
     "@sentry/types": "^8.54.0",
     "@testcontainers/postgresql": "^10.18.0",
     "@testcontainers/redis": "^10.18.0",
