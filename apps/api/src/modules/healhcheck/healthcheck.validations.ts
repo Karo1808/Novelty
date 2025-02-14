@@ -7,13 +7,18 @@ export const healthcheckOkSchema = z
     readiness: z.object({
       database: z.literal("connected"),
       redis: z.literal("connected"),
+      emailQueue: z.literal("connected"),
     }),
   })
   .openapi({
     example: {
       status: "healthy",
       environment: "development",
-      readiness: { database: "connected", redis: "connected" },
+      readiness: {
+        database: "connected",
+        redis: "connected",
+        emailQueue: "connected",
+      },
     },
   });
 
@@ -24,13 +29,18 @@ export const healthcheckUnavailableSchema = z
     readiness: z.object({
       database: z.enum(["connected", "disconnected"]),
       redis: z.enum(["connected", "disconnected"]),
+      emailQueue: z.enum(["connected", "disconnected"]),
     }),
   })
   .openapi({
     example: {
       status: "unhealthy",
       environment: "development",
-      readiness: { database: "disconnected", redis: "disconnected" },
+      readiness: {
+        database: "disconnected",
+        redis: "disconnected",
+        emailQueue: "disconnected",
+      },
     },
   });
 

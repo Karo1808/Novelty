@@ -4,13 +4,19 @@ import type {
   RouteHandler,
   z,
 } from "@hono/zod-openapi";
-import type { Span } from "@sentry/types";
+import type { Span } from "@sentry/core";
 import type { PinoLogger } from "hono-pino";
+
+export interface User {
+  userId: string;
+  sessionId: string;
+}
 
 export interface AppBindings {
   Variables: {
     logger: PinoLogger;
     sentrySpan: Span;
+    user: User;
   };
 }
 
