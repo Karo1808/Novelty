@@ -1,6 +1,7 @@
 import type { AppRouteHandler } from "@/types/index.types";
 import {
   checkDbHealth,
+  checkEmailQueueHealth,
   checkRedisHealth,
 } from "@novelty/services/healthcheck.service";
 import env from "@/env";
@@ -10,10 +11,12 @@ import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
 import { db } from "@novelty/db/index";
 import { redis } from "@novelty/redis";
+import { emailQueue } from "@novelty/message-queue/queues/email.queue";
 
 interface Response {
   dbStatus?: boolean;
   redisStatus?: boolean;
+  emailQueueStatus?: boolean;
 }
 
 export const handleHealthcheck: AppRouteHandler<HealthcheckRoute> = async (
@@ -60,7 +63,24 @@ export const handleHealthcheck: AppRouteHandler<HealthcheckRoute> = async (
     });
   }
 
-  if (!res.dbStatus || !res.redisStatus) {
+  try {
+    res.emailQueueStatus = !!(await checkEmailQueueHealth({
+      messageQueueInstance: emailQueue,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    }));
+  }
+  catch (error) {
+    c.var.logger.error({
+      message: "Email queue connection error",
+      source: "handleHealthcheck",
+      error: (error as Error).message,
+      stackTrace: (error as Error)?.stack,
+    });
+  }
+
+  if (!res.dbStatus || !res.redisStatus || !res.emailQueueStatus) {
     return c.json(
       {
         status: "unhealthy",
@@ -68,6 +88,7 @@ export const handleHealthcheck: AppRouteHandler<HealthcheckRoute> = async (
         readiness: {
           database: res?.dbStatus ? "connected" : "disconnected",
           redis: res?.redisStatus ? "connected" : "disconnected",
+          emailQueue: res?.emailQueueStatus ? "connected" : "disconnected",
         },
       },
       HttpStatusCodes.SERVICE_UNAVAILABLE,
@@ -81,6 +102,7 @@ export const handleHealthcheck: AppRouteHandler<HealthcheckRoute> = async (
       readiness: {
         database: "connected",
         redis: "connected",
+        emailQueue: "connected",
       },
     },
     HttpStatusCodes.OK,
