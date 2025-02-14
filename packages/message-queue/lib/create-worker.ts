@@ -3,11 +3,15 @@ import { MetricsTime, Worker } from "bullmq";
 import { logger } from "./logger";
 import { captureException } from "@novelty/lib/sentry";
 import { redisConfig } from "../config/index";
+import type { MarkKeysAsPartial } from "@novelty/lib/types";
 
 export const createWorker = (
   queueName: string,
   jobProcessors: Record<string, (data: any) => Promise<void>>,
-  connection = redisConfig,
+  connection: MarkKeysAsPartial<
+    typeof redisConfig,
+    "retryStrategy"
+  > = redisConfig,
 ): Worker => {
   const worker = new Worker(
     queueName,
