@@ -17,6 +17,7 @@ import { redis } from "@novelty/redis";
 import { emailQueue } from "@novelty/message-queue/queues/email.queue";
 import { setCookie } from "hono/cookie";
 import env from "@/env";
+import { SESSION_EXPIRATION_TIME } from "@novelty/services/session.service";
 
 export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   const body = c.req.valid("json");
@@ -151,9 +152,9 @@ export const handleVerifyEmail: AppRouteHandler<VerifyEmailRoute> = async (
       httpOnly: true,
       sameSite: "lax",
       secure: env.NODE_ENV === "production",
-      maxAge: 0,
       path: "/",
-      expires: new Date(expiresAt.getUTCDate()),
+      maxAge: SESSION_EXPIRATION_TIME / 1000,
+      expires: expiresAt,
     });
   }
 

@@ -18,6 +18,7 @@ import env from "@/env";
 import { sentryConfigureScope } from "@/middleware/sentry-configure-scope.middleware";
 import { sentryTransactionMiddleware } from "@/middleware/sentry-transaction.middleware";
 import { emailVerificationLimiter } from "@/middleware/rate-limit";
+import { authMiddleware } from "@/middleware/auth.middleware";
 
 const defaultHook: Hook<any, any, any, any> = (result, c) => {
   if (!result.success) {
@@ -49,8 +50,13 @@ export default function createApp() {
   app.use("*", sentry({ dsn: env.SENTRY_DSN }));
   app.use("*", sentryConfigureScope());
   app.use(requestLogger());
+
+  // AUTH
   app.use("/auth/send-verification-email", emailVerificationLimiter);
   app.use("/auth/verify-email", emailVerificationLimiter);
+
+  // USER
+  app.use("/user/*", authMiddleware());
 
   app.onError(onError);
   app.notFound(notFound);

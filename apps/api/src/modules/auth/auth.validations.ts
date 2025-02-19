@@ -16,6 +16,7 @@ export const registerCreatedSchema = z
         isEmailVerified: false,
         createdAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
         updatedAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        isOnboarded: false,
       },
     },
   });
@@ -29,8 +30,6 @@ export const registerConflictSchema = z
       message: "An account with that email already exists.",
     },
   });
-
-export type RegisterCreatedResponse = z.infer<typeof registerCreatedSchema>;
 
 export const sendVerificationEmailSuccessSchema = z
   .object({
@@ -63,10 +62,6 @@ export const sendVerificationEmailConflictSchema = z
       message: "This email has already been verified",
     },
   });
-
-export type SendVerificationEmailSuccessResponse = z.infer<
-  typeof sendVerificationEmailSuccessSchema
->;
 
 export const verifyEmailSuccessSchema = z
   .object({
@@ -107,7 +102,3 @@ export const verifyEmailConflictSchema = z
       message: "This email has already been verified",
     },
   });
-
-export type VerifyEmailSuccessResponse = z.infer<
-  typeof verifyEmailSuccessSchema
->;

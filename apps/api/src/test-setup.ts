@@ -16,6 +16,9 @@ import { RedisContainer } from "@testcontainers/redis";
 import { createQueue } from "@novelty/message-queue/lib/create-queue";
 import type { Queue } from "bullmq";
 import { createWorker } from "@novelty/message-queue/lib/create-worker";
+import type { ServiceDependencies } from "@novelty/services/types";
+import { Registry } from "prom-client";
+import { configureLogger } from "@novelty/lib/logger";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {
@@ -28,6 +31,7 @@ let pool: TPool;
 let testDb: DBClient;
 let testRedis: TRedis;
 let testQueue: Queue;
+let testDependencies: ServiceDependencies;
 
 beforeAll(async () => {
   dbContainer = await new PostgreSqlContainer()
@@ -55,6 +59,7 @@ beforeAll(async () => {
   pool = new Pool({
     connectionString: dbContainer.getConnectionUri(),
   });
+
   testDb = drizzle({ client: pool, schema });
 
   const migrationsFolder = path.resolve(
@@ -64,6 +69,21 @@ beforeAll(async () => {
   await migrate(testDb, {
     migrationsFolder,
   });
+
+  const logger = configureLogger({
+    nodeEnvironment: "test",
+    hostUrl: "",
+    labels: {},
+    logLevel: "info",
+  });
+
+  testDependencies = {
+    dbInstance: testDb,
+    logger,
+    reqId: "test-req-id",
+    prometheusRegistry: new Registry(),
+    redisClient: testRedis,
+  };
 });
 
 afterAll(async () => {
@@ -73,4 +93,4 @@ afterAll(async () => {
   vi.clearAllMocks();
 });
 
-export { testDb, testQueue, testRedis };
+export { testDb, testDependencies, testQueue, testRedis };
