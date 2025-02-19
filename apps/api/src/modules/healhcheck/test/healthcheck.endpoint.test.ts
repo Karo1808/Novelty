@@ -9,6 +9,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Redis } from "ioredis";
 import { testDb, testQueue, testRedis } from "@/test-setup";
 import { createQueue } from "@novelty/message-queue/lib/create-queue";
+import { redisConfig } from "@novelty/message-queue/config";
 
 vi.mock("@hono/node-server/conninfo", () => ({
   getConnInfo: vi.fn(() => ({
@@ -77,7 +78,11 @@ describe("healthcheck routes", () => {
       port: 0,
       retryStrategy: () => {},
     });
-    emailQueue = createQueue("test");
+    emailQueue = createQueue("test", {
+      port: 0,
+      host: "host",
+      retryStrategy: redisConfig.retryStrategy,
+    });
 
     const response = await client.healthcheck.$get();
 
@@ -129,7 +134,11 @@ describe("healthcheck routes", () => {
   it("get /healthcheck handles emailQueue service unavailable", async () => {
     dbClient = testDb;
     redis = testRedis;
-    emailQueue = createQueue("test");
+    emailQueue = createQueue("test", {
+      port: 0,
+      host: "host",
+      retryStrategy: redisConfig.retryStrategy,
+    });
 
     const response = await client.healthcheck.$get();
 

@@ -1,9 +1,5 @@
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
-import {
-  encodeBase32LowerCaseNoPadding,
-  encodeHexLowerCase,
-} from "@oslojs/encoding";
-import { sha256 } from "@oslojs/crypto/sha2";
+import { encodeBase32LowerCaseNoPadding } from "@oslojs/encoding";
 import type { ServiceDependencies } from "./types";
 import { prepareDependencies } from "./lib/utils";
 import {
@@ -14,6 +10,7 @@ import {
   removeFromSet,
   setWithExpiry,
 } from "@novelty/redis/queries/index.query";
+import { encodeToken } from "@novelty/lib/auth/cryptography";
 
 export interface Session {
   id: string;
@@ -41,7 +38,8 @@ export const createSession = async (
 ) => {
   const deps = prepareDependencies(dependencies, "dbInstance");
 
-  const sessionId = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
+  const sessionId = encodeToken(token);
+
   const session: Session = {
     id: sessionId,
     userId,
@@ -72,7 +70,7 @@ export const validateSessionToken = async (
 ): Promise<Session | null> => {
   const deps = prepareDependencies(dependencies, "dbInstance");
 
-  const sessionId = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
+  const sessionId = encodeToken(token);
 
   const key = `session:${sessionId}`;
 

@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
+    "@oslojs/crypto": "^1.0.1",
+    "@oslojs/encoding": "^1.1.0",
     "@sentry/node": "^8.52.0",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
