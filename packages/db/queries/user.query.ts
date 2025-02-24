@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { createDBQuery } from "../lib/create-db-query";
 import type { Dependencies } from "../lib/types";
-import type { UpdateUserInfo } from "../schemas/user-profile.schema";
-import { userInfoTable } from "../schemas/user-profile.schema";
+import type { UpdateUserInfo } from "../schemas/user-info.schema";
+import { userInfoTable } from "../schemas/user-info.schema";
 
 export const getProfileByUserIdQuery = (
   dependencies: Dependencies,

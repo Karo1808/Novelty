@@ -1,4 +1,4 @@
-import { selectUserInfoSchema } from "@novelty/db/schemas/user-profile.schema";
+import { selectUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
 import { z } from "@hono/zod-openapi";
 
 export const getProfileSuccessSchema = z
@@ -13,4 +13,16 @@ export const getProfileSuccessSchema = z
         username: "username",
       },
     },
+  });
+
+export const updateProfileConflictSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    examples: [
+      {
+        message: "This username already exists",
+      },
+    ],
   });
