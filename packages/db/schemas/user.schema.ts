@@ -6,7 +6,7 @@ import {
 } from "drizzle-zod";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { userInfoTable } from "./user-profile.schema";
+import { userInfoTable } from "./user-info.schema";
 import { relations } from "drizzle-orm";
 
 export const usersTable = pgTable("users", {

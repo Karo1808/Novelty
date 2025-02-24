@@ -1,10 +1,11 @@
 import type { AppRouteHandler } from "@/types/index.types";
-import type { GetProfileRoute } from "./user.routes";
-import { getProfile } from "@novelty/services/user.service";
+import type { GetProfileRoute, UpdateProfileRoute } from "./user.routes";
+import { getProfile, updateProfile } from "@novelty/services/user.service";
 import { db } from "@novelty/db";
 import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { redis } from "@novelty/redis";
 
 export const handleGetProfile: AppRouteHandler<GetProfileRoute> = async (c) => {
   const { userId } = c.var.user;
@@ -35,4 +36,56 @@ export const handleGetProfile: AppRouteHandler<GetProfileRoute> = async (c) => {
     },
     HttpStatusCodes.OK,
   );
+};
+
+export const handleUpdateProfile: AppRouteHandler<UpdateProfileRoute> = async (
+  c,
+) => {
+  const body = await c.req.parseBody({ dot: true });
+
+  const username = body.username as string;
+  const bio = body.bio as string;
+  const profileImage = body.profileImage as File;
+
+  const { userId: currentUserId } = c.var.user;
+
+  const res = await updateProfile<keyof UpdateProfileRoute["responses"]>(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    {
+      payload: {
+        username,
+        bio,
+        profileImage,
+      },
+      userId: currentUserId,
+    },
+  );
+
+  if (res.status === HttpStatusCodes.NOT_FOUND) {
+    return c.json(
+      {
+        message: "Account does not exist",
+        success: false,
+      },
+      HttpStatusCodes.NOT_FOUND,
+    );
+  }
+
+  if (res.status === HttpStatusCodes.CONFLICT) {
+    return c.json(
+      {
+        message: "Username is already taken",
+        success: false,
+      },
+      HttpStatusCodes.CONFLICT,
+    );
+  }
+
+  return c.json(HttpStatusCodes.NO_CONTENT);
 };
