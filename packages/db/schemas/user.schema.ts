@@ -6,6 +6,8 @@ import {
 } from "drizzle-zod";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { userInfoTable } from "./user-info.schema";
+import { relations } from "drizzle-orm";
 
 export const usersTable = pgTable("users", {
   id: varchar({ length: 255 })
@@ -16,11 +18,18 @@ export const usersTable = pgTable("users", {
   isEmailVerified: boolean("is_email_verified")
     .notNull()
     .$default(() => false),
+  isOnboarded: boolean("is_onboarded")
+    .notNull()
+    .$default(() => false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" })
     .notNull()
     .$onUpdate(() => new Date()),
 });
+
+export const userRelations = relations(usersTable, ({ one }) => ({
+  userInfo: one(userInfoTable),
+}));
 
 const baseSchema = createInsertSchema(usersTable, {
   email: schema => schema.email(),

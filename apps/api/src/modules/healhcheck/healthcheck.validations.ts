@@ -8,6 +8,7 @@ export const healthcheckOkSchema = z
       database: z.literal("connected"),
       redis: z.literal("connected"),
       emailQueue: z.literal("connected"),
+      r2: z.literal("connected"),
     }),
   })
   .openapi({
@@ -18,6 +19,7 @@ export const healthcheckOkSchema = z
         database: "connected",
         redis: "connected",
         emailQueue: "connected",
+        r2: "connected",
       },
     },
   });
@@ -30,6 +32,7 @@ export const healthcheckUnavailableSchema = z
       database: z.enum(["connected", "disconnected"]),
       redis: z.enum(["connected", "disconnected"]),
       emailQueue: z.enum(["connected", "disconnected"]),
+      r2: z.enum(["connected", "disconnected"]),
     }),
   })
   .openapi({
@@ -40,6 +43,7 @@ export const healthcheckUnavailableSchema = z
         database: "disconnected",
         redis: "disconnected",
         emailQueue: "disconnected",
+        r2: "disconnected",
       },
     },
   });

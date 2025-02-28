@@ -15,9 +15,12 @@ import {
 
 import { insertUserSchema } from "@novelty/db/schemas/user.schema";
 import createErrorSchema from "@/lib/create-error-schema";
-import { serviceUnavailableSchema } from "@/lib/service-unavailable-schema";
-import { tooManyRequestsSchema } from "@/lib/too-many-requests-schema";
 import { verifyEmailBodySchema } from "@novelty/lib/validations/auth";
+import {
+  cookieSchema,
+  serviceUnavailableSchema,
+  tooManyRequestsSchema,
+} from "@/lib/response-schemas";
 
 const tags = ["Auth"];
 
@@ -100,7 +103,7 @@ export const verifyEmailRoute = createRoute({
   method: "post",
   path: "/auth/verify-email",
   description:
-    "Verifies the PIN provided by the use, updates the isEmailVerified field in the database and sets the session cookie",
+    "Verifies the PIN provided by the use, updates the isEmailVerified field in the database, sets the session cookie and caches the user profile data",
   request: {
     body: jsonContentRequired(
       verifyEmailBodySchema,
@@ -108,10 +111,15 @@ export const verifyEmailRoute = createRoute({
     ),
   },
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(
-      verifyEmailSuccessSchema,
-      "Email verified",
-    ),
+    [HttpStatusCodes.OK]: {
+      content: {
+        "application/json": {
+          schema: verifyEmailSuccessSchema,
+        },
+      },
+      description: "Email verified",
+      headers: cookieSchema,
+    },
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       verifyEmailNotFoundSchema,
       "User not found",

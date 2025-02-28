@@ -5,3 +5,7 @@ export const EMAIL_QUEUE_COMPLETED_JOBS_LIMIT = 1000 as const;
 export const EMAIL_QUEUE_REMOVED_JOBS_LIMIT = 5000 as const;
 export const EMAIL_QUEUE_COMPLETED_JOBS_TIME = 3600 * 24; // 24 hours
 export const EMAIL_QUEUE_REMOVED_JOBS_TIME = 3600 * 5; // 5 hours
+
+export const USER_INFO_DRAFT_KEY = `user-info-draft` as const;
+
+export const R2_SIGNED_URL_EXPIRATION = 60 * 60 * 24; // 24 hours
