@@ -1,3 +1,4 @@
+/* eslint-disable node/no-process-env */
 /* eslint-disable import/no-mutable-exports */
 import path from "node:path";
 import * as schema from "@novelty/db/schemas/index.schema";
@@ -19,14 +20,18 @@ import { RedisContainer } from "@testcontainers/redis";
 import { createQueue } from "@novelty/message-queue/lib/create-queue";
 import type { Queue } from "bullmq";
 import { createWorker } from "@novelty/message-queue/lib/create-worker";
+import { GenericContainer } from "testcontainers";
+import type { StartedTestContainer } from "testcontainers";
+import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
 
-// eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {
   throw new Error("NODE_ENV must be 'test'");
 }
 
 let dbContainer: StartedPostgreSqlContainer;
 let redisContainer: StartedRedisContainer;
+let s3Container: StartedTestContainer;
+let testS3: S3Client;
 let pool: TPool;
 let testDb: DBClient;
 let testRedis: TRedis;
@@ -64,9 +69,28 @@ beforeAll(async () => {
   testDb = drizzle({ client: pool, schema });
 
   const migrationsFolder = path.resolve(__dirname, "../db/migrations");
+
   await migrate(testDb, {
     migrationsFolder,
   });
+
+  s3Container = await new GenericContainer("scireum/s3-ninja:latest")
+    .withExposedPorts(9000)
+    .start();
+
+  testS3 = new S3Client({
+    endpoint: `http://${s3Container.getHost()}:${s3Container.getMappedPort(9000)}`,
+    region: "auto",
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY!,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+    },
+    forcePathStyle: true,
+  });
+
+  await testS3.send(
+    new CreateBucketCommand({ Bucket: process.env.R2_BUCKET_NAME }),
+  );
 
   const logger = configureLogger({
     nodeEnvironment: "test",
@@ -81,6 +105,7 @@ beforeAll(async () => {
     reqId: "test-req-id",
     prometheusRegistry: new Registry(),
     redisClient: testRedis,
+    s3Client: testS3,
   };
 
   testDependenciesWithQueue = {
@@ -90,6 +115,7 @@ beforeAll(async () => {
     prometheusRegistry: new Registry(),
     redisClient: testRedis,
     messageQueueInstance: testQueue,
+    s3Client: testS3,
   };
 });
 
@@ -97,6 +123,7 @@ afterAll(async () => {
   await pool.end();
   await redisContainer.stop();
   await dbContainer.stop();
+  await s3Container?.stop();
   vi.clearAllMocks();
 });
 
@@ -106,4 +133,5 @@ export {
   testDependenciesWithQueue,
   testQueue,
   testRedis,
+  testS3,
 };

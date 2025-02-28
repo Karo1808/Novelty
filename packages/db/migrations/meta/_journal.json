@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1733147388413,
-      "tag": "0000_loud_spitfire",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1733754725625,
-      "tag": "0001_first_the_santerians",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1733755063593,
-      "tag": "0002_empty_colossus",
+      "when": 1739890905042,
+      "tag": "0000_short_starbolt",
       "breakpoints": true
     }
   ]

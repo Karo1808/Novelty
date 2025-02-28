@@ -2,6 +2,8 @@
 import { hash } from "@node-rs/argon2";
 import crypto from "node:crypto";
 import "dotenv/config";
+import { encodeHexLowerCase } from "@oslojs/encoding";
+import { sha256 } from "@oslojs/crypto/sha2";
 
 export async function hashPassword(password: string): Promise<string> {
   return await hash(password, {
@@ -51,3 +53,7 @@ export function decryptString(encryptedInput: string): string {
 
   return decrypted;
 }
+
+export const encodeToken = (token: string) => {
+  return encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
+};

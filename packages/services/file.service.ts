@@ -1,0 +1,101 @@
+import type { Logger } from "@novelty/lib/types";
+import { R2_SIGNED_URL_EXPIRATION } from "./lib/config";
+import type { Buffer } from "node:buffer";
+import type { S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { getOldKey } from "./lib/utils";
+
+interface FileDependenciesParams {
+  client: S3Client;
+  logger: Logger;
+  reqId: string;
+}
+
+interface UploadFileParams {
+  filename: string;
+  fileBuffer: Buffer;
+  fileType: string;
+  bucketName: string;
+  dependencies: FileDependenciesParams;
+}
+
+export const uploadFile = async ({
+  filename,
+  fileBuffer,
+  fileType,
+  bucketName,
+  dependencies,
+}: UploadFileParams) => {
+  try {
+    await dependencies.client.send(
+      new PutObjectCommand({
+        Bucket: bucketName,
+        Key: filename,
+        Body: fileBuffer,
+        ContentType: fileType,
+        ACL: "private",
+      }),
+    );
+
+    const presignedUrl = await getSignedUrl(
+      dependencies.client,
+      new GetObjectCommand({
+        Bucket: bucketName,
+        Key: filename,
+      }),
+      { expiresIn: R2_SIGNED_URL_EXPIRATION },
+    );
+
+    return presignedUrl;
+  }
+  catch (error: unknown) {
+    dependencies.logger.error({
+      message: "Failed to upload file to R2",
+      source: `uploadFile, ${filename}`,
+      error: (error as Error).message,
+      stackTrace: (error as Error).stack,
+      reqId: dependencies.reqId,
+    });
+
+    throw error;
+  }
+};
+
+interface DeleteFileParams {
+  url: string;
+  bucketName: string;
+  dependencies: FileDependenciesParams;
+}
+
+export const deleteFile = async ({
+  url,
+  bucketName,
+  dependencies,
+}: DeleteFileParams) => {
+  try {
+    const oldKey = getOldKey(url);
+
+    await dependencies.client.send(
+      new DeleteObjectCommand({
+        Bucket: bucketName,
+        Key: oldKey!,
+      }),
+    );
+  }
+  catch (error: unknown) {
+    dependencies.logger.error({
+      message: "Failed to delete file from R2",
+      source: `deleteFile, ${url}`,
+      error: (error as Error).message,
+      stackTrace: (error as Error).stack,
+      reqId: dependencies.reqId,
+    });
+
+    throw error;
+  }
+};

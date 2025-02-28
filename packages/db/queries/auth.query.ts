@@ -40,6 +40,7 @@ export const createUserQuery = (
         isEmailVerified: usersTable.isEmailVerified,
         createdAt: usersTable.createdAt,
         updatedAt: usersTable.updatedAt,
+        isOnboarded: usersTable.isOnboarded,
       });
     },
   });

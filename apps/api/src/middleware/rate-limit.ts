@@ -71,7 +71,7 @@ export const mainLimiter = rateLimiter({
 
 const emailVerificationConfig = {
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: 1000,
 };
 
 export const emailVerificationLimiter = rateLimiter({

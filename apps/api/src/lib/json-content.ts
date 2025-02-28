@@ -4,6 +4,7 @@ export function jsonContent<T extends ZodSchema>(
   schema: T,
   description: string,
   isRequired = false,
+  headers?: T,
 ) {
   return {
     content: {
@@ -13,6 +14,7 @@ export function jsonContent<T extends ZodSchema>(
     },
     description,
     required: isRequired,
+    headers,
   };
 }
 
