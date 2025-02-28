@@ -111,7 +111,7 @@ export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
 export const sendVerificationEmail = async <
   TStatusCodes extends HttpStatusCodeValue,
 >(
-  dependencies: Required<ServiceDependencies>,
+  dependencies: Required<Omit<ServiceDependencies, "s3Client">>,
   body: InsertUser["sendVerificationEmail"],
 ): Promise<ServiceResponse<TStatusCodes> & { body?: string }> => {
   const dbDependencies = prepareDependencies(dependencies, "redisClient");

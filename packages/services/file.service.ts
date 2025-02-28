@@ -1,24 +1,38 @@
-import { s3Client } from "@novelty/lib/r2-client";
 import type { Logger } from "@novelty/lib/types";
 import { R2_SIGNED_URL_EXPIRATION } from "./lib/config";
 import type { Buffer } from "node:buffer";
+import type { S3Client } from "@aws-sdk/client-s3";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { getOldKey } from "./lib/utils";
 
-export const uploadFile = async (
-  filename: string,
-  fileBuffer: Buffer,
-  fileType: string,
-  bucketName: string,
-  logger: Logger,
-  reqId: string,
-) => {
+interface FileDependenciesParams {
+  client: S3Client;
+  logger: Logger;
+  reqId: string;
+}
+
+interface UploadFileParams {
+  filename: string;
+  fileBuffer: Buffer;
+  fileType: string;
+  bucketName: string;
+  dependencies: FileDependenciesParams;
+}
+
+export const uploadFile = async ({
+  filename,
+  fileBuffer,
+  fileType,
+  bucketName,
+  dependencies,
+}: UploadFileParams) => {
   try {
-    await s3Client.send(
+    await dependencies.client.send(
       new PutObjectCommand({
         Bucket: bucketName,
         Key: filename,
@@ -29,7 +43,7 @@ export const uploadFile = async (
     );
 
     const presignedUrl = await getSignedUrl(
-      s3Client,
+      dependencies.client,
       new GetObjectCommand({
         Bucket: bucketName,
         Key: filename,
@@ -40,28 +54,33 @@ export const uploadFile = async (
     return presignedUrl;
   }
   catch (error: unknown) {
-    logger.error({
+    dependencies.logger.error({
       message: "Failed to upload file to R2",
       source: `uploadFile, ${filename}`,
       error: (error as Error).message,
       stackTrace: (error as Error).stack,
-      reqId,
+      reqId: dependencies.reqId,
     });
 
     throw error;
   }
 };
 
-export const deleteFile = async (
-  url: string,
-  bucketName: string,
-  logger: Logger,
-  reqId: string,
-) => {
-  try {
-    const oldKey = url.split(".r2.cloudflarestorage.com/")[1];
+interface DeleteFileParams {
+  url: string;
+  bucketName: string;
+  dependencies: FileDependenciesParams;
+}
 
-    await s3Client.send(
+export const deleteFile = async ({
+  url,
+  bucketName,
+  dependencies,
+}: DeleteFileParams) => {
+  try {
+    const oldKey = getOldKey(url);
+
+    await dependencies.client.send(
       new DeleteObjectCommand({
         Bucket: bucketName,
         Key: oldKey!,
@@ -69,12 +88,12 @@ export const deleteFile = async (
     );
   }
   catch (error: unknown) {
-    logger.error({
+    dependencies.logger.error({
       message: "Failed to delete file from R2",
       source: `deleteFile, ${url}`,
       error: (error as Error).message,
       stackTrace: (error as Error).stack,
-      reqId,
+      reqId: dependencies.reqId,
     });
 
     throw error;

@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { Blob } from "fetch-blob";
 
 export const imageFileSchema = z
-  .instanceof(File)
+  .instanceof(Blob)
   .refine(
     file =>
       [

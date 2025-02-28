@@ -32,3 +32,7 @@ export const updateProfileSchema = updateUserInfoSchema.shape.profile
   .partial();
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
+
+export const getOldKey = (url: string) => {
+  return url.split(".r2.cloudflarestorage.com/")[1];
+};

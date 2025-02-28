@@ -6,6 +6,7 @@ import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
+import { s3Client } from "@novelty/lib/s3-client";
 
 export const handleGetProfile: AppRouteHandler<GetProfileRoute> = async (c) => {
   const { userId } = c.var.user;
@@ -53,6 +54,7 @@ export const handleUpdateProfile: AppRouteHandler<UpdateProfileRoute> = async (
     {
       dbInstance: db,
       redisClient: redis,
+      s3Client,
       logger,
       prometheusRegistry,
       reqId: c.var.requestId,
@@ -87,5 +89,5 @@ export const handleUpdateProfile: AppRouteHandler<UpdateProfileRoute> = async (
     );
   }
 
-  return c.json(HttpStatusCodes.NO_CONTENT);
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
 };

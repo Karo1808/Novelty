@@ -27,16 +27,21 @@ export const getProfileByUserIdQuery = (
 export const getIsUsernameUniqueQuery = (
   dependencies: Dependencies,
   username: string,
+  userId: string,
 ) => {
   return createDBQuery({
     dependencies,
     queryName: "getIsUsernameUniqueQuery",
     query: async (db) => {
-      return (
-        (await db.query.userProfilesTable.findFirst({
-          where: eq(userInfoTable.username, username),
-        })) === undefined
-      );
+      const user = await db.query.userProfilesTable.findFirst({
+        where: eq(userInfoTable.username, username),
+      });
+
+      if (user?.userId === userId) {
+        return true;
+      }
+
+      return user === undefined;
     },
   });
 };

@@ -12,7 +12,6 @@ import type { UpdateProfile } from "./lib/utils";
 import { prepareDependencies } from "./lib/utils";
 import { getUserByIdQuery } from "@novelty/db/queries/auth.query";
 import { QueryExecutionError } from "@novelty/db/lib/errors";
-import type { DrizzleError } from "drizzle-orm";
 import { deleteFile, uploadFile } from "./file.service";
 import { Buffer } from "node:buffer";
 
@@ -59,7 +58,11 @@ export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
   }
 
   if (username) {
-    const isUnique = await getIsUsernameUniqueQuery(dbDependencies, username);
+    const isUnique = await getIsUsernameUniqueQuery(
+      dbDependencies,
+      username,
+      userId,
+    );
 
     if (!isUnique) {
       return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
@@ -69,30 +72,38 @@ export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
   let newAvatarUrl = null;
 
   if (profileImage) {
-    const fileBuffer = Buffer.from(await profileImage.arrayBuffer());
-    const fileType = profileImage.type;
-
-    const filePath = `profile_pictures/${userId}-${Date.now()}.jpg`;
-
-    newAvatarUrl = await uploadFile(
-      filePath,
-      fileBuffer,
-      fileType,
-      "novelty",
-      dependencies.logger,
-      dependencies.reqId,
-    );
-
     const userProfile = await getProfileByUserIdQuery(dbDependencies, userId);
 
     if (userProfile?.avatarUrl) {
-      await deleteFile(
-        newAvatarUrl,
-        "novelty",
-        dependencies.logger,
-        dependencies.reqId,
-      );
+      await deleteFile({
+        url: userProfile.avatarUrl,
+        // eslint-disable-next-line node/no-process-env
+        bucketName: process.env.R2_BUCKET_NAME!,
+        dependencies: {
+          client: dependencies.s3Client!,
+          reqId: dependencies.reqId,
+          logger: dependencies.logger,
+        },
+      });
     }
+
+    const fileBuffer = Buffer.from(await profileImage.arrayBuffer());
+    const fileType = profileImage.type;
+
+    const filePath = `profile_pictures/${userId}.jpg`;
+
+    newAvatarUrl = await uploadFile({
+      filename: filePath,
+      fileBuffer,
+      fileType,
+      // eslint-disable-next-line node/no-process-env
+      bucketName: process.env.R2_BUCKET_NAME!,
+      dependencies: {
+        client: dependencies.s3Client!,
+        reqId: dependencies.reqId,
+        logger: dependencies.logger,
+      },
+    });
   }
 
   try {
@@ -107,14 +118,18 @@ export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
     );
   }
   catch (error: unknown) {
-    if (
-      (error as DrizzleError).message.includes(
-        "duplicate key value violates unique constraint",
-      )
-    ) {
-      return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+    if (newAvatarUrl) {
+      await deleteFile({
+        url: newAvatarUrl,
+        // eslint-disable-next-line node/no-process-env
+        bucketName: process.env.R2_BUCKET_NAME!,
+        dependencies: {
+          client: dependencies.s3Client!,
+          reqId: dependencies.reqId,
+          logger: dependencies.logger,
+        },
+      });
     }
-
     throw new QueryExecutionError(
       "Failed to update user profile",
       error as Error,

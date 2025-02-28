@@ -7,9 +7,10 @@ import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { healthcheckRouter } from "../healthcheck.index";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Redis } from "ioredis";
-import { testDb, testQueue, testRedis } from "@/test-setup";
+import { testDb, testQueue, testRedis, testS3 } from "@/test-setup";
 import { createQueue } from "@novelty/message-queue/lib/create-queue";
 import { redisConfig } from "@novelty/message-queue/config";
+import { S3Client } from "@aws-sdk/client-s3";
 
 vi.mock("@hono/node-server/conninfo", () => ({
   getConnInfo: vi.fn(() => ({
@@ -43,6 +44,14 @@ vi.mock("@novelty/message-queue/queues/email.queue", () => ({
   },
 }));
 
+let s3Client: any;
+
+vi.mock("@novelty/lib/s3-client", () => ({
+  get s3Client() {
+    return s3Client;
+  },
+}));
+
 vi.mock("@/middleware/rate-limit.ts", () => ({
   mainLimiter: vi.fn(),
   emailVerificationLimiter: vi.fn(),
@@ -59,6 +68,7 @@ describe("healthcheck routes", () => {
     dbClient = testDb;
     redis = testRedis;
     emailQueue = testQueue;
+    s3Client = testS3;
 
     const response = await client.healthcheck.$get();
 
@@ -70,6 +80,7 @@ describe("healthcheck routes", () => {
     expect(json.readiness.database).toBe("connected");
     expect(json.readiness.redis).toBe("connected");
     expect(json.readiness.emailQueue).toBe("connected");
+    expect(json.readiness.r2).toBe("connected");
   });
 
   it("get /healthcheck handles all services unavailable", async () => {
@@ -83,6 +94,7 @@ describe("healthcheck routes", () => {
       host: "host",
       retryStrategy: redisConfig.retryStrategy,
     });
+    s3Client = new S3Client();
 
     const response = await client.healthcheck.$get();
 
@@ -100,6 +112,7 @@ describe("healthcheck routes", () => {
     dbClient = drizzle({ client: "" as unknown as TPool });
     redis = testRedis;
     emailQueue = testQueue;
+    s3Client = testS3;
 
     const response = await client.healthcheck.$get();
 
@@ -111,6 +124,7 @@ describe("healthcheck routes", () => {
     expect(json.readiness.database).toBe("disconnected");
     expect(json.readiness.redis).toBe("connected");
     expect(json.readiness.emailQueue).toBe("connected");
+    expect(json.readiness.r2).toBe("connected");
   });
 
   it("get /healthcheck handles redis service unavailable", async () => {
@@ -119,6 +133,8 @@ describe("healthcheck routes", () => {
       port: 0,
       retryStrategy: () => {},
     });
+    emailQueue = testQueue;
+    s3Client = testS3;
 
     const response = await client.healthcheck.$get();
 
@@ -129,6 +145,8 @@ describe("healthcheck routes", () => {
     expect(json.environment).toBe("test");
     expect(json.readiness.database).toBe("connected");
     expect(json.readiness.redis).toBe("disconnected");
+    expect(json.readiness.emailQueue).toBe("connected");
+    expect(json.readiness.r2).toBe("connected");
   });
 
   it("get /healthcheck handles emailQueue service unavailable", async () => {
@@ -139,6 +157,7 @@ describe("healthcheck routes", () => {
       host: "host",
       retryStrategy: redisConfig.retryStrategy,
     });
+    s3Client = testS3;
 
     const response = await client.healthcheck.$get();
 
@@ -150,5 +169,25 @@ describe("healthcheck routes", () => {
     expect(json.readiness.database).toBe("connected");
     expect(json.readiness.redis).toBe("connected");
     expect(json.readiness.emailQueue).toBe("disconnected");
+    expect(json.readiness.r2).toBe("connected");
+  });
+
+  it("get /healthcheck handles r2 service unavailable", async () => {
+    dbClient = testDb;
+    redis = testRedis;
+    emailQueue = testQueue;
+    s3Client = new S3Client();
+
+    const response = await client.healthcheck.$get();
+
+    expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+    const json = await response.json();
+    expect(json.status).toMatch(/healthy/i);
+    expect(json.environment).toBe("test");
+    expect(json.readiness.database).toBe("connected");
+    expect(json.readiness.redis).toBe("connected");
+    expect(json.readiness.emailQueue).toBe("connected");
+    expect(json.readiness.r2).toBe("disconnected");
   });
 });
