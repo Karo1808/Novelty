@@ -64,9 +64,9 @@ export const updateProfileRoute = createRoute({
           schema: updateProfileSchema,
         },
       },
-      description: "The user inputted data",
-      headers: cookieSchema,
     },
+    description: "The user inputted data",
+    headers: cookieSchema,
   },
   responses: {
     [HttpStatusCodes.NO_CONTENT]: {

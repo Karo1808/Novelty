@@ -4,8 +4,8 @@ import {
   getProfileByUserIdQuery,
   updateUserProfileByUserIdQuery,
 } from "queries/user.query";
-import { userInfoTable } from "schemas/user-profile.schema";
-import type { InsertUserInfo } from "schemas/user-profile.schema";
+import { userInfoTable } from "schemas/user-info.schema";
+import type { InsertUserInfo } from "schemas/user-info.schema";
 import { usersTable } from "schemas/user.schema";
 import { testDb, testDependencies } from "test-setup";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -123,19 +123,31 @@ describe("user queries", () => {
       await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
     });
 
-    it("should return false if not unique", async () => {
+    it("should return false if not unique and not same user", async () => {
       const result = await getIsUsernameUniqueQuery(
         { ...testDependencies, dbInstance: testDb },
         dummyUserInfo.profile.username!,
+        "1234",
       );
 
       expect(result).toBe(false);
     });
 
-    it("should return true if unique", async () => {
+    it("should return true if unique and not same user", async () => {
       const result = await getIsUsernameUniqueQuery(
         { ...testDependencies, dbInstance: testDb },
         "unique-username",
+        "1234",
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it("should return true if same user", async () => {
+      const result = await getIsUsernameUniqueQuery(
+        { ...testDependencies, dbInstance: testDb },
+        "unique-username",
+        dummyUser.id,
       );
 
       expect(result).toBe(true);

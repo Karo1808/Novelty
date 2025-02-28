@@ -63,6 +63,7 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "^4.2.0",
+    "@aws-sdk/client-s3": "^3.750.0",
     "@novelty/typescript-config": "workspace:*",
     "@sentry/core": "^9.1.0",
     "@sentry/types": "^8.54.0",
@@ -74,6 +75,7 @@
     "bullmq": "^5.40.2",
     "cross-env": "^7.0.3",
     "drizzle-orm": "^0.39.3",
+    "fetch-blob": "^4.0.0",
     "ioredis": "^5.5.0",
     "pg": "^8.13.1",
     "testcontainers": "^10.18.0",

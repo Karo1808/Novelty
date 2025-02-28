@@ -2,6 +2,7 @@ import type { AppRouteHandler } from "@/types/index.types";
 import {
   checkDbHealth,
   checkEmailQueueHealth,
+  checkR2Health,
   checkRedisHealth,
 } from "@novelty/services/healthcheck.service";
 import env from "@/env";
@@ -12,11 +13,13 @@ import { prometheusRegistry } from "@/lib/metrics";
 import { db } from "@novelty/db/index";
 import { redis } from "@novelty/redis";
 import { emailQueue } from "@novelty/message-queue/queues/email.queue";
+import { s3Client } from "@novelty/lib/s3-client";
 
 interface Response {
   dbStatus?: boolean;
   redisStatus?: boolean;
   emailQueueStatus?: boolean;
+  r2Status?: boolean;
 }
 
 export const handleHealthcheck: AppRouteHandler<HealthcheckRoute> = async (
@@ -80,7 +83,29 @@ export const handleHealthcheck: AppRouteHandler<HealthcheckRoute> = async (
     });
   }
 
-  if (!res.dbStatus || !res.redisStatus || !res.emailQueueStatus) {
+  try {
+    res.r2Status = !!(await checkR2Health({
+      s3Client,
+      logger,
+      reqId: c.var.requestId,
+      prometheusRegistry,
+    }));
+  }
+  catch (error) {
+    c.var.logger.error({
+      message: "R2 connection error",
+      source: "handleHealthcheck",
+      error: (error as Error).message,
+      stackTrace: (error as Error)?.stack,
+    });
+  }
+
+  if (
+    !res.dbStatus
+    || !res.redisStatus
+    || !res.emailQueueStatus
+    || !res.r2Status
+  ) {
     return c.json(
       {
         status: "unhealthy",
@@ -89,6 +114,7 @@ export const handleHealthcheck: AppRouteHandler<HealthcheckRoute> = async (
           database: res?.dbStatus ? "connected" : "disconnected",
           redis: res?.redisStatus ? "connected" : "disconnected",
           emailQueue: res?.emailQueueStatus ? "connected" : "disconnected",
+          r2: res.r2Status ? "connected" : "disconnected",
         },
       },
       HttpStatusCodes.SERVICE_UNAVAILABLE,
@@ -103,6 +129,7 @@ export const handleHealthcheck: AppRouteHandler<HealthcheckRoute> = async (
         database: "connected",
         redis: "connected",
         emailQueue: "connected",
+        r2: "connected",
       },
     },
     HttpStatusCodes.OK,

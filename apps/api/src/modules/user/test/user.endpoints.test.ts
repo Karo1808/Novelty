@@ -1,7 +1,7 @@
 import env from "@/env";
-import { testDb, testDependencies, testRedis } from "@/test-setup";
-import { userInfoTable } from "@novelty/db/schemas/user-profile.schema";
-import type { InsertUserInfo } from "@novelty/db/schemas/user-profile.schema";
+import { testDb, testDependencies, testRedis, testS3 } from "@/test-setup";
+import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
+import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
 import { usersTable } from "@novelty/db/schemas/user.schema";
 import { sql } from "drizzle-orm";
 import { testClient } from "hono/testing";
@@ -12,7 +12,14 @@ import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { createSession } from "@novelty/services/session.service";
 import { userProfilesTable } from "@novelty/db/schemas/index.schema";
 import * as userDbQueries from "@novelty/db/queries/user.query";
+import * as authDbQueries from "@novelty/db/queries/auth.query";
+import * as serviceUtils from "@novelty/services/lib/utils";
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
+import { Blob } from "fetch-blob";
+import { Buffer } from "node:buffer";
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import createErrorSchema from "@/lib/create-error-schema";
+import type { z } from "zod";
 
 vi.mock("@hono/node-server/conninfo", () => ({
   getConnInfo: vi.fn(() => ({
@@ -31,6 +38,12 @@ vi.mock("@novelty/db/index", () => ({
 vi.mock("@novelty/redis/index", () => ({
   get redis() {
     return testRedis;
+  },
+}));
+
+vi.mock("@novelty/lib/s3-client", () => ({
+  get s3Client() {
+    return testS3;
   },
 }));
 
@@ -107,64 +120,234 @@ describe("user routes", () => {
     await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
   });
 
-  it("should handle success", async () => {
-    const response = await client.user.profile.$get({
-      header: { cookie: dummyCookie },
+  describe("get /user/profile", async () => {
+    it("should handle success", async () => {
+      const response = await client.user.profile.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+
+      const profileData = await response.json();
+
+      expect(profileData).toEqual({ userInfo: dummyUserInfo.profile });
     });
 
-    expect(response.status).toBe(HttpStatusCodes.OK);
+    it("should handle not found", async () => {
+      await testDb.delete(userProfilesTable);
 
-    const profileData = await response.json();
+      const response = await client.user.profile.$get({
+        header: { cookie: dummyCookie },
+      });
 
-    expect(profileData).toEqual({ userInfo: dummyUserInfo.profile });
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.profile.$get({
+        header: { cookie: "invalid-cookie" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(userDbQueries, "getProfileByUserIdQuery").mockImplementationOnce(
+        () => {
+          throw new DatabaseConnectionError("Database connection failed");
+        },
+      );
+
+      const response = await client.user.profile.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
   });
 
-  it("should handle not found", async () => {
-    await testDb.delete(userProfilesTable);
-
-    const response = await client.user.profile.$get({
-      header: { cookie: dummyCookie },
+  describe("patch /user/profile", async () => {
+    const dummyFile = new Blob([Buffer.from("fake image data")], {
+      type: "image/jpg",
     });
 
-    expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+    const bucketName = env.R2_BUCKET_NAME;
 
-    const profileData = await response.json();
+    const dummyPayload = {
+      bio: dummyUserInfo.profile.bio,
+      username: dummyUserInfo.profile.username,
+      profileImage: dummyFile,
+    };
 
-    expect(profileData).toMatchObject({
-      message: expect.any(String),
+    const dummyKey = `profile_pictures/${dummyUser.id}.jpg`;
+
+    beforeEach(() => {
+      vi.spyOn(serviceUtils, "getOldKey").mockReturnValue(dummyKey);
     });
-  });
 
-  it("should handle not authorized", async () => {
-    const response = await client.user.profile.$get({
-      header: { cookie: "invalid-cookie" },
+    afterEach(async () => {
+      await testS3.send(
+        new DeleteObjectCommand({
+          Bucket: bucketName,
+          Key: dummyKey,
+        }),
+      );
     });
 
-    expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+    it("should handle success", async () => {
+      const response = await client.user.profile.$patch({
+        form: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
 
-    const profileData = await response.json();
-
-    expect(profileData).toMatchObject({
-      message: expect.any(String),
+      expect(response.status).toBe(HttpStatusCodes.NO_CONTENT);
     });
-  });
 
-  it("should handle service unavailable", async () => {
-    vi.spyOn(userDbQueries, "getProfileByUserIdQuery").mockImplementationOnce(
-      () => {
+    it("should handle not found", async () => {
+      await testDb.delete(usersTable);
+
+      const response = await client.user.profile.$patch({
+        form: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle conflict", async () => {
+      await testDb.insert(usersTable).values({
+        isEmailVerified: true,
+        id: "1234",
+        email: "dummy@mail.com",
+        password: "pass",
+      });
+
+      await testDb.insert(userInfoTable).values({
+        username: "new-user",
+        userId: "1234",
+      });
+
+      const response = await client.user.profile.$patch({
+        form: { ...dummyPayload, username: "new-user" },
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.CONFLICT);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.profile.$patch({
+        header: { cookie: "invalid-cookie" },
+        form: {},
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("returns unprocessable entity if request body is invalid", async () => {
+      const invalidBody = {
+        bio: "",
+        username: "us", // username must be at least 4 characters
+        profileImage: dummyFile,
+      };
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(serviceUtils.updateProfileSchema);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.user.profile.$patch({
+        header: { cookie: dummyCookie },
+        form: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("returns unprocessable entity if file type is invalid", async () => {
+      const invalidFile = new Blob([Buffer.from("fake image data")], {
+        type: ".pdf",
+      });
+
+      const invalidBody = {
+        bio: "",
+        username: "username",
+        profileImage: invalidFile,
+      };
+
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(serviceUtils.updateProfileSchema);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.user.profile.$patch({
+        header: { cookie: dummyCookie },
+        form: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json.error.issues[0]?.message).toMatch(/Invalid image file type/i);
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(authDbQueries, "getUserByIdQuery").mockImplementationOnce(() => {
         throw new DatabaseConnectionError("Database connection failed");
-      },
-    );
+      });
 
-    const response = await client.user.profile.$get({
-      header: { cookie: dummyCookie },
-    });
+      const response = await client.user.profile.$patch({
+        form: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
 
-    expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
 
-    const profileData = await response.json();
-    expect(profileData).toMatchObject({
-      message: expect.any(String),
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
     });
   });
 });
