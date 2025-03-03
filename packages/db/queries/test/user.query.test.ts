@@ -3,6 +3,7 @@ import {
   getIsUsernameUniqueQuery,
   getPreferencesByUserIdQuery,
   getProfileByUserIdQuery,
+  getUserInfoQuery,
   updateUserPreferencesByIdQuery,
   updateUserProfileByUserIdQuery,
 } from "queries/user.query";
@@ -205,7 +206,7 @@ describe("user queries", () => {
         dummyUser.id,
       );
 
-      const updatedUser = await testDb.query.userProfilesTable.findFirst();
+      const updatedUser = await testDb.query.userInfoTable.findFirst();
 
       expect(updatedUser?.avatarUrl).toBe("new-url");
     });
@@ -327,12 +328,88 @@ describe("user queries", () => {
         dummyUser.id,
       );
 
-      const updatedUser = await testDb.query.userProfilesTable.findFirst();
+      const updatedUser = await testDb.query.userInfoTable.findFirst();
 
       const preferences = updatedUser!
         .preferences as UpdateUserInfo["preferences"];
 
       expect(preferences.genres.length).toBeGreaterThan(2);
     });
+  });
+});
+
+describe("getUserInfoQuery", () => {
+  const dummyUser = {
+    email: "mail@email.com",
+    password: "password123",
+    id: "123",
+  };
+
+  const dummyUserInfo: InsertUserInfo = {
+    preferences: {
+      genres: ["genre1", "genre2"],
+      authors: ["author1", "author2"],
+      series: ["series1", "series2"],
+    },
+    profile: {
+      avatarUrl: "url",
+      bio: "bio",
+      username: "username",
+    },
+  };
+
+  beforeEach(async () => {
+    await testDb.insert(usersTable).values(dummyUser);
+
+    const res = await testDb.query.usersTable.findFirst();
+    const userId = res?.id ?? "";
+
+    await testDb.insert(userInfoTable).values({
+      userId,
+      avatarUrl: dummyUserInfo.profile.avatarUrl,
+      bio: dummyUserInfo.profile.bio,
+      username: dummyUserInfo.profile.username,
+      preferences: dummyUserInfo.preferences,
+    });
+  });
+
+  afterEach(async () => {
+    await testDb.execute(sql`TRUNCATE table users CASCADE`);
+    await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+  });
+
+  it("should return user info", async () => {
+    const result = await getUserInfoQuery(
+      {
+        ...testDependencies,
+        dbInstance: testDb,
+      },
+      dummyUser.id,
+    );
+
+    expect(result).toMatchObject({
+      isOnboarded: false,
+      isEmailVerified: false,
+      userInfo: {
+        preferences: dummyUserInfo.preferences,
+        bio: dummyUserInfo.profile.bio,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        username: dummyUserInfo.profile.username,
+      },
+    });
+  });
+
+  it("should return undefined if user profile does not exist", async () => {
+    await testDb.delete(usersTable);
+
+    const result = await getUserInfoQuery(
+      {
+        ...testDependencies,
+        dbInstance: testDb,
+      },
+      dummyUser.id,
+    );
+
+    expect(result).toEqual(undefined);
   });
 });

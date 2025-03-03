@@ -1,11 +1,13 @@
 import type { AppRouteHandler } from "@/types/index.types";
 import type {
+  CompleteOnboardingRoute,
   GetPreferencesRoute,
   GetProfileRoute,
   UpdatePreferencesRoute,
   UpdateProfileRoute,
 } from "./user.routes";
 import {
+  completeOnboarding,
   getPreferences,
   getProfile,
   updatePreferences,
@@ -163,6 +165,58 @@ export const handleUpdatePreferences: AppRouteHandler<
         success: false,
       },
       HttpStatusCodes.NOT_FOUND,
+    );
+  }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
+};
+
+export const handleCompleteOnboarding: AppRouteHandler<
+  CompleteOnboardingRoute
+> = async (c) => {
+  const { userId } = c.var.user;
+
+  const res = await completeOnboarding<
+    keyof CompleteOnboardingRoute["responses"]
+  >(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    {
+      userId,
+    },
+  );
+
+  if (res.status === HttpStatusCodes.NOT_FOUND) {
+    return c.json(
+      {
+        message: "Account does not exist",
+        success: false,
+      },
+      HttpStatusCodes.NOT_FOUND,
+    );
+  }
+
+  if (res.status === HttpStatusCodes.CONFLICT) {
+    return c.json(
+      {
+        message: "User already onboarded",
+        success: false,
+      },
+      HttpStatusCodes.CONFLICT,
+    );
+  }
+
+  if (res.status === HttpStatusCodes.BAD_REQUEST) {
+    return c.json(
+      {
+        message: "Please provide all required information",
+        success: false,
+      },
+      HttpStatusCodes.BAD_REQUEST,
     );
   }
 
