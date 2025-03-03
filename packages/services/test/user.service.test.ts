@@ -12,6 +12,7 @@ import * as authDbQueries from "@novelty/db/queries/auth.query";
 import * as fileService from "../file.service";
 import * as utils from "../lib/utils";
 import {
+  completeOnboarding,
   getPreferences,
   getProfile,
   updatePreferences,
@@ -216,7 +217,7 @@ describe("user service", () => {
 
       expect(updateUserProfileByUserIdQuerySpy).toHaveBeenCalledOnce();
 
-      const updatedDb = await testDb.query.userProfilesTable.findFirst({
+      const updatedDb = await testDb.query.userInfoTable.findFirst({
         where: eq(userInfoTable.userId, dummyBody.userId),
       });
 
@@ -288,7 +289,7 @@ describe("user service", () => {
 
       expect(updateUserProfileByUserIdQuerySpy).toHaveBeenCalledOnce();
 
-      const updatedDb = await testDb.query.userProfilesTable.findFirst({
+      const updatedDb = await testDb.query.userInfoTable.findFirst({
         where: eq(userInfoTable.userId, dummyBody.userId),
       });
 
@@ -344,7 +345,7 @@ describe("user service", () => {
 
       expect(updateUserProfileByUserIdQuerySpy).toHaveBeenCalledOnce();
 
-      const updatedDb = await testDb.query.userProfilesTable.findFirst({
+      const updatedDb = await testDb.query.userInfoTable.findFirst({
         where: eq(userInfoTable.userId, dummyBody.userId),
       });
 
@@ -396,7 +397,7 @@ describe("user service", () => {
 
       expect(updateUserProfileByUserIdQuerySpy).toHaveBeenCalledOnce();
 
-      const updatedDb = await testDb.query.userProfilesTable.findFirst({
+      const updatedDb = await testDb.query.userInfoTable.findFirst({
         where: eq(userInfoTable.userId, dummyBody.userId),
       });
 
@@ -435,7 +436,7 @@ describe("user service", () => {
 
       expect(updateUserProfileByUserIdQuerySpy).not.toHaveBeenCalled();
 
-      const updatedDb = await testDb.query.userProfilesTable.findFirst({
+      const updatedDb = await testDb.query.userInfoTable.findFirst({
         where: eq(userInfoTable.userId, dummyBody.userId),
       });
 
@@ -489,7 +490,7 @@ describe("user service", () => {
 
       expect(updateUserProfileByUserIdQuerySpy).not.toHaveBeenCalled();
 
-      const updatedDb = await testDb.query.userProfilesTable.findFirst({
+      const updatedDb = await testDb.query.userInfoTable.findFirst({
         where: eq(userInfoTable.userId, dummyBody.userId),
       });
 
@@ -718,7 +719,7 @@ describe("user service", () => {
 
       expect(updateUserPreferencesByIdQuerySpy).toHaveBeenCalledOnce();
 
-      const updatedDb = await testDb.query.userProfilesTable.findFirst({
+      const updatedDb = await testDb.query.userInfoTable.findFirst({
         where: eq(userInfoTable.userId, dummyBody.userId),
       });
 
@@ -754,7 +755,7 @@ describe("user service", () => {
 
       expect(updateUserPreferencesByIdQuery).not.toHaveBeenCalled();
 
-      const updatedDb = await testDb.query.userProfilesTable.findFirst({
+      const updatedDb = await testDb.query.userInfoTable.findFirst({
         where: eq(userInfoTable.userId, dummyBody.userId),
       });
 
@@ -782,6 +783,115 @@ describe("user service", () => {
       await expect(
         updatePreferences(testDependencies, dummyBody),
       ).rejects.toThrowError();
+    });
+  });
+
+  describe("completeOnboarding", () => {
+    const dummyUser = {
+      id: "test-id",
+      email: "test@mail.com",
+      password: "123456",
+      isEmailVerified: true,
+      isOnboarded: false,
+    };
+
+    const dummyUserInfo = {
+      userId: dummyUser.id,
+      username: "test-user",
+      preferences: {
+        genres: ["genre1", "genre2", "genre3"],
+        authors: ["author"],
+        series: ["series"],
+      },
+    };
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+      await testDb.insert(userInfoTable).values({
+        userId: dummyUserInfo.userId,
+        username: dummyUserInfo.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+    });
+
+    it("should complete onboarding", async () => {
+      const res = await completeOnboarding(testDependencies, {
+        userId: dummyUser.id,
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+
+      const updatedUser = await testDb.query.usersTable.findFirst({
+        where: eq(usersTable.id, dummyUser.id),
+      });
+      expect(updatedUser?.isOnboarded).toBe(true);
+    });
+
+    it("should return 404 if user not found", async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+
+      const res = await completeOnboarding(testDependencies, {
+        userId: "non-existing-id",
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.NOT_FOUND);
+    });
+
+    it("should return 409 if user is already onboarded", async () => {
+      await testDb.update(usersTable).set({ isOnboarded: true });
+
+      const res = await completeOnboarding(testDependencies, {
+        userId: dummyUser.id,
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.CONFLICT);
+    });
+
+    it("should return 400 if user email is not verified", async () => {
+      await testDb.update(usersTable).set({ isEmailVerified: false });
+
+      const res = await completeOnboarding(testDependencies, {
+        userId: dummyUser.id,
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.BAD_REQUEST);
+    });
+
+    it("should return 400 if user has no username set", async () => {
+      await testDb.update(userInfoTable).set({ username: null });
+
+      const res = await completeOnboarding(testDependencies, {
+        userId: dummyUser.id,
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.BAD_REQUEST);
+    });
+
+    it("should return 400 if user has fewer than 3 genres", async () => {
+      await testDb.update(userInfoTable).set({
+        preferences: { genres: ["genre1", "genre2"], authors: [], series: [] },
+      });
+
+      const res = await completeOnboarding(testDependencies, {
+        userId: dummyUser.id,
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.BAD_REQUEST);
+    });
+
+    it("should handle database errors", async () => {
+      vi.spyOn(authDbQueries, "updateUserByIdQuery").mockRejectedValueOnce(
+        new DrizzleError({ message: "DB error" }),
+      );
+      await expect(
+        completeOnboarding(testDependencies, { userId: dummyUser.id }),
+      ).rejects.toThrowError("DB error");
     });
   });
 });

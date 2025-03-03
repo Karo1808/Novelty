@@ -2,6 +2,8 @@ import { jsonContent } from "@/lib/json-content";
 import { createRoute } from "@hono/zod-openapi";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import {
+  completeOnboardingConflictSchema,
+  completeOnboardingMissingFields,
   getPreferencesSuccessSchema,
   getProfileSuccessSchema,
   updateProfileConflictSchema,
@@ -17,10 +19,11 @@ import { updateUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
 import createErrorSchema from "@/lib/create-error-schema";
 import { updateProfileSchema } from "@novelty/services/lib/utils";
 
+const userTags = ["User"];
 const onboardingTags = ["Onboarding"];
 
 export const getProfileRoute = createRoute({
-  tags: onboardingTags,
+  tags: userTags,
   method: "get",
   path: "/user/profile",
   description: "Returns the user profile",
@@ -54,7 +57,7 @@ export const getProfileRoute = createRoute({
 export type GetProfileRoute = typeof getProfileRoute;
 
 export const updateProfileRoute = createRoute({
-  tags: onboardingTags,
+  tags: userTags,
   method: "patch",
   path: "/user/profile",
   description: "Updates the user profile",
@@ -103,7 +106,7 @@ export const updateProfileRoute = createRoute({
 export type UpdateProfileRoute = typeof updateProfileRoute;
 
 export const getPreferencesRoute = createRoute({
-  tags: onboardingTags,
+  tags: userTags,
   method: "get",
   path: "/user/preferences",
   description: "Returns the user preferences",
@@ -137,7 +140,7 @@ export const getPreferencesRoute = createRoute({
 export type GetPreferencesRoute = typeof getPreferencesRoute;
 
 export const updatePreferencesRoute = createRoute({
-  tags: onboardingTags,
+  tags: userTags,
   method: "patch",
   path: "/user/preferences",
   description: "Updates the user preferences",
@@ -180,3 +183,48 @@ export const updatePreferencesRoute = createRoute({
 });
 
 export type UpdatePreferencesRoute = typeof updatePreferencesRoute;
+
+export const completeOnboardingRoute = createRoute({
+  tags: userTags.concat(onboardingTags),
+  method: "patch",
+  path: "/user/onboarding/complete",
+  description: "Completes the onboarding",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: "Onboarding completed",
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      completeOnboardingConflictSchema,
+      "Already onboarded",
+    ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      completeOnboardingMissingFields,
+      "Missing required information",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(updateUserInfoSchema.shape.profile),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type CompleteOnboardingRoute = typeof completeOnboardingRoute;

@@ -10,12 +10,16 @@ import {
   getIsUsernameUniqueQuery,
   getPreferencesByUserIdQuery,
   getProfileByUserIdQuery,
+  getUserInfoQuery,
   updateUserPreferencesByIdQuery,
   updateUserProfileByUserIdQuery,
 } from "@novelty/db/queries/user.query";
 import type { UpdateProfile } from "./lib/utils";
 import { prepareDependencies } from "./lib/utils";
-import { getUserByIdQuery } from "@novelty/db/queries/auth.query";
+import {
+  getUserByIdQuery,
+  updateUserByIdQuery,
+} from "@novelty/db/queries/auth.query";
 import { QueryExecutionError } from "@novelty/db/lib/errors";
 import { deleteFile, uploadFile } from "./file.service";
 import { Buffer } from "node:buffer";
@@ -192,6 +196,42 @@ export const updatePreferences = async <
       error as Error,
     );
   }
+
+  return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
+};
+
+export const completeOnboarding = async <
+  TStatusCodes extends HttpStatusCodeValue,
+>(
+  dependencies: MarkKeysAsPartial<ServiceDependencies, "redisClient">,
+  body: {
+    userId: string;
+  },
+): Promise<ServiceResponse<TStatusCodes>> => {
+  const { userId } = body;
+
+  const user = await getUserInfoQuery(dependencies, userId);
+
+  if (!user) {
+    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+  }
+
+  if (user.isOnboarded) {
+    return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+  }
+
+  const preferences = user.userInfo
+    ?.preferences as SelectUserInfo["preferences"];
+
+  if (
+    !user.isEmailVerified
+    || !user.userInfo?.username
+    || preferences.genres.length < 3
+  ) {
+    return { status: HttpStatusCodes.BAD_REQUEST as TStatusCodes };
+  }
+
+  await updateUserByIdQuery(dependencies, { isOnboarded: true }, userId);
 
   return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
 };

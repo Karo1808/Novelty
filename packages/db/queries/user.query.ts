@@ -3,6 +3,7 @@ import { createDBQuery } from "../lib/create-db-query";
 import type { Dependencies } from "../lib/types";
 import type { UpdateUserInfo } from "../schemas/user-info.schema";
 import { userInfoTable } from "../schemas/user-info.schema";
+import { usersTable } from "../schemas/user.schema";
 
 export const getProfileByUserIdQuery = (
   dependencies: Dependencies,
@@ -12,7 +13,7 @@ export const getProfileByUserIdQuery = (
     dependencies,
     queryName: "getUserProfileByUserIdQuery",
     query: async (db) => {
-      return await db.query.userProfilesTable.findFirst({
+      return await db.query.userInfoTable.findFirst({
         where: eq(userInfoTable.userId, userId),
         columns: {
           avatarUrl: true,
@@ -33,7 +34,7 @@ export const getIsUsernameUniqueQuery = (
     dependencies,
     queryName: "getIsUsernameUniqueQuery",
     query: async (db) => {
-      const user = await db.query.userProfilesTable.findFirst({
+      const user = await db.query.userInfoTable.findFirst({
         where: eq(userInfoTable.username, username),
       });
 
@@ -71,7 +72,7 @@ export const getPreferencesByUserIdQuery = (
     dependencies,
     queryName: "getUserPreferencesByUserIdQuery",
     query: async (db) => {
-      return await db.query.userProfilesTable.findFirst({
+      return await db.query.userInfoTable.findFirst({
         where: eq(userInfoTable.userId, userId),
         columns: {
           preferences: true,
@@ -87,6 +88,7 @@ export const updateUserPreferencesByIdQuery = (
   userId: string,
 ) => {
   const stringifiedBody = JSON.stringify(body);
+
   return createDBQuery({
     dependencies,
     queryName: "updateUserPreferencesByIdQuery",
@@ -95,6 +97,28 @@ export const updateUserPreferencesByIdQuery = (
         .update(userInfoTable)
         .set({ preferences: stringifiedBody })
         .where(eq(userInfoTable.userId, userId));
+    },
+  });
+};
+
+export const getUserInfoQuery = (
+  dependencies: Dependencies,
+  userId: string,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getUserInfoQuery",
+    query: async (db) => {
+      return await db.query.usersTable.findFirst({
+        where: eq(usersTable.id, userId),
+        columns: {
+          isOnboarded: true,
+          isEmailVerified: true,
+        },
+        with: {
+          userInfo: true,
+        },
+      });
     },
   });
 };
