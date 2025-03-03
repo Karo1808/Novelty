@@ -2,6 +2,7 @@ import { jsonContent } from "@/lib/json-content";
 import { createRoute } from "@hono/zod-openapi";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import {
+  getPreferencesSuccessSchema,
   getProfileSuccessSchema,
   updateProfileConflictSchema,
 } from "./user.validations";
@@ -80,10 +81,6 @@ export const updateProfileRoute = createRoute({
       updateProfileConflictSchema,
       "Another process handling this query/username already taken",
     ),
-    [HttpStatusCodes.UNSUPPORTED_MEDIA_TYPE]: jsonContent(
-      updateProfileConflictSchema,
-      "Another process handling this query/username already taken",
-    ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
       unauthenticatedSchema,
       "User must be authenticated",
@@ -104,3 +101,82 @@ export const updateProfileRoute = createRoute({
 });
 
 export type UpdateProfileRoute = typeof updateProfileRoute;
+
+export const getPreferencesRoute = createRoute({
+  tags: onboardingTags,
+  method: "get",
+  path: "/user/preferences",
+  description: "Returns the user preferences",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      getPreferencesSuccessSchema,
+      "User preferences information",
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Service unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type GetPreferencesRoute = typeof getPreferencesRoute;
+
+export const updatePreferencesRoute = createRoute({
+  tags: onboardingTags,
+  method: "patch",
+  path: "/user/preferences",
+  description: "Updates the user preferences",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: updateUserInfoSchema.shape.preferences,
+        },
+      },
+    },
+    description: "The user inputted data",
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: "Updated user preferences",
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(updateUserInfoSchema.shape.profile),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type UpdatePreferencesRoute = typeof updatePreferencesRoute;

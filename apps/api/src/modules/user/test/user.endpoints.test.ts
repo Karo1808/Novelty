@@ -64,9 +64,9 @@ const dummyUser = {
 
 const dummyUserInfo: InsertUserInfo = {
   preferences: {
-    genres: [],
-    authors: [],
-    series: [],
+    genres: ["fantasy", "sci-fi", "comedy"],
+    authors: ["author"],
+    series: ["series"],
   },
   profile: {
     avatarUrl: "url",
@@ -339,6 +339,158 @@ describe("user routes", () => {
 
       const response = await client.user.profile.$patch({
         form: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe("get /user/preferences", async () => {
+    it("should handle success", async () => {
+      const response = await client.user.preferences.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+
+      const profileData = await response.json();
+
+      expect(profileData).toEqual({
+        userPreferences: dummyUserInfo.preferences,
+      });
+    });
+
+    it("should handle not found", async () => {
+      await testDb.delete(userProfilesTable);
+
+      const response = await client.user.preferences.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.preferences.$get({
+        header: { cookie: "invalid-cookie" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(
+        userDbQueries,
+        "getPreferencesByUserIdQuery",
+      ).mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.user.preferences.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe("patch /user/preferences", async () => {
+    const dummyPayload = dummyUserInfo.preferences;
+
+    it("should handle success", async () => {
+      const response = await client.user.preferences.$patch({
+        json: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NO_CONTENT);
+    });
+
+    it("should handle not found", async () => {
+      await testDb.delete(usersTable);
+
+      const response = await client.user.preferences.$patch({
+        json: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.preferences.$patch({
+        header: { cookie: "invalid-cookie" },
+        json: dummyPayload,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("returns unprocessable entity if request body is invalid", async () => {
+      const invalidBody = {
+        genres: [""],
+        authors: 1,
+      };
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(serviceUtils.updateProfileSchema);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.user.preferences.$patch({
+        header: { cookie: dummyCookie },
+        // @ts-expect-error simulate zod error
+        json: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(authDbQueries, "getUserByIdQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.user.preferences.$patch({
+        json: dummyPayload,
         header: { cookie: dummyCookie },
       });
 
