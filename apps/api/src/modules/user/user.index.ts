@@ -4,4 +4,6 @@ import * as handlers from "./user.handlers";
 
 export const userRouter = createRouter()
   .openapi(routes.getProfileRoute, handlers.handleGetProfile)
-  .openapi(routes.updateProfileRoute, handlers.handleUpdateProfile);
+  .openapi(routes.updateProfileRoute, handlers.handleUpdateProfile)
+  .openapi(routes.getPreferencesRoute, handlers.handleGetPreferences)
+  .openapi(routes.updatePreferencesRoute, handlers.handleUpdatePreferences);

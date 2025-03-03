@@ -1,6 +1,16 @@
 import type { AppRouteHandler } from "@/types/index.types";
-import type { GetProfileRoute, UpdateProfileRoute } from "./user.routes";
-import { getProfile, updateProfile } from "@novelty/services/user.service";
+import type {
+  GetPreferencesRoute,
+  GetProfileRoute,
+  UpdatePreferencesRoute,
+  UpdateProfileRoute,
+} from "./user.routes";
+import {
+  getPreferences,
+  getProfile,
+  updatePreferences,
+  updateProfile,
+} from "@novelty/services/user.service";
 import { db } from "@novelty/db";
 import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
@@ -86,6 +96,73 @@ export const handleUpdateProfile: AppRouteHandler<UpdateProfileRoute> = async (
         success: false,
       },
       HttpStatusCodes.CONFLICT,
+    );
+  }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
+};
+export const handleGetPreferences: AppRouteHandler<
+  GetPreferencesRoute
+> = async (c) => {
+  const { userId } = c.var.user;
+
+  const res = await getPreferences<keyof GetPreferencesRoute["responses"]>(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    userId,
+  );
+
+  if (res.status === HttpStatusCodes.NOT_FOUND) {
+    return c.json(
+      {
+        message: "Account does not exist",
+        success: false,
+      },
+      HttpStatusCodes.NOT_FOUND,
+    );
+  }
+
+  return c.json(
+    {
+      userPreferences: res.body,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleUpdatePreferences: AppRouteHandler<
+  UpdatePreferencesRoute
+> = async (c) => {
+  const body = c.req.valid("json");
+
+  const { userId } = c.var.user;
+
+  const res = await updatePreferences<
+    keyof UpdatePreferencesRoute["responses"]
+  >(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    {
+      payload: body,
+      userId,
+    },
+  );
+
+  if (res.status === HttpStatusCodes.NOT_FOUND) {
+    return c.json(
+      {
+        message: "Account does not exist",
+        success: false,
+      },
+      HttpStatusCodes.NOT_FOUND,
     );
   }
 

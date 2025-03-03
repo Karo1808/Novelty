@@ -1,11 +1,16 @@
-import type { SelectUserInfo } from "@novelty/db/schemas/user-info.schema";
+import type {
+  SelectUserInfo,
+  UpdateUserInfo,
+} from "@novelty/db/schemas/user-info.schema";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import type { HttpStatusCodeValue } from "@novelty/lib/http-status-codes";
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
 import type { ServiceDependencies, ServiceResponse } from "./types";
 import {
   getIsUsernameUniqueQuery,
+  getPreferencesByUserIdQuery,
   getProfileByUserIdQuery,
+  updateUserPreferencesByIdQuery,
   updateUserProfileByUserIdQuery,
 } from "@novelty/db/queries/user.query";
 import type { UpdateProfile } from "./lib/utils";
@@ -135,5 +140,58 @@ export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
       error as Error,
     );
   }
+  return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
+};
+
+export const getPreferences = async <TStatusCodes extends HttpStatusCodeValue>(
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["redisClient", "messageQueueInstance"]
+  >,
+  userId: string,
+): Promise<
+  ServiceResponse<TStatusCodes> & { body?: SelectUserInfo["preferences"] }
+> => {
+  const res = await getPreferencesByUserIdQuery(dependencies, userId);
+
+  if (!res?.preferences) {
+    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+  }
+
+  const userPreferences = res.preferences as SelectUserInfo["preferences"];
+
+  return {
+    status: HttpStatusCodes.OK as TStatusCodes,
+    body: userPreferences,
+  };
+};
+
+export const updatePreferences = async <
+  TStatusCodes extends HttpStatusCodeValue,
+>(
+  dependencies: MarkKeysAsPartial<ServiceDependencies, "redisClient">,
+  body: {
+    userId: string;
+    payload: UpdateUserInfo["preferences"];
+  },
+): Promise<ServiceResponse<TStatusCodes>> => {
+  const { userId, payload } = body;
+
+  const user = await getUserByIdQuery(dependencies, userId);
+
+  if (!user) {
+    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+  }
+
+  try {
+    await updateUserPreferencesByIdQuery(dependencies, payload, userId);
+  }
+  catch (error: unknown) {
+    throw new QueryExecutionError(
+      "Failed to update user preferences",
+      error as Error,
+    );
+  }
+
   return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
 };

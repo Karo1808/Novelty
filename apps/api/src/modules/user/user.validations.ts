@@ -26,3 +26,17 @@ export const updateProfileConflictSchema = z
       },
     ],
   });
+
+export const getPreferencesSuccessSchema = z
+  .object({
+    userPreferences: selectUserInfoSchema.shape.preferences,
+  })
+  .openapi({
+    example: {
+      userPreferences: {
+        genres: ["fantasy", "sc-fi", "romance"],
+        authors: ["Brandon Sanderson", "Stephen King"],
+        series: ["Mistborn", "The Dark Tower"],
+      },
+    },
+  });
