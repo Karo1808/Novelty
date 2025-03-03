@@ -62,3 +62,39 @@ export const updateUserProfileByUserIdQuery = (
     },
   });
 };
+
+export const getPreferencesByUserIdQuery = (
+  dependencies: Dependencies,
+  userId: string,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getUserPreferencesByUserIdQuery",
+    query: async (db) => {
+      return await db.query.userProfilesTable.findFirst({
+        where: eq(userInfoTable.userId, userId),
+        columns: {
+          preferences: true,
+        },
+      });
+    },
+  });
+};
+
+export const updateUserPreferencesByIdQuery = (
+  dependencies: Dependencies,
+  body: UpdateUserInfo["preferences"],
+  userId: string,
+) => {
+  const stringifiedBody = JSON.stringify(body);
+  return createDBQuery({
+    dependencies,
+    queryName: "updateUserPreferencesByIdQuery",
+    query: async (db) => {
+      return await db
+        .update(userInfoTable)
+        .set({ preferences: stringifiedBody })
+        .where(eq(userInfoTable.userId, userId));
+    },
+  });
+};

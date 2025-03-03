@@ -1,5 +1,8 @@
 import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
-import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
+import type {
+  InsertUserInfo,
+  UpdateUserInfo,
+} from "@novelty/db/schemas/user-info.schema";
 import { usersTable } from "@novelty/db/schemas/user.schema";
 import { DrizzleError, eq, sql } from "drizzle-orm";
 import { testDb, testDependencies, testS3 } from "../test-setup";
@@ -8,7 +11,12 @@ import * as userDbQueries from "@novelty/db/queries/user.query";
 import * as authDbQueries from "@novelty/db/queries/auth.query";
 import * as fileService from "../file.service";
 import * as utils from "../lib/utils";
-import { getProfile, updateProfile } from "../user.service";
+import {
+  getPreferences,
+  getProfile,
+  updatePreferences,
+  updateProfile,
+} from "../user.service";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
 import { Buffer } from "node:buffer";
@@ -30,9 +38,9 @@ describe("user service", () => {
 
   const dummyUserInfo: InsertUserInfo = {
     preferences: {
-      genres: [],
-      authors: [],
-      series: [],
+      genres: ["genre1", "genre2", "genre3"],
+      authors: ["author"],
+      series: ["series"],
     },
     profile: {
       avatarUrl: "",
@@ -580,6 +588,199 @@ describe("user service", () => {
 
       await expect(
         updateProfile(testDependencies, dummyBody),
+      ).rejects.toThrowError();
+    });
+  });
+
+  describe("getPreferences", () => {
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+
+      await testDb.insert(userInfoTable).values({
+        userId: dummyUser.id,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+    });
+
+    it("should successfully complete all operations", async () => {
+      const getPreferencesByUserIdQuerySpy = vi.spyOn(
+        userDbQueries,
+        "getPreferencesByUserIdQuery",
+      );
+
+      const result = await getPreferences(
+        {
+          dbInstance: testDb,
+          logger: testDependencies.logger,
+          prometheusRegistry: testDependencies.prometheusRegistry,
+          reqId: testDependencies.reqId,
+        },
+        dummyUser.id,
+      );
+
+      expect(getPreferencesByUserIdQuerySpy).toHaveBeenCalledOnce();
+
+      expect(result.status).toBe(HttpStatusCodes.OK);
+      expect(result.body).toEqual(dummyUserInfo.preferences);
+    });
+
+    it("should handle no profile found", async () => {
+      const getPreferencesByUserIdQuerySpy = vi.spyOn(
+        userDbQueries,
+        "getPreferencesByUserIdQuery",
+      );
+
+      const result = await getPreferences(
+        {
+          dbInstance: testDb,
+          logger: testDependencies.logger,
+          prometheusRegistry: testDependencies.prometheusRegistry,
+          reqId: testDependencies.reqId,
+        },
+        "no-id",
+      );
+
+      expect(getPreferencesByUserIdQuerySpy).toHaveBeenCalledOnce();
+
+      expect(result.status).toBe(HttpStatusCodes.NOT_FOUND);
+    });
+
+    it("should handle database errors", async () => {
+      vi.spyOn(
+        userDbQueries,
+        "getPreferencesByUserIdQuery",
+      ).mockRejectedValueOnce(new DatabaseConnectionError("DB error"));
+
+      await expect(
+        getPreferences(
+          {
+            dbInstance: testDb,
+            logger: testDependencies.logger,
+            prometheusRegistry: testDependencies.prometheusRegistry,
+            reqId: testDependencies.reqId,
+          },
+          "no-id",
+        ),
+      ).rejects.toThrowError("DB error");
+    });
+  });
+
+  describe("updatePreferences", async () => {
+    const dummyPayload: UpdateUserInfo["preferences"] = {
+      genres: ["new-genre"],
+      authors: ["new-author"],
+      series: ["new-series"],
+    };
+
+    const dummyBody = {
+      userId: dummyUser.id,
+      payload: dummyPayload,
+    };
+
+    beforeEach(async () => {
+      vi.clearAllMocks();
+      await testDb.insert(usersTable).values(dummyUser);
+
+      await testDb.insert(userInfoTable).values({
+        userId: dummyUser.id,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+    });
+
+    it("should handle new user preferences ", async () => {
+      const getUserByIdQuerySpy = vi.spyOn(authDbQueries, "getUserByIdQuery");
+      const updateUserPreferencesByIdQuerySpy = vi.spyOn(
+        userDbQueries,
+        "updateUserPreferencesByIdQuery",
+      );
+
+      const res = await updatePreferences(testDependencies, dummyBody);
+
+      expect(getUserByIdQuerySpy).toHaveBeenCalledOnce();
+
+      expect(updateUserPreferencesByIdQuerySpy).toHaveBeenCalledOnce();
+
+      const updatedDb = await testDb.query.userProfilesTable.findFirst({
+        where: eq(userInfoTable.userId, dummyBody.userId),
+      });
+
+      const preferences
+        = updatedDb?.preferences as UpdateUserInfo["preferences"];
+
+      expect(preferences.authors).toEqual(dummyPayload.authors);
+
+      expect(preferences.genres).toEqual(dummyPayload.genres);
+
+      expect(preferences.series).toEqual(dummyPayload.series);
+
+      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+    });
+
+    it("should handle user not found", async () => {
+      const getUserByIdQuerySpy = vi.spyOn(authDbQueries, "getUserByIdQuery");
+      const updateUserPreferencesByIdQuery = vi.spyOn(
+        userDbQueries,
+        "updateUserPreferencesByIdQuery",
+      );
+
+      await testDb.delete(usersTable);
+
+      const res = await updatePreferences(testDependencies, {
+        userId: dummyUser.id,
+        payload: {
+          genres: dummyPayload.genres,
+        },
+      });
+
+      expect(getUserByIdQuerySpy).toHaveBeenCalledOnce();
+
+      expect(updateUserPreferencesByIdQuery).not.toHaveBeenCalled();
+
+      const updatedDb = await testDb.query.userProfilesTable.findFirst({
+        where: eq(userInfoTable.userId, dummyBody.userId),
+      });
+
+      expect(updatedDb).toBeUndefined();
+
+      expect(res.status).toBe(HttpStatusCodes.NOT_FOUND);
+    });
+
+    it("should handle update failure", async () => {
+      vi.spyOn(
+        userDbQueries,
+        "updateUserPreferencesByIdQuery",
+      ).mockRejectedValueOnce(new DrizzleError({ message: "faliure" }));
+
+      await expect(
+        updatePreferences(testDependencies, dummyBody),
+      ).rejects.toThrowError();
+    });
+
+    it("should handle unexpected error", async () => {
+      vi.spyOn(authDbQueries, "getUserByIdQuery").mockRejectedValueOnce(
+        new Error("unexpected error"),
+      );
+
+      await expect(
+        updatePreferences(testDependencies, dummyBody),
       ).rejects.toThrowError();
     });
   });
