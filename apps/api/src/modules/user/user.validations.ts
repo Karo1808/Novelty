@@ -40,3 +40,27 @@ export const getPreferencesSuccessSchema = z
       },
     },
   });
+
+export const completeOnboardingConflictSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    examples: [
+      {
+        message: "The user is already onboarded",
+      },
+    ],
+  });
+
+export const completeOnboardingMissingFields = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    examples: [
+      {
+        message: "All required information must be provided",
+      },
+    ],
+  });

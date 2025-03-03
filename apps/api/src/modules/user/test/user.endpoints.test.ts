@@ -10,7 +10,6 @@ import { userRouter } from "../user.index";
 import createApp from "@/lib/create-app";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { createSession } from "@novelty/services/session.service";
-import { userProfilesTable } from "@novelty/db/schemas/index.schema";
 import * as userDbQueries from "@novelty/db/queries/user.query";
 import * as authDbQueries from "@novelty/db/queries/auth.query";
 import * as serviceUtils from "@novelty/services/lib/utils";
@@ -60,6 +59,7 @@ const dummyUser = {
   email: "mail@email.com",
   password: "password123",
   id: "123",
+  isEmailVerified: true,
 };
 
 const dummyUserInfo: InsertUserInfo = {
@@ -134,7 +134,7 @@ describe("user routes", () => {
     });
 
     it("should handle not found", async () => {
-      await testDb.delete(userProfilesTable);
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
 
       const response = await client.user.profile.$get({
         header: { cookie: dummyCookie },
@@ -367,7 +367,7 @@ describe("user routes", () => {
     });
 
     it("should handle not found", async () => {
-      await testDb.delete(userProfilesTable);
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
 
       const response = await client.user.preferences.$get({
         header: { cookie: dummyCookie },
@@ -500,6 +500,72 @@ describe("user routes", () => {
       expect(profileData).toMatchObject({
         message: expect.any(String),
       });
+    });
+  });
+
+  describe("patch /user/onboarding/complete", () => {
+    it("returns 204 when onboarding completes", async () => {
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+    });
+
+    it("returns 404 when user not found", async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: dummyCookie },
+      });
+      expect(res.status).toBe(HttpStatusCodes.NOT_FOUND);
+      const data = await res.json();
+      expect(data).toMatchObject({ success: false });
+    });
+
+    it("returns 409 when already onboarded", async () => {
+      await testDb.update(usersTable).set({ isOnboarded: true });
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: dummyCookie },
+      });
+      expect(res.status).toBe(HttpStatusCodes.CONFLICT);
+      const data = await res.json();
+      expect(data).toMatchObject({ success: false });
+    });
+
+    it("returns 400 when missing required info", async () => {
+      await testDb.update(usersTable).set({ isEmailVerified: false });
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: dummyCookie },
+      });
+      expect(res.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      const data = await res.json();
+      expect(data).toMatchObject({ success: false });
+    });
+
+    it("returns 401 when unauthorized", async () => {
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: "invalid-cookie" },
+      });
+      expect(res.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+      const data = await res.json();
+
+      expect(data).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("returns 503 when service is unavailable", async () => {
+      vi.spyOn(authDbQueries, "updateUserByIdQuery").mockImplementationOnce(
+        () => {
+          throw new DatabaseConnectionError("DB error");
+        },
+      );
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: dummyCookie },
+      });
+      expect(res.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      const data = await res.json();
+      expect(data).toMatchObject({ message: expect.any(String) });
     });
   });
 });
