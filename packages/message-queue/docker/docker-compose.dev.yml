@@ -2,4 +2,4 @@ services:
   redis-queue:
     ports:
       - "6380:6380"
-    network_mode: "host"
+    network_mode: "bridge"

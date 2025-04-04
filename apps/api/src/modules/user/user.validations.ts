@@ -64,3 +64,36 @@ export const completeOnboardingMissingFields = z
       },
     ],
   });
+
+export const getUserDraftSuccessSchema = z
+  .object({
+    userInfo: selectUserInfoSchema,
+  })
+  .openapi({
+    example: {
+      userInfo: {
+        profile: {
+          avatarUrl: "avatar:url",
+          bio: "some-bio",
+          username: "username",
+        },
+        preferences: {
+          genres: ["fantasy", "sc-fi", "romance"],
+          authors: ["Brandon Sanderson", "Stephen King"],
+          series: ["Mistborn", "The Dark Tower"],
+        },
+      },
+    },
+  });
+
+export const getUserDraftConflictSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    examples: [
+      {
+        message: "The cache is not empty",
+      },
+    ],
+  });

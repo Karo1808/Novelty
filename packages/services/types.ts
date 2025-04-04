@@ -12,6 +12,7 @@ export interface ServiceDependencies {
   reqId: string;
   logger: Logger;
   prometheusRegistry: PrometheusRegistry;
+  bucketName?: string;
 }
 
 export interface ServiceResponse<TStatusCodes> {

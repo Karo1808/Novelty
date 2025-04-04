@@ -7,6 +7,7 @@ import {
   updateUserByIdQuery,
 } from "@novelty/db/queries/auth.query";
 import {
+  constantTimeCompare,
   decryptString,
   encryptString,
   hashPassword,
@@ -34,6 +35,7 @@ import {
   EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
   VERIFICATION_EMAIL_EXPIRY_TIME,
   VERIFICATION_EMAIL_TOKEN_LENGTH,
+  VERIFICATION_EMAIL_TTL,
 } from "./lib/config";
 import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
 import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
@@ -111,7 +113,7 @@ export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
 export const sendVerificationEmail = async <
   TStatusCodes extends HttpStatusCodeValue,
 >(
-  dependencies: Required<Omit<ServiceDependencies, "s3Client">>,
+  dependencies: Required<Omit<ServiceDependencies, "s3Client" | "bucketName">>,
   body: InsertUser["sendVerificationEmail"],
 ): Promise<ServiceResponse<TStatusCodes> & { body?: string }> => {
   const dbDependencies = prepareDependencies(dependencies, "redisClient");
@@ -119,7 +121,7 @@ export const sendVerificationEmail = async <
 
   const lockKey = `lock:send-email-verification:${body.email}`;
   const lockValue = `unique-lock-value-${Date.now()}`;
-  const ttl = 30;
+  const ttl = VERIFICATION_EMAIL_TTL;
 
   const isLockAcquired = await acquireLock(
     redisDependencies,
@@ -225,7 +227,12 @@ export const verifyEmail = async <TStatusCodes extends HttpStatusCodeValue>(
     `verify-email:${encryptedUserId}`,
   );
 
-  if (redisVerificationCode !== verificationCode) {
+  if (!redisVerificationCode) {
+    constantTimeCompare("", "");
+    return { status: HttpStatusCodes.BAD_REQUEST as TStatusCodes };
+  }
+
+  if (!constantTimeCompare(redisVerificationCode ?? "", verificationCode)) {
     return { status: HttpStatusCodes.BAD_REQUEST as TStatusCodes };
   }
 
