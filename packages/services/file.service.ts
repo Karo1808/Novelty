@@ -14,13 +14,13 @@ interface FileDependenciesParams {
   client: S3Client;
   logger: Logger;
   reqId: string;
+  bucketName: string;
 }
 
 interface UploadFileParams {
   filename: string;
   fileBuffer: Buffer;
   fileType: string;
-  bucketName: string;
   dependencies: FileDependenciesParams;
 }
 
@@ -28,13 +28,12 @@ export const uploadFile = async ({
   filename,
   fileBuffer,
   fileType,
-  bucketName,
   dependencies,
 }: UploadFileParams) => {
   try {
     await dependencies.client.send(
       new PutObjectCommand({
-        Bucket: bucketName,
+        Bucket: dependencies.bucketName,
         Key: filename,
         Body: fileBuffer,
         ContentType: fileType,
@@ -45,7 +44,7 @@ export const uploadFile = async ({
     const presignedUrl = await getSignedUrl(
       dependencies.client,
       new GetObjectCommand({
-        Bucket: bucketName,
+        Bucket: dependencies.bucketName,
         Key: filename,
       }),
       { expiresIn: R2_SIGNED_URL_EXPIRATION },
@@ -68,21 +67,24 @@ export const uploadFile = async ({
 
 interface DeleteFileParams {
   url: string;
-  bucketName: string;
   dependencies: FileDependenciesParams;
 }
 
-export const deleteFile = async ({
-  url,
-  bucketName,
-  dependencies,
-}: DeleteFileParams) => {
+export const deleteFile = async ({ url, dependencies }: DeleteFileParams) => {
   try {
     const oldKey = getOldKey(url);
+    if (!oldKey) {
+      dependencies.logger.warn({
+        message: "Could not extract key from URL to delete file",
+        url,
+        reqId: dependencies.reqId,
+      });
+      return;
+    }
 
     await dependencies.client.send(
       new DeleteObjectCommand({
-        Bucket: bucketName,
+        Bucket: dependencies.bucketName,
         Key: oldKey!,
       }),
     );

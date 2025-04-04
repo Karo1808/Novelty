@@ -4,6 +4,6 @@ services:
       - ${DB_PORT}:5432
   
   postgres-exporter:
-   network_mode: "host"
+   network_mode: "bridge"
    ports:
       - "9187:9187"

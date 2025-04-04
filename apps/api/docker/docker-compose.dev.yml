@@ -1,5 +1,5 @@
 services:
   node_exporter:
-    network_mode: "host"
+    network_mode: "bridge"
     ports:
       - "${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}"

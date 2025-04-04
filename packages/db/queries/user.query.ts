@@ -116,7 +116,14 @@ export const getUserInfoQuery = (
           isEmailVerified: true,
         },
         with: {
-          userInfo: true,
+          userInfo: {
+            columns: {
+              username: true,
+              avatarUrl: true,
+              bio: true,
+              preferences: true,
+            },
+          },
         },
       });
     },
