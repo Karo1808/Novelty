@@ -23,6 +23,14 @@ import {
 import { QueryExecutionError } from "@novelty/db/lib/errors";
 import { deleteFile, uploadFile } from "./file.service";
 import { Buffer } from "node:buffer";
+import { getByKeyJson, setByKeyJson } from "@novelty/redis/queries/json.query";
+import {
+  MIN_REQUIRED_GENRES,
+  PROFILE_PICTURES_PATH_PREFIX,
+  USER_INFO_DRAFT_KEY,
+} from "./lib/config";
+import { doesKeyExists } from "@novelty/redis/queries/index.query";
+import type { UserDraftBodySchema } from "@novelty/lib/validations/user";
 
 export const getProfile = async <TStatusCodes extends HttpStatusCodeValue>(
   dependencies: MarkKeysAsPartial<
@@ -86,31 +94,29 @@ export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
     if (userProfile?.avatarUrl) {
       await deleteFile({
         url: userProfile.avatarUrl,
-        // eslint-disable-next-line node/no-process-env
-        bucketName: process.env.R2_BUCKET_NAME!,
         dependencies: {
           client: dependencies.s3Client!,
           reqId: dependencies.reqId,
           logger: dependencies.logger,
+          bucketName: dependencies.bucketName!,
         },
       });
     }
 
     const fileBuffer = Buffer.from(await profileImage.arrayBuffer());
     const fileType = profileImage.type;
-
-    const filePath = `profile_pictures/${userId}.jpg`;
+    const fileExtension = fileType.split("/")[1] || "jpg";
+    const uniqueFilename = `${PROFILE_PICTURES_PATH_PREFIX}${userId}-${Date.now()}.${fileExtension}`;
 
     newAvatarUrl = await uploadFile({
-      filename: filePath,
+      filename: uniqueFilename,
       fileBuffer,
       fileType,
-      // eslint-disable-next-line node/no-process-env
-      bucketName: process.env.R2_BUCKET_NAME!,
       dependencies: {
         client: dependencies.s3Client!,
         reqId: dependencies.reqId,
         logger: dependencies.logger,
+        bucketName: dependencies.bucketName!,
       },
     });
   }
@@ -119,9 +125,9 @@ export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
     await updateUserProfileByUserIdQuery(
       dbDependencies,
       {
-        username,
-        avatarUrl: newAvatarUrl,
-        bio,
+        ...(username !== undefined && { username }),
+        ...(newAvatarUrl !== null && { avatarUrl: newAvatarUrl }),
+        ...(bio !== undefined && { bio }),
       },
       userId,
     );
@@ -130,12 +136,11 @@ export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
     if (newAvatarUrl) {
       await deleteFile({
         url: newAvatarUrl,
-        // eslint-disable-next-line node/no-process-env
-        bucketName: process.env.R2_BUCKET_NAME!,
         dependencies: {
           client: dependencies.s3Client!,
           reqId: dependencies.reqId,
           logger: dependencies.logger,
+          bucketName: dependencies.bucketName!,
         },
       });
     }
@@ -226,7 +231,8 @@ export const completeOnboarding = async <
   if (
     !user.isEmailVerified
     || !user.userInfo?.username
-    || preferences.genres.length < 3
+    || !preferences.genres
+    || preferences.genres?.length < MIN_REQUIRED_GENRES
   ) {
     return { status: HttpStatusCodes.BAD_REQUEST as TStatusCodes };
   }
@@ -234,4 +240,57 @@ export const completeOnboarding = async <
   await updateUserByIdQuery(dependencies, { isOnboarded: true }, userId);
 
   return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
+};
+
+export const getUserDraft = async <TStatusCodes extends HttpStatusCodeValue>(
+  dependencies: ServiceDependencies,
+  body: {
+    userId: string;
+  },
+): Promise<ServiceResponse<TStatusCodes> & { body?: SelectUserInfo }> => {
+  const { userId } = body;
+  const redisKey = `${USER_INFO_DRAFT_KEY}:${userId}`;
+
+  let userInfo = await getByKeyJson(dependencies, redisKey);
+
+  if (!userInfo) {
+    const user = await getUserInfoQuery(dependencies, userId);
+
+    if (!user || !user.userInfo) {
+      return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+    }
+
+    const isCached = await doesKeyExists(dependencies, redisKey);
+
+    if (isCached) {
+      return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+    }
+
+    await setByKeyJson(dependencies, redisKey, user.userInfo);
+
+    [userInfo] = await getByKeyJson(dependencies, redisKey);
+  }
+
+  return {
+    status: HttpStatusCodes.OK as TStatusCodes,
+    body: userInfo,
+  };
+};
+
+export const updateUserDraft = async <TStatusCodes extends HttpStatusCodeValue>(
+  dependencies: ServiceDependencies,
+  body: {
+    userId: string;
+    payload: UserDraftBodySchema;
+  },
+): Promise<ServiceResponse<TStatusCodes>> => {
+  const { userId, payload } = body;
+
+  const redisKey = `${USER_INFO_DRAFT_KEY}:${userId}`;
+
+  await setByKeyJson(dependencies, redisKey, payload);
+
+  return {
+    status: HttpStatusCodes.NO_CONTENT as TStatusCodes,
+  };
 };

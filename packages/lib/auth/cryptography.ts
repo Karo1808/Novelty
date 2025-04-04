@@ -1,6 +1,6 @@
 /* eslint-disable node/prefer-global/buffer */
 import { hash } from "@node-rs/argon2";
-import crypto from "node:crypto";
+import crypto, { timingSafeEqual } from "node:crypto";
 import "dotenv/config";
 import { encodeHexLowerCase } from "@oslojs/encoding";
 import { sha256 } from "@oslojs/crypto/sha2";
@@ -57,3 +57,14 @@ export function decryptString(encryptedInput: string): string {
 export const encodeToken = (token: string) => {
   return encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
 };
+
+export function constantTimeCompare(a: string, b: string): boolean {
+  try {
+    const aBuf = Buffer.from(a, "utf8");
+    const bBuf = Buffer.from(b, "utf8");
+    return aBuf.length === bBuf.length && timingSafeEqual(aBuf, bBuf);
+  }
+  catch {
+    return false;
+  }
+}

@@ -16,6 +16,7 @@ export interface Session {
   id: string;
   userId: string;
   expiresAt: Date;
+  token?: string;
 }
 
 export const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30; // 30 days
@@ -61,6 +62,40 @@ export const createSession = async (
   return session;
 };
 
+export const invalidateSession = async (
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["dbInstance", "messageQueueInstance"]
+  >,
+  sessionId: string,
+  userId: string,
+): Promise<void> => {
+  const deps = prepareDependencies(dependencies, "dbInstance");
+
+  await deleteByKey(deps, `session:${sessionId}`);
+  await removeFromSet(deps, `user_sessions:${userId}`, sessionId);
+};
+
+export const rotateSessionToken = async (
+  dependencies: ServiceDependencies,
+  oldSession: Session,
+): Promise<{ token: string; session: Session }> => {
+  const newToken = generateSessionToken();
+
+  const newSession = await createSession(
+    dependencies,
+    newToken,
+    oldSession.userId,
+  );
+
+  await invalidateSession(dependencies, oldSession.id, oldSession.userId);
+
+  return {
+    token: newToken,
+    session: newSession,
+  };
+};
+
 export const validateSessionToken = async (
   dependencies: MarkKeysAsPartial<
     ServiceDependencies,
@@ -80,7 +115,7 @@ export const validateSessionToken = async (
   }
   const result = JSON.parse(item);
 
-  const session: Session = {
+  let session: Session = {
     id: result.id,
     userId: result.user_id,
     expiresAt: new Date(result.expires_at * 1000),
@@ -93,33 +128,15 @@ export const validateSessionToken = async (
   }
 
   if (Date.now() >= session.expiresAt.getTime() - SESSION_RENEWAL_TIME) {
-    session.expiresAt = new Date(Date.now() + SESSION_EXPIRATION_TIME);
-
-    const expiresAt = Math.floor(Number(session.expiresAt) / 1000);
-    const value = JSON.stringify({
-      id: session.id,
-      user_id: session.userId,
-      expires_at: new Date(expiresAt),
-    });
-
-    await setWithExpiry(deps, key, value, expiresAt);
+    const { session: newSession, token: newToken } = await rotateSessionToken(
+      deps,
+      session,
+    );
+    session = newSession;
+    session.token = newToken;
   }
 
   return session;
-};
-
-export const invalidateSession = async (
-  dependencies: MarkKeysAsPartial<
-    ServiceDependencies,
-    ["dbInstance", "messageQueueInstance"]
-  >,
-  sessionId: string,
-  userId: string,
-): Promise<void> => {
-  const deps = prepareDependencies(dependencies, "dbInstance");
-
-  await deleteByKey(deps, `session:${sessionId}`);
-  await removeFromSet(deps, `user_sessions:${userId}`, sessionId);
 };
 
 export const invalidateAllSessions = async (

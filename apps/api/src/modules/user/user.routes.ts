@@ -6,6 +6,8 @@ import {
   completeOnboardingMissingFields,
   getPreferencesSuccessSchema,
   getProfileSuccessSchema,
+  getUserDraftConflictSchema,
+  getUserDraftSuccessSchema,
   updateProfileConflictSchema,
 } from "./user.validations";
 import {
@@ -18,6 +20,7 @@ import {
 import { updateUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
 import createErrorSchema from "@/lib/create-error-schema";
 import { updateProfileSchema } from "@novelty/services/lib/utils";
+import { userDraftBodySchema } from "@novelty/lib/validations/user";
 
 const userTags = ["User"];
 const onboardingTags = ["Onboarding"];
@@ -216,6 +219,84 @@ export const completeOnboardingRoute = createRoute({
       serviceUnavailableSchema,
       "Services unavailable",
     ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type CompleteOnboardingRoute = typeof completeOnboardingRoute;
+
+export const getUserDraftRoute = createRoute({
+  tags: userTags,
+  method: "get",
+  path: "/user/draft",
+  description: "Retrieves the cached user input if missing it sets it",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      getUserDraftSuccessSchema,
+      "Return from cache",
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      getUserDraftConflictSchema,
+      "Already cached",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type GetUserDraftRoute = typeof getUserDraftRoute;
+
+export const updateUserDraftRoute = createRoute({
+  tags: userTags,
+  method: "put",
+  path: "/user/draft",
+  description: "Updates the cached user input",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: userDraftBodySchema,
+        },
+      },
+    },
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: "Return from cache",
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(updateUserInfoSchema.shape.profile),
       "Validation error(s)",
@@ -227,4 +308,4 @@ export const completeOnboardingRoute = createRoute({
   },
 });
 
-export type CompleteOnboardingRoute = typeof completeOnboardingRoute;
+export type UpdateUserDraftRoute = typeof updateUserDraftRoute;

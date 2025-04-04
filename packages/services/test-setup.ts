@@ -15,8 +15,6 @@ import { Registry } from "prom-client";
 import type { ServiceDependencies } from "types";
 import { Redis } from "ioredis";
 import type { Redis as TRedis } from "ioredis";
-import type { StartedRedisContainer } from "@testcontainers/redis";
-import { RedisContainer } from "@testcontainers/redis";
 import { createQueue } from "@novelty/message-queue/lib/create-queue";
 import type { Queue } from "bullmq";
 import { createWorker } from "@novelty/message-queue/lib/create-worker";
@@ -29,7 +27,7 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 let dbContainer: StartedPostgreSqlContainer;
-let redisContainer: StartedRedisContainer;
+let redisContainer: StartedTestContainer;
 let s3Container: StartedTestContainer;
 let testS3: S3Client;
 let pool: TPool;
@@ -44,13 +42,18 @@ beforeAll(async () => {
     .withStartupTimeout(12000)
     .start();
 
-  redisContainer = await new RedisContainer().start();
+  redisContainer = await new GenericContainer("redis/redis-stack-server:latest")
+    .withExposedPorts(6379) // Expose the default Redis port
 
-  testRedis = new Redis(redisContainer.getConnectionUrl());
+    .start();
 
+  testRedis = new Redis({
+    host: redisContainer.getHost(),
+    port: redisContainer.getMappedPort(6379), // Must match the above
+  });
   const connectionOptions = {
     host: redisContainer.getHost(),
-    port: redisContainer.getPort(),
+    port: redisContainer.getMappedPort(6379),
   };
 
   const queueName = "email-queue";
@@ -106,6 +109,7 @@ beforeAll(async () => {
     prometheusRegistry: new Registry(),
     redisClient: testRedis,
     s3Client: testS3,
+    bucketName: process.env.R2_BUCKET_NAME!,
   };
 
   testDependenciesWithQueue = {
@@ -116,6 +120,7 @@ beforeAll(async () => {
     redisClient: testRedis,
     messageQueueInstance: testQueue,
     s3Client: testS3,
+    bucketName: process.env.R2_BUCKET_NAME!,
   };
 });
 

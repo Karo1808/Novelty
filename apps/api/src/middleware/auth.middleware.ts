@@ -3,9 +3,12 @@ import { prometheusRegistry } from "@/lib/metrics";
 import type { User } from "@/types/index.types";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
-import { validateSessionToken } from "@novelty/services/session.service";
+import {
+  SESSION_EXPIRATION_TIME,
+  validateSessionToken,
+} from "@novelty/services/session.service";
 import type { MiddlewareHandler } from "hono";
-import { getCookie } from "hono/cookie";
+import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 
 export const authMiddleware = (): MiddlewareHandler => {
@@ -35,7 +38,6 @@ export const authMiddleware = (): MiddlewareHandler => {
     if (!session) {
       logger.warn("Auth failed: Invalid session token", {
         requestId: c.var.requestId,
-        sessionToken,
       });
 
       return c.json(
@@ -45,6 +47,13 @@ export const authMiddleware = (): MiddlewareHandler => {
     }
 
     c.set("user", { userId: session.userId, sessionId: session.id });
+
+    if (session.token) {
+      setCookie(c, "session", session.token, {
+        maxAge: SESSION_EXPIRATION_TIME / 1000,
+        expires: session.expiresAt,
+      });
+    }
 
     await next();
   });
