@@ -51,6 +51,10 @@ export const insertUserSchema = z.object({
   sendVerificationEmail: z.object({
     email: baseSchema.shape.email,
   }),
+  login: z.object({
+    email: baseSchema.shape.email,
+    password: baseSchema.shape.password,
+  }),
 });
 
 export const updateUserSchema = createUpdateSchema(usersTable).omit({

@@ -1,10 +1,12 @@
 import type { AppRouteHandler } from "@/types/index.types";
 import type {
+  LoginRoute,
   RegisterRoute,
   SendVerificationEmailRoute,
   VerifyEmailRoute,
 } from "./auth.routes";
 import {
+  loginUser,
   registerUser,
   sendVerificationEmail,
   verifyEmail,
@@ -162,6 +164,48 @@ export const handleVerifyEmail: AppRouteHandler<VerifyEmailRoute> = async (
     {
       message: "Email verified",
       success: true,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleLogin: AppRouteHandler<LoginRoute> = async (c) => {
+  const body = c.req.valid("json");
+
+  const res = await loginUser<keyof LoginRoute["responses"]>(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
+
+  if (res.status === HttpStatusCodes.UNAUTHORIZED) {
+    return c.json(
+      { message: "Invalid credentials" },
+      HttpStatusCodes.UNAUTHORIZED,
+    );
+  }
+
+  if (res.data) {
+    const { token, expiresAt } = res.data;
+
+    setCookie(c, "session", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      maxAge: SESSION_EXPIRATION_TIME / 1000,
+      expires: expiresAt,
+    });
+  }
+
+  return c.json(
+    {
+      message: `Login successful`,
     },
     HttpStatusCodes.OK,
   );

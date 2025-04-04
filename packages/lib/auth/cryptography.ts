@@ -1,5 +1,5 @@
 /* eslint-disable node/prefer-global/buffer */
-import { hash } from "@node-rs/argon2";
+import { hash, verify } from "@node-rs/argon2";
 import crypto, { timingSafeEqual } from "node:crypto";
 import "dotenv/config";
 import { encodeHexLowerCase } from "@oslojs/encoding";
@@ -12,6 +12,13 @@ export async function hashPassword(password: string): Promise<string> {
     outputLen: 32,
     parallelism: 1,
   });
+}
+
+export async function verifyPassword(
+  password: string,
+  hashedPassword: string,
+): Promise<boolean> {
+  return await verify(hashedPassword, password);
 }
 
 export function encryptString(input: string): string {

@@ -8,23 +8,47 @@ import { createDBQuery } from "../lib/create-db-query";
 import type { Dependencies } from "../lib/types";
 import { eq } from "drizzle-orm";
 
-export const getUserByEmailQuery = (
+type SelectUserWithPassword = SelectUser & { password: string };
+
+export function getUserByEmailQuery(
   dependencies: Dependencies,
   email: string,
-) => {
+  withPassword: true,
+): Promise<SelectUserWithPassword | undefined>;
+
+export function getUserByEmailQuery(
+  dependencies: Dependencies,
+  email: string,
+  withPassword?: false | undefined,
+): Promise<SelectUser | undefined>;
+
+export function getUserByEmailQuery(
+  dependencies: Dependencies,
+  email: string,
+  withPassword: boolean = false,
+): Promise<SelectUser | SelectUserWithPassword | undefined> {
   return createDBQuery({
     dependencies,
     queryName: "getUserByEmail",
     query: async (db) => {
-      return await db.query.usersTable.findFirst({
+      const user = await db.query.usersTable.findFirst({
         where: eq(usersTable.email, email),
-        columns: {
-          password: false,
-        },
       });
+
+      if (!user) {
+        return undefined;
+      }
+
+      if (!withPassword) {
+        const { password, ...userWithoutPassword }
+          = user as SelectUserWithPassword;
+        return userWithoutPassword as SelectUser;
+      }
+
+      return user as SelectUserWithPassword;
     },
   });
-};
+}
 
 export const createUserQuery = (
   dependencies: Dependencies,

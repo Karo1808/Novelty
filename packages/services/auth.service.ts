@@ -11,6 +11,7 @@ import {
   decryptString,
   encryptString,
   hashPassword,
+  verifyPassword,
 } from "@novelty/lib/auth/cryptography";
 import {
   DatabaseConnectionError,
@@ -30,6 +31,7 @@ import {
 } from "@novelty/redis/queries/index.query";
 import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import {
+  DUMMY_PASSWORD_HASH,
   EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
   EMAIL_QUEUE_COMPLETED_JOBS_TIME,
   EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
@@ -40,6 +42,7 @@ import {
 import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
 import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import { createSession, generateSessionToken } from "./session.service";
+import { getUserInfoQuery } from "@novelty/db/queries/user.query";
 
 export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
   dependencies: MarkKeysAsPartial<
@@ -277,6 +280,97 @@ export const verifyEmail = async <TStatusCodes extends HttpStatusCodeValue>(
     status: HttpStatusCodes.OK as TStatusCodes,
     data: {
       sessionToken,
+      expiresAt,
+    },
+  };
+};
+
+interface LoginUserResponse {
+  user: {
+    id: string;
+    isEmailVerified: boolean;
+    isOnboarded: boolean;
+    userInfo: Record<string, unknown>;
+  };
+  token: string;
+  expiresAt: Date;
+}
+
+export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
+  dependencies: MarkKeysAsPartial<ServiceDependencies, "messageQueueInstance">,
+  body: InsertUser["login"],
+): Promise<ServiceResponse<TStatusCodes> & { data?: LoginUserResponse }> => {
+  const { email, password } = body;
+  const user = await getUserByEmailQuery(dependencies, email, true);
+
+  let passwordMatch = false;
+
+  if (user) {
+    passwordMatch = await verifyPassword(password, user.password);
+  }
+  else {
+    try {
+      await verifyPassword(password, DUMMY_PASSWORD_HASH);
+    }
+    catch (dummyError: unknown) {
+      dependencies.logger.debug({
+        message: "Ignored expected error during dummy password check",
+        source: "loginUser",
+        email,
+        reqId: dependencies.reqId,
+        dummyError,
+      });
+    }
+  }
+
+  if (!passwordMatch) {
+    dependencies.logger.warn({
+      message: "Invalid credentials",
+      source: "loginUser",
+      email,
+      reqId: dependencies.reqId,
+    });
+
+    return { status: HttpStatusCodes.UNAUTHORIZED as TStatusCodes };
+  }
+
+  if (!user) {
+    dependencies.logger.error({
+      message: "Password matched but user not found",
+      source: "loginUser",
+      email,
+      reqId: dependencies.reqId,
+    });
+    throw new Error("User data inconsistency during login.");
+  }
+
+  // TODO: Implement blacklist check
+
+  const sessionToken = generateSessionToken();
+
+  const { expiresAt } = await createSession(
+    dependencies,
+    sessionToken,
+    user.id,
+  );
+
+  const fullUserInfo = await getUserInfoQuery(dependencies, user.id);
+  if (!fullUserInfo || !fullUserInfo.userInfo) {
+    // Check both user and nested userInfo
+    dependencies.logger.error({
+      message: "User info not found after login",
+      source: "loginUser",
+      userId: user.id,
+      redId: dependencies.reqId,
+    });
+    throw new QueryExecutionError("User info missing for logged-in user.");
+  }
+
+  return {
+    status: HttpStatusCodes.OK as TStatusCodes,
+    data: {
+      user: fullUserInfo as LoginUserResponse["user"],
+      token: sessionToken,
       expiresAt,
     },
   };

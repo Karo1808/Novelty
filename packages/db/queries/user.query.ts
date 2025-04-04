@@ -112,6 +112,7 @@ export const getUserInfoQuery = (
       return await db.query.usersTable.findFirst({
         where: eq(usersTable.id, userId),
         columns: {
+          id: true,
           isOnboarded: true,
           isEmailVerified: true,
         },
