@@ -102,3 +102,23 @@ export const verifyEmailConflictSchema = z
       message: "This email has already been verified",
     },
   });
+
+export const loginSuccessSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Login successful",
+    },
+  });
+
+export const loginUnauthorizedSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Invalid credentials",
+    },
+  });

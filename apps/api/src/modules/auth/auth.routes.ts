@@ -2,6 +2,8 @@ import { createRoute } from "@hono/zod-openapi";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { jsonContent, jsonContentRequired } from "@/lib/json-content";
 import {
+  loginSuccessSchema,
+  loginUnauthorizedSchema,
   registerConflictSchema,
   registerCreatedSchema,
   sendVerificationEmailConflictSchema,
@@ -17,6 +19,7 @@ import { insertUserSchema } from "@novelty/db/schemas/user.schema";
 import createErrorSchema from "@/lib/create-error-schema";
 import { verifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import {
+  blacklistedSchema,
   cookieSchema,
   serviceUnavailableSchema,
   tooManyRequestsSchema,
@@ -148,3 +151,46 @@ export const verifyEmailRoute = createRoute({
 });
 
 export type VerifyEmailRoute = typeof verifyEmailRoute;
+
+export const loginRoute = createRoute({
+  tags,
+  method: "post",
+  path: "/auth/login",
+  description: "Authenticates the user and creates a session",
+  request: {
+    body: jsonContentRequired(insertUserSchema.shape.login, "User credentials"),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        "application/json": {
+          schema: loginSuccessSchema,
+        },
+      },
+      description: "Authenticates a user and creates a session",
+      headers: cookieSchema,
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      loginUnauthorizedSchema,
+      "Invalid credentials",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Too many login attempts",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertUserSchema.shape.register),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      blacklistedSchema,
+      "Access denied (e.g., account banned, inactive)",
+    ),
+  },
+});
+
+export type LoginRoute = typeof loginRoute;

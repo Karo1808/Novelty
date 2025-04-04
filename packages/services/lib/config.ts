@@ -17,3 +17,7 @@ export const USER_INFO_DRAFT_KEY = `user-info-draft` as const;
 export const R2_SIGNED_URL_EXPIRATION = 60 * 60 * 24; // 24 hours
 
 export const MIN_REQUIRED_GENRES = 3;
+
+export const DUMMY_PASSWORD = "dummy_password" as string;
+export const DUMMY_PASSWORD_HASH
+  = "$argon2id$v=19$m=65536,t=3,p=4$YWFhYWFhYWFhYWFhYWFhYQ$幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌" as const;

@@ -57,3 +57,13 @@ export const cookieSchema = z.object({
       "sessionId=abc123; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800",
   }),
 });
+
+export const blacklistedSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Access denied",
+    },
+  });
