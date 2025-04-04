@@ -3,15 +3,19 @@ import type {
   CompleteOnboardingRoute,
   GetPreferencesRoute,
   GetProfileRoute,
+  GetUserDraftRoute,
   UpdatePreferencesRoute,
   UpdateProfileRoute,
+  UpdateUserDraftRoute,
 } from "./user.routes";
 import {
   completeOnboarding,
   getPreferences,
   getProfile,
+  getUserDraft,
   updatePreferences,
   updateProfile,
+  updateUserDraft,
 } from "@novelty/services/user.service";
 import { db } from "@novelty/db";
 import logger from "@/lib/logger";
@@ -19,6 +23,7 @@ import { prometheusRegistry } from "@/lib/metrics";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
 import { s3Client } from "@novelty/lib/s3-client";
+import env from "@/env";
 
 export const handleGetProfile: AppRouteHandler<GetProfileRoute> = async (c) => {
   const { userId } = c.var.user;
@@ -70,6 +75,7 @@ export const handleUpdateProfile: AppRouteHandler<UpdateProfileRoute> = async (
       logger,
       prometheusRegistry,
       reqId: c.var.requestId,
+      bucketName: env.R2_BUCKET_NAME,
     },
     {
       payload: {
@@ -103,6 +109,7 @@ export const handleUpdateProfile: AppRouteHandler<UpdateProfileRoute> = async (
 
   return c.body(null, HttpStatusCodes.NO_CONTENT);
 };
+
 export const handleGetPreferences: AppRouteHandler<
   GetPreferencesRoute
 > = async (c) => {
@@ -219,6 +226,75 @@ export const handleCompleteOnboarding: AppRouteHandler<
       HttpStatusCodes.BAD_REQUEST,
     );
   }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
+};
+
+export const handleGetUserDraft: AppRouteHandler<GetUserDraftRoute> = async (
+  c,
+) => {
+  const { userId } = c.var.user;
+
+  const res = await getUserDraft<keyof GetUserDraftRoute["responses"]>(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    {
+      userId,
+    },
+  );
+
+  if (res.status === HttpStatusCodes.NOT_FOUND) {
+    return c.json(
+      {
+        message: "Account information is missing",
+        success: false,
+      },
+      HttpStatusCodes.NOT_FOUND,
+    );
+  }
+
+  if (res.status === HttpStatusCodes.CONFLICT) {
+    return c.json(
+      {
+        message: "Data is already cached",
+        success: false,
+      },
+      HttpStatusCodes.CONFLICT,
+    );
+  }
+
+  return c.json(
+    {
+      userInfo: res?.body,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleUpdateUserDraft: AppRouteHandler<
+  UpdateUserDraftRoute
+> = async (c) => {
+  const { userId } = c.var.user;
+  const body = c.req.valid("json");
+
+  await updateUserDraft<keyof UpdateUserDraftRoute["responses"]>(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    {
+      userId,
+      payload: body,
+    },
+  );
 
   return c.body(null, HttpStatusCodes.NO_CONTENT);
 };

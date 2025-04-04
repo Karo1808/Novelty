@@ -47,6 +47,16 @@ export const getByKey = (dependencies: Dependencies, key: RedisKey) => {
   });
 };
 
+export const doesKeyExists = (dependencies: Dependencies, key: RedisKey) => {
+  return createRedisQuery({
+    dependencies,
+    queryName: "doesKeyExists",
+    query: async (redis) => {
+      return await redis.exists(key);
+    },
+  });
+};
+
 export const getSetMembers = (dependencies: Dependencies, key: RedisKey) => {
   return createRedisQuery({
     dependencies,

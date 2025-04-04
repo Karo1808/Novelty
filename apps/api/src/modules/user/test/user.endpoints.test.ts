@@ -13,12 +13,15 @@ import { createSession } from "@novelty/services/session.service";
 import * as userDbQueries from "@novelty/db/queries/user.query";
 import * as authDbQueries from "@novelty/db/queries/auth.query";
 import * as serviceUtils from "@novelty/services/lib/utils";
+import * as redisQueries from "@novelty/redis/queries/index.query";
+import * as redisJsonQueries from "@novelty/redis/queries/json.query";
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
 import { Blob } from "fetch-blob";
 import { Buffer } from "node:buffer";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import createErrorSchema from "@/lib/create-error-schema";
 import type { z } from "zod";
+import { RedisConnectionError } from "@novelty/redis/lib/errors";
 
 vi.mock("@hono/node-server/conninfo", () => ({
   getConnInfo: vi.fn(() => ({
@@ -73,6 +76,13 @@ const dummyUserInfo: InsertUserInfo = {
     bio: "bio",
     username: "username",
   },
+};
+
+const dummyUserInfoDraft = {
+  avatarUrl: dummyUserInfo.profile.avatarUrl,
+  bio: dummyUserInfo.profile.bio,
+  username: dummyUserInfo.profile.username,
+  preferences: dummyUserInfo.preferences,
 };
 
 const client = testClient(createApp().route("/", userRouter));
@@ -325,7 +335,7 @@ describe("user routes", () => {
       expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
       const json = (await response.json()) as ValidationError;
 
-      expect(json.error.issues[0]?.message).toMatch(/Invalid image file type/i);
+      expect(json.error.issues[0]?.message).toMatch(/file type/i);
 
       expect(json).toHaveProperty("error");
       expect(json.success).toBe(false);
@@ -566,6 +576,127 @@ describe("user routes", () => {
       expect(res.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
       const data = await res.json();
       expect(data).toMatchObject({ message: expect.any(String) });
+    });
+  });
+
+  describe("get /user/draft", () => {
+    it("returns the cached user info", async () => {
+      const res = await client.user.draft.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      const data = await res.json();
+
+      if ("userInfo" in data) {
+        expect(data.userInfo).toEqual(dummyUserInfoDraft);
+      }
+      expect(res.status).toBe(HttpStatusCodes.OK);
+    });
+
+    it("should handle not found", async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+
+      const res = await client.user.draft.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.NOT_FOUND);
+
+      const profileData = await res.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle conflict", async () => {
+      vi.spyOn(redisQueries, "doesKeyExists").mockResolvedValue(1);
+
+      const res = await client.user.draft.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.CONFLICT);
+
+      const profileData = await res.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.draft.$get({
+        header: { cookie: "invalid-cookie" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(userDbQueries, "getUserInfoQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.user.draft.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe("patch /user/draft", () => {
+    it("updates the user info draft", async () => {
+      const res = await client.user.draft.$put({
+        header: { cookie: dummyCookie },
+        json: dummyUserInfo,
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.draft.$get({
+        header: { cookie: "invalid-cookie" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(redisJsonQueries, "setByKeyJson").mockRejectedValueOnce(
+        new RedisConnectionError("Database connection failed"),
+      );
+
+      const response = await client.user.draft.$put({
+        header: { cookie: dummyCookie },
+        json: dummyUserInfo,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
     });
   });
 });

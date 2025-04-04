@@ -5,18 +5,22 @@ import type {
 } from "@novelty/db/schemas/user-info.schema";
 import { usersTable } from "@novelty/db/schemas/user.schema";
 import { DrizzleError, eq, sql } from "drizzle-orm";
-import { testDb, testDependencies, testS3 } from "../test-setup";
+import { testDb, testDependencies, testRedis, testS3 } from "../test-setup";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as userDbQueries from "@novelty/db/queries/user.query";
 import * as authDbQueries from "@novelty/db/queries/auth.query";
 import * as fileService from "../file.service";
 import * as utils from "../lib/utils";
+import * as redisJsonQueries from "@novelty/redis/queries/json.query";
+import * as redisQueries from "@novelty/redis/queries/index.query";
 import {
   completeOnboarding,
   getPreferences,
   getProfile,
+  getUserDraft,
   updatePreferences,
   updateProfile,
+  updateUserDraft,
 } from "../user.service";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
@@ -28,6 +32,10 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import {
+  PROFILE_PICTURES_PATH_PREFIX,
+  USER_INFO_DRAFT_KEY,
+} from "../lib/config";
 
 describe("user service", () => {
   const dummyUser = {
@@ -147,15 +155,17 @@ describe("user service", () => {
       payload: dummyPayload,
     };
 
-    const dummyKey = `profile_pictures/${dummyBody.userId}.jpg`;
+    let dummyKey: string;
 
     // eslint-disable-next-line node/no-process-env
     const bucketName = process.env.R2_BUCKET_NAME;
 
     beforeEach(async () => {
+      vi.useFakeTimers();
       vi.clearAllMocks();
       await testDb.insert(usersTable).values(dummyUser);
 
+      dummyKey = `${PROFILE_PICTURES_PATH_PREFIX}${dummyBody.userId}-${Date.now()}.jpg`;
       await testDb.insert(userInfoTable).values({
         userId: dummyUser.id,
         avatarUrl: dummyUserInfo.profile.avatarUrl,
@@ -175,6 +185,7 @@ describe("user service", () => {
           Key: dummyKey,
         }),
       );
+      vi.useRealTimers();
     });
 
     it("should handle new user profile full update", async () => {
@@ -212,7 +223,7 @@ describe("user service", () => {
       );
       expect(objects.Contents?.length).toBe(1);
       expect(objects.Contents?.at(0)?.Key).toBe(
-        `profile_pictures/${dummyBody.userId}.jpg`,
+        `${PROFILE_PICTURES_PATH_PREFIX}${dummyBody.userId}-${Date.now()}.jpg`,
       );
 
       expect(updateUserProfileByUserIdQuerySpy).toHaveBeenCalledOnce();
@@ -283,9 +294,7 @@ describe("user service", () => {
         new ListObjectsV2Command({ Bucket: bucketName }),
       );
       expect(objectsAfterUpload.Contents?.length).toBe(1);
-      expect(objectsAfterUpload.Contents?.at(0)?.Key).toBe(
-        `profile_pictures/${dummyBody.userId}.jpg`,
-      );
+      expect(objectsAfterUpload.Contents?.at(0)?.Key).toBe(dummyKey);
 
       expect(updateUserProfileByUserIdQuerySpy).toHaveBeenCalledOnce();
 
@@ -350,7 +359,7 @@ describe("user service", () => {
       });
 
       expect(updatedDb?.bio).toBe(dummyPayload.bio);
-      expect(updatedDb?.avatarUrl).toEqual(null);
+      expect(updatedDb?.avatarUrl).toBeFalsy();
       expect(updatedDb?.username).toBe(dummyPayload.username);
 
       expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
@@ -402,7 +411,7 @@ describe("user service", () => {
       });
 
       expect(updatedDb?.bio).toBe(dummyPayload.bio);
-      expect(updatedDb?.avatarUrl).toEqual(null);
+      expect(updatedDb?.avatarUrl).toBeFalsy();
       expect(updatedDb?.username).toBe(dummyUserInfo.profile.username);
 
       expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
@@ -891,6 +900,240 @@ describe("user service", () => {
       );
       await expect(
         completeOnboarding(testDependencies, { userId: dummyUser.id }),
+      ).rejects.toThrowError("DB error");
+    });
+  });
+
+  describe("getUserDraft", () => {
+    const dummyKey = `${USER_INFO_DRAFT_KEY}:${dummyUser.id}`;
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+
+      await testDb.insert(userInfoTable).values({
+        userId: dummyUser.id,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+      await testRedis.flushall();
+    });
+
+    it("should successfully complete all operations", async () => {
+      const getByKeyJsonSpy = vi.spyOn(redisJsonQueries, "getByKeyJson");
+
+      await testRedis.call(
+        "JSON.SET",
+        dummyKey,
+        "$",
+        JSON.stringify(dummyUserInfo),
+      );
+
+      const result = await getUserDraft(
+        {
+          redisClient: testDependencies.redisClient,
+          dbInstance: testDependencies.dbInstance,
+          logger: testDependencies.logger,
+          prometheusRegistry: testDependencies.prometheusRegistry,
+          reqId: testDependencies.reqId,
+        },
+        {
+          userId: dummyUser.id,
+        },
+      );
+
+      expect(getByKeyJsonSpy).toHaveBeenCalledOnce();
+
+      expect(result.status).toBe(HttpStatusCodes.OK);
+      expect(result.body[0]).toEqual(dummyUserInfo);
+    });
+
+    it("should handle no user info existing", async () => {
+      const getByKeyJsonSpy = vi.spyOn(redisJsonQueries, "getByKeyJson");
+      const getUserInfoQuerySpy = vi.spyOn(userDbQueries, "getUserInfoQuery");
+      const setByKeyJsonSpy = vi.spyOn(redisJsonQueries, "setByKeyJson");
+
+      const result = await getUserDraft(
+        {
+          redisClient: testRedis,
+          dbInstance: testDb,
+          logger: testDependencies.logger,
+          prometheusRegistry: testDependencies.prometheusRegistry,
+          reqId: testDependencies.reqId,
+        },
+        {
+          userId: dummyUser.id,
+        },
+      );
+
+      expect(getByKeyJsonSpy).toHaveBeenCalledTimes(2);
+      expect(getUserInfoQuerySpy).toHaveBeenCalledOnce();
+      expect(setByKeyJsonSpy).toHaveBeenCalledOnce();
+
+      expect(result.status).toBe(HttpStatusCodes.OK);
+      expect(result.body).toEqual({
+        username: dummyUserInfo.profile.username,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    it("should handle user not found", async () => {
+      await testDb.delete(usersTable);
+      const result = await getUserDraft(
+        {
+          redisClient: testRedis,
+          dbInstance: testDb,
+          logger: testDependencies.logger,
+          prometheusRegistry: testDependencies.prometheusRegistry,
+          reqId: testDependencies.reqId,
+        },
+        {
+          userId: dummyUser.id,
+        },
+      );
+
+      expect(result.status).toBe(HttpStatusCodes.NOT_FOUND);
+    });
+
+    it("should handle already cached", async () => {
+      vi.spyOn(redisQueries, "doesKeyExists").mockResolvedValue(1);
+
+      const result = await getUserDraft(
+        {
+          redisClient: testRedis,
+          dbInstance: testDb,
+          logger: testDependencies.logger,
+          prometheusRegistry: testDependencies.prometheusRegistry,
+          reqId: testDependencies.reqId,
+        },
+        {
+          userId: dummyUser.id,
+        },
+      );
+
+      expect(result.status).toBe(HttpStatusCodes.CONFLICT);
+    });
+
+    it("should handle database errors", async () => {
+      vi.spyOn(redisJsonQueries, "getByKeyJson").mockRejectedValueOnce(
+        new DatabaseConnectionError("DB error"),
+      );
+
+      await expect(
+        getUserDraft(
+          {
+            redisClient: testRedis,
+            dbInstance: testDb,
+            logger: testDependencies.logger,
+            prometheusRegistry: testDependencies.prometheusRegistry,
+            reqId: testDependencies.reqId,
+          },
+          {
+            userId: dummyUser.id,
+          },
+        ),
+      ).rejects.toThrowError("DB error");
+    });
+  });
+
+  describe("updateUserDraft", () => {
+    const dummyKey = `${USER_INFO_DRAFT_KEY}:${dummyUser.id}`;
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+
+      await testDb.insert(userInfoTable).values({
+        userId: dummyUser.id,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+      await testRedis.flushall();
+    });
+
+    it("should handle updating", async () => {
+      await testRedis.call(
+        "JSON.SET",
+        dummyKey,
+        "$",
+        JSON.stringify(dummyUserInfo),
+      );
+
+      const newPayload = {
+        ...dummyUserInfo,
+        profile: {
+          ...dummyUserInfo.profile,
+          username: "draft-user",
+        },
+      };
+
+      const result = await updateUserDraft(
+        {
+          redisClient: testDependencies.redisClient,
+          dbInstance: testDependencies.dbInstance,
+          logger: testDependencies.logger,
+          prometheusRegistry: testDependencies.prometheusRegistry,
+          reqId: testDependencies.reqId,
+        },
+        {
+          userId: dummyUser.id,
+          payload: newPayload,
+        },
+      );
+
+      expect(result.status).toBe(HttpStatusCodes.NO_CONTENT);
+
+      const [json] = await redisJsonQueries.getByKeyJson(
+        {
+          redisClient: testDependencies.redisClient,
+          logger: testDependencies.logger,
+          prometheusRegistry: testDependencies.prometheusRegistry,
+          reqId: testDependencies.reqId,
+        },
+        dummyKey,
+      );
+
+      expect(json).toEqual(newPayload);
+    });
+
+    it("should handle database errors", async () => {
+      vi.spyOn(redisJsonQueries, "setByKeyJson").mockRejectedValueOnce(
+        new DatabaseConnectionError("DB error"),
+      );
+
+      await expect(
+        updateUserDraft(
+          {
+            redisClient: testDependencies.redisClient,
+            dbInstance: testDependencies.dbInstance,
+            logger: testDependencies.logger,
+            prometheusRegistry: testDependencies.prometheusRegistry,
+            reqId: testDependencies.reqId,
+          },
+          {
+            userId: dummyUser.id,
+            payload: {
+              ...dummyUserInfo,
+              profile: { ...dummyUserInfo.profile, username: "draft-user" },
+            },
+          },
+        ),
       ).rejects.toThrowError("DB error");
     });
   });

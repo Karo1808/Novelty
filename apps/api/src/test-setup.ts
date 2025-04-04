@@ -11,8 +11,6 @@ import type { DBClient } from "@novelty/db/lib/types";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Redis } from "ioredis";
 import type { Redis as TRedis } from "ioredis";
-import type { StartedRedisContainer } from "@testcontainers/redis";
-import { RedisContainer } from "@testcontainers/redis";
 import { createQueue } from "@novelty/message-queue/lib/create-queue";
 import type { Queue } from "bullmq";
 import { createWorker } from "@novelty/message-queue/lib/create-worker";
@@ -30,7 +28,7 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 let dbContainer: StartedPostgreSqlContainer;
-let redisContainer: StartedRedisContainer;
+let redisContainer: StartedTestContainer;
 let s3Container: StartedTestContainer;
 let pool: TPool;
 let testDb: DBClient;
@@ -44,15 +42,18 @@ beforeAll(async () => {
     .withStartupTimeout(12000)
     .start();
 
-  redisContainer = await new RedisContainer().start();
+  redisContainer = await new GenericContainer("redis/redis-stack-server:latest")
+    .withExposedPorts(6379)
+    .start();
 
-  testRedis = new Redis(redisContainer.getConnectionUrl());
-
+  testRedis = new Redis({
+    host: redisContainer.getHost(),
+    port: redisContainer.getMappedPort(6379),
+  });
   const connectionOptions = {
     host: redisContainer.getHost(),
-    port: redisContainer.getPort(),
+    port: redisContainer.getMappedPort(6379),
   };
-
   const queueName = "email-queue";
   const jobProcessors: Record<string, (data: any) => Promise<void>> = {
     "send-verification-email": async () => {},

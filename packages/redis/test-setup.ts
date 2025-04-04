@@ -1,6 +1,4 @@
 /* eslint-disable import/no-mutable-exports */
-import { RedisContainer } from "@testcontainers/redis";
-import type { StartedRedisContainer } from "@testcontainers/redis";
 import { afterAll, beforeAll, vi } from "vitest";
 import { Redis } from "ioredis";
 import type { Redis as TRedis } from "ioredis";
@@ -8,21 +6,28 @@ import { configureLogger } from "@novelty/lib/logger";
 import { Registry } from "prom-client";
 import type { Logger } from "@novelty/lib/types";
 import type { Dependencies } from "lib/types";
+import type { StartedTestContainer } from "testcontainers";
+import { GenericContainer } from "testcontainers";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {
   throw new Error("NODE_ENV must be 'test'");
 }
 
-let container: StartedRedisContainer;
+let container: StartedTestContainer;
 let testClient: TRedis;
 let testDependencies: Dependencies;
 let testLogger: Logger;
 
 beforeAll(async () => {
-  container = await new RedisContainer().start();
+  container = await new GenericContainer("redis/redis-stack-server:latest")
+    .withExposedPorts(6379) // Expose the default Redis port
+    .start();
 
-  testClient = new Redis(container.getConnectionUrl());
+  testClient = new Redis({
+    host: container.getHost(),
+    port: container.getMappedPort(6379), // Must match the above
+  });
 
   testLogger = configureLogger({
     nodeEnvironment: "test",

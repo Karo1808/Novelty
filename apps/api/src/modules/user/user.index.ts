@@ -7,4 +7,6 @@ export const userRouter = createRouter()
   .openapi(routes.updateProfileRoute, handlers.handleUpdateProfile)
   .openapi(routes.getPreferencesRoute, handlers.handleGetPreferences)
   .openapi(routes.updatePreferencesRoute, handlers.handleUpdatePreferences)
-  .openapi(routes.completeOnboardingRoute, handlers.handleCompleteOnboarding);
+  .openapi(routes.completeOnboardingRoute, handlers.handleCompleteOnboarding)
+  .openapi(routes.getUserDraftRoute, handlers.handleGetUserDraft)
+  .openapi(routes.updateUserDraftRoute, handlers.handleUpdateUserDraft);
