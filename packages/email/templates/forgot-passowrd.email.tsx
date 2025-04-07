@@ -16,12 +16,14 @@ import {
 import * as React from "react";
 
 interface SlackConfirmEmailProps {
-  validationCode?: string;
+  token?: string;
 }
 
 const baseUrl = "test";
 
-export const VerifyEmail = ({ validationCode }: SlackConfirmEmailProps) => (
+// TODO: update this with my own code
+
+export const ForgotPasswordEmail = ({ token }: SlackConfirmEmailProps) => (
   <Html>
     <Head />
     <Preview>Confirm your email address</Preview>
@@ -42,7 +44,7 @@ export const VerifyEmail = ({ validationCode }: SlackConfirmEmailProps) => (
         </Text>
 
         <Section style={codeBox}>
-          <Text style={confirmationCodeText}>{validationCode}</Text>
+          <Text style={confirmationCodeText}>{token}</Text>
         </Section>
 
         <Text style={text}>
@@ -156,11 +158,11 @@ export const VerifyEmail = ({ validationCode }: SlackConfirmEmailProps) => (
   </Html>
 );
 
-VerifyEmail.PreviewProps = {
+ForgotPasswordEmail.PreviewProps = {
   validationCode: "DJZ-TLX",
 } as SlackConfirmEmailProps;
 
-export default VerifyEmail;
+export default ForgotPasswordEmail;
 
 const footerText = {
   fontSize: "12px",

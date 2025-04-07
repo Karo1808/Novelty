@@ -122,3 +122,23 @@ export const loginUnauthorizedSchema = z
       message: "Invalid credentials",
     },
   });
+
+export const forgotPasswordConflictSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Another process is already handling this email",
+    },
+  });
+
+export const forgotPasswordSuccessSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Password successfully reset",
+    },
+  });

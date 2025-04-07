@@ -492,4 +492,159 @@ describe("auth routes", () => {
       expect(json).toHaveProperty("message");
     });
   });
+
+  // TODO: Add tests for login
+  describe("post /login", () => {
+    const dummyUser = {
+      id: "dummy-id",
+      email: "email@mail.com",
+      password: "password123",
+    };
+
+    const dummyKey = `verify-email:${dummyUser.id}`;
+    const dummyToken = "12345";
+
+    const dummyBody: VerifyEmailBodySchema = {
+      encryptedUserId: dummyUser.id,
+      verificationCode: dummyToken,
+    };
+
+    const dummySessionToken = "session123";
+
+    beforeEach(async () => {
+      vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
+      await testDb.insert(usersTable).values(dummyUser);
+      await testRedis.set(dummyKey, dummyToken);
+    });
+
+    afterEach(async () => {
+      await testRedis.flushall();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      vi.clearAllMocks();
+    });
+
+    it("handles success", async () => {
+      vi.spyOn(sessionService, "generateSessionToken").mockReturnValue(
+        dummySessionToken,
+      );
+
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/email verified/i),
+        success: true,
+      });
+
+      const header = response.headers.get("Set-Cookie");
+      const [_, sessionId] = header!.split(";")[0]!.split("=");
+
+      expect(sessionId).toBe(dummySessionToken);
+    });
+
+    it("returns not found if user does not exist", async () => {
+      await testDb.delete(usersTable).where(eq(usersTable.id, dummyUser.id));
+
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+      const json = await response.json();
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/not found/i),
+        success: false,
+      });
+    });
+
+    it("returns bad request if the code is invalid", async () => {
+      await testRedis.del(dummyKey);
+
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/\b(?:code|invalid|expire)\b/g),
+        success: false,
+      });
+    });
+
+    it("returns conflict if email is already verified", async () => {
+      await testDb
+        .update(usersTable)
+        .set({ isEmailVerified: true, ...dummyBody });
+
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.CONFLICT);
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/verified/i),
+        success: false,
+      });
+    });
+
+    it("returns unprocessable entity if request body is invalid", async () => {
+      const invalidBody = { verificationCode: 123, encryptedUserId: "test" };
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(
+        insertUserSchema.shape.sendVerificationEmail,
+      );
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.auth["verify-email"].$post({
+        // @ts-expect-error simulating incorrect body required in this case
+        json: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("returns service unavailable if database connection fails", async () => {
+      vi.spyOn(queries, "getIsEmailVerifiedQuery").mockImplementationOnce(
+        () => {
+          throw new DatabaseConnectionError("Database connection failed");
+        },
+      );
+
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("returns internal server error on unexpected error", async () => {
+      vi.spyOn(authUtils, "decryptString").mockImplementationOnce(() => {
+        throw new Error("Unexpected error");
+      });
+
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+  });
 });

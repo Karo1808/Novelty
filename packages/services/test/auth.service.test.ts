@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  loginUser,
   registerUser,
   sendVerificationEmail,
   verifyEmail,
 } from "../auth.service";
 import * as dbQueries from "@novelty/db/queries/auth.query";
+import * as userDbQueries from "@novelty/db/queries/user.query";
 import * as redisQueries from "@novelty/redis/queries/index.query";
 import * as authUtils from "@novelty/lib/auth/cryptography";
 import * as tokenGenerationUtils from "@novelty/lib/generate-verification-token";
@@ -34,6 +36,8 @@ import * as sessionService from "../session.service";
 import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import type { ServiceResponse } from "types";
+import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
+import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
 
 const dummyBody: InsertUser["register"] = {
   email: "email@mail.com",
@@ -772,6 +776,196 @@ describe("auth service", () => {
           }
         });
       });
+    });
+  });
+
+  describe("loginUser", async () => {
+    const dummyUserInfo: InsertUserInfo = {
+      preferences: {
+        genres: ["genre1", "genre2", "genre3"],
+        authors: ["author"],
+        series: ["series"],
+      },
+      profile: {
+        avatarUrl: "",
+        bio: "bio",
+        username: "username",
+      },
+    };
+
+    const dummyPassword: string = await authUtils.hashString(
+      dummyBody.password,
+    );
+
+    const dummyUser = {
+      email: "email@mail.com",
+      password: dummyPassword,
+      id: "123",
+      isEmailVerified: true,
+    };
+
+    const dummyToken = "session123";
+    const dummySessionId = "dummy-session-id";
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+
+      await testDb.insert(userInfoTable).values({
+        userId: dummyUser.id,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+
+      vi.spyOn(authUtils, "encodeToken").mockReturnValue(dummySessionId);
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testRedis.flushall();
+    });
+
+    it("should handle successful login", async () => {
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyPassword");
+      const generateSessionTokenSpy = vi
+        .spyOn(sessionService, "generateSessionToken")
+        .mockReturnValue(dummyToken);
+      const createSessionSpy = vi.spyOn(sessionService, "createSession");
+      const getUserInfoQuerySpy = vi.spyOn(userDbQueries, "getUserInfoQuery");
+
+      const result = await loginUser(testDependencies, dummyBody);
+
+      expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
+      expect(verifyPasswordSpy).toHaveBeenCalledOnce();
+      expect(getUserInfoQuerySpy).toHaveBeenCalledOnce();
+      expect(generateSessionTokenSpy).toHaveBeenCalledOnce();
+      expect(createSessionSpy).toHaveBeenCalledOnce();
+
+      expect(result.status).toBe(HttpStatusCodes.OK);
+      expect(result.data).toMatchObject({
+        user: {
+          id: dummyUser.id,
+          isEmailVerified: true,
+          isOnboarded: false,
+          userInfo: {
+            avatarUrl: dummyUserInfo.profile.avatarUrl,
+            bio: dummyUserInfo.profile.bio,
+            username: dummyUserInfo.profile.username,
+            preferences: dummyUserInfo.preferences,
+          },
+        },
+        token: dummyToken,
+        expiresAt: expect.any(Date),
+      });
+
+      const session = await testRedis.get(`session:${dummySessionId}`);
+      expect(session).toBeTruthy();
+
+      const sessionKey = `session:${dummySessionId}`;
+      const expiresAt = await testRedis.ttl(sessionKey);
+      expect(expiresAt).toBeGreaterThan(0);
+      expect(expiresAt).toBeLessThanOrEqual(
+        sessionService.SESSION_EXPIRATION_TIME,
+      );
+
+      const userSessions = await testRedis.smembers(
+        `user_sessions:${dummyUser.id}`,
+      );
+      expect(userSessions).toHaveLength(1);
+      expect(userSessions).toContain(dummySessionId);
+    });
+
+    it("should handle user not found but return unauthorized", async () => {
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyPassword");
+      const generateSessionTokenSpy = vi
+        .spyOn(sessionService, "generateSessionToken")
+        .mockReturnValue(dummyToken);
+      const createSessionSpy = vi.spyOn(sessionService, "createSession");
+      const getUserInfoQuerySpy = vi.spyOn(userDbQueries, "getUserInfoQuery");
+
+      await testDb.delete(usersTable);
+
+      const result = await loginUser(testDependencies, dummyBody);
+
+      expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
+      expect(verifyPasswordSpy).toHaveBeenCalled();
+      expect(getUserInfoQuerySpy).not.toHaveBeenCalled();
+      expect(generateSessionTokenSpy).not.toHaveBeenCalled();
+      expect(createSessionSpy).not.toHaveBeenCalled();
+
+      expect(result.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+    });
+
+    it("should handle password mismatch", async () => {
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyPassword");
+      const generateSessionTokenSpy = vi
+        .spyOn(sessionService, "generateSessionToken")
+        .mockReturnValue(dummyToken);
+      const createSessionSpy = vi.spyOn(sessionService, "createSession");
+      const getUserInfoQuerySpy = vi.spyOn(userDbQueries, "getUserInfoQuery");
+
+      const result = await loginUser(testDependencies, {
+        ...dummyBody,
+        password: "wrong-password",
+      });
+
+      expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
+      expect(verifyPasswordSpy).toHaveBeenCalled();
+      expect(getUserInfoQuerySpy).not.toHaveBeenCalled();
+      expect(generateSessionTokenSpy).not.toHaveBeenCalled();
+      expect(createSessionSpy).not.toHaveBeenCalled();
+
+      expect(result.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+    });
+
+    it("should handle no user info", async () => {
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyPassword");
+      const generateSessionTokenSpy = vi
+        .spyOn(sessionService, "generateSessionToken")
+        .mockReturnValue(dummyToken);
+      const createSessionSpy = vi.spyOn(sessionService, "createSession");
+      const getUserInfoQuerySpy = vi.spyOn(userDbQueries, "getUserInfoQuery");
+
+      await testDb.delete(userInfoTable);
+
+      await expect(loginUser(testDependencies, dummyBody)).rejects.toThrow(
+        QueryExecutionError,
+      );
+
+      expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
+      expect(verifyPasswordSpy).toHaveBeenCalled();
+      expect(generateSessionTokenSpy).toHaveBeenCalled();
+      expect(createSessionSpy).toHaveBeenCalled();
+      expect(getUserInfoQuerySpy).toHaveBeenCalled();
+    });
+
+    it("should handle database connection error", async () => {
+      const dbClientSpy = vi
+        .spyOn(testDependencies.dbInstance, "execute")
+        .mockImplementation(() => {
+          throw new DatabaseConnectionError("Database connection failed");
+        });
+
+      await expect(loginUser(testDependencies, dummyBody)).rejects.toThrow(
+        DatabaseConnectionError,
+      );
+      dbClientSpy.mockRestore();
+    });
+
+    it("should handle unexpected exceptions", async () => {
+      vi.spyOn(authUtils, "verifyPassword").mockImplementation(() => {
+        throw new Error("Unexpected Error");
+      });
+
+      await expect(loginUser(testDependencies, dummyBody)).rejects.toThrow(
+        Error,
+      );
     });
   });
 });

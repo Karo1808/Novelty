@@ -4,14 +4,17 @@ import {
   createUserQuery,
   getIsEmailVerifiedQuery,
   getUserByEmailQuery,
+  getUserByIdQuery,
   updateUserByIdQuery,
 } from "@novelty/db/queries/auth.query";
 import {
   constantTimeCompare,
   decryptString,
+  encodeToken,
   encryptString,
-  hashPassword,
-  verifyPassword,
+  generatePasswordResetToken,
+  hashString,
+  verifyHash,
 } from "@novelty/lib/auth/cryptography";
 import {
   DatabaseConnectionError,
@@ -35,13 +38,23 @@ import {
   EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
   EMAIL_QUEUE_COMPLETED_JOBS_TIME,
   EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
+  EMAIL_QUEUE_REMOVED_JOBS_TIME,
+  FORGOT_PASSWORD_EMAIL_EXPIRY_TIME,
+  LOCK_TTL,
   VERIFICATION_EMAIL_EXPIRY_TIME,
   VERIFICATION_EMAIL_TOKEN_LENGTH,
-  VERIFICATION_EMAIL_TTL,
 } from "./lib/config";
 import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
-import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
-import { createSession, generateSessionToken } from "./session.service";
+import type {
+  ForgotPasswordBodySchema,
+  VerifyEmailBodySchema,
+} from "@novelty/lib/validations/auth";
+import {
+  createSession,
+  generateSessionToken,
+  invalidateAllSessions,
+  invalidateSession,
+} from "./session.service";
 import { getUserInfoQuery } from "@novelty/db/queries/user.query";
 
 export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
@@ -69,7 +82,7 @@ export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
       return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
     }
 
-    const hashedPassword = await hashPassword(body.password as string);
+    const hashedPassword = await hashString(body.password as string);
 
     let newUser;
     try {
@@ -117,14 +130,14 @@ export const sendVerificationEmail = async <
   TStatusCodes extends HttpStatusCodeValue,
 >(
   dependencies: Required<Omit<ServiceDependencies, "s3Client" | "bucketName">>,
-  body: InsertUser["sendVerificationEmail"],
+  body: InsertUser["sendEmail"],
 ): Promise<ServiceResponse<TStatusCodes> & { body?: string }> => {
   const dbDependencies = prepareDependencies(dependencies, "redisClient");
   const redisDependencies = prepareDependencies(dependencies, "dbInstance");
 
   const lockKey = `lock:send-email-verification:${body.email}`;
   const lockValue = `unique-lock-value-${Date.now()}`;
-  const ttl = VERIFICATION_EMAIL_TTL;
+  const ttl = LOCK_TTL;
 
   const isLockAcquired = await acquireLock(
     redisDependencies,
@@ -186,7 +199,7 @@ export const sendVerificationEmail = async <
           },
           removeOnFail: {
             age: EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
-            count: EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
+            count: EMAIL_QUEUE_COMPLETED_JOBS_TIME,
           },
         },
       );
@@ -306,11 +319,11 @@ export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
   let passwordMatch = false;
 
   if (user) {
-    passwordMatch = await verifyPassword(password, user.password);
+    passwordMatch = await verifyHash(password, user.password);
   }
   else {
     try {
-      await verifyPassword(password, DUMMY_PASSWORD_HASH);
+      await verifyHash(password, DUMMY_PASSWORD_HASH);
     }
     catch (dummyError: unknown) {
       dependencies.logger.debug({
@@ -327,7 +340,6 @@ export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
     dependencies.logger.warn({
       message: "Invalid credentials",
       source: "loginUser",
-      email,
       reqId: dependencies.reqId,
     });
 
@@ -356,7 +368,192 @@ export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
 
   const fullUserInfo = await getUserInfoQuery(dependencies, user.id);
   if (!fullUserInfo || !fullUserInfo.userInfo) {
-    // Check both user and nested userInfo
+    dependencies.logger.error({
+      message: "User info not found after login",
+      source: "loginUser",
+      userId: user.id,
+      redId: dependencies.reqId,
+    });
+    throw new QueryExecutionError("User info missing for logged-in user.");
+  }
+
+  return {
+    status: HttpStatusCodes.OK as TStatusCodes,
+    data: {
+      user: fullUserInfo as LoginUserResponse["user"],
+      token: sessionToken,
+      expiresAt,
+    },
+  };
+};
+
+export const logoutUser = async <TStatusCodes extends HttpStatusCodeValue>(
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["messageQueueInstance", "dbInstance"]
+  >,
+  userId: string,
+  sessionId: string,
+): Promise<ServiceResponse<TStatusCodes>> => {
+  await invalidateSession(dependencies, sessionId, userId);
+
+  return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
+};
+
+export const sendForgotPasswordEmail = async <
+  TStatusCodes extends HttpStatusCodeValue,
+>(
+  dependencies: Required<Omit<ServiceDependencies, "s3Client" | "bucketName">>,
+  body: InsertUser["sendEmail"],
+): Promise<ServiceResponse<TStatusCodes>> => {
+  const { email } = body;
+
+  const lockKey = `lock:send-forgot-password-email:${email}`;
+  const lockValue = `unique-lock-value-${Date.now()}`;
+  const ttl = LOCK_TTL;
+
+  const isLockAcquired = await acquireLock(
+    dependencies,
+    lockKey,
+    lockValue,
+    ttl,
+  );
+
+  if (!isLockAcquired) {
+    return {
+      status: HttpStatusCodes.CONFLICT as TStatusCodes,
+      error: {
+        name: "Locker failure",
+        message: "Password reset request already in progress for this email",
+      },
+    };
+  }
+
+  try {
+    const user = await getUserByEmailQuery(dependencies, email);
+
+    const { rawToken, hashedToken } = generatePasswordResetToken();
+    const redisKey = `forgot-password:${hashedToken}`;
+
+    if (user) {
+      await setWithExpiry(
+        dependencies,
+        redisKey,
+        user.id,
+        FORGOT_PASSWORD_EMAIL_EXPIRY_TIME,
+      );
+
+      try {
+        await addJobToQueue(
+          dependencies.messageQueueInstance!,
+          "send-forgot-password-email",
+          {
+            email: user.email,
+            token: rawToken,
+          },
+          {
+            jobId: dependencies.reqId,
+            removeOnComplete: {
+              age: EMAIL_QUEUE_COMPLETED_JOBS_TIME,
+              count: EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
+            },
+            removeOnFail: {
+              age: EMAIL_QUEUE_REMOVED_JOBS_TIME,
+              count: EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
+            },
+          },
+        );
+      }
+      catch (err: unknown) {
+        deleteByKey(dependencies, redisKey);
+        throw new EnqueuingError("send-forgot-password-email", err as Error);
+      }
+    }
+    else {
+      const dummyValue = "dummy_user_not_found";
+
+      try {
+        await setWithExpiry(
+          dependencies,
+          redisKey,
+          dummyValue,
+          FORGOT_PASSWORD_EMAIL_EXPIRY_TIME,
+        );
+      }
+      catch (redisErr: unknown) {
+        dependencies.logger.debug({
+          message:
+            "Error during dummy Redis write for timing attack mitigation",
+          source: "sendForgotPasswordEmail",
+          email,
+          redisKey,
+          reqId: dependencies.reqId,
+          error: redisErr,
+        });
+      }
+    }
+
+    return {
+      status: HttpStatusCodes.NO_CONTENT as TStatusCodes,
+    };
+  }
+  finally {
+    await releaseLock(dependencies, lockKey, lockValue);
+  }
+};
+
+export const forgotPassword = async <TStatusCodes extends HttpStatusCodeValue>(
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["messageQueueInstance"]
+  >,
+  body: ForgotPasswordBodySchema,
+): Promise<ServiceResponse<TStatusCodes> & { data?: LoginUserResponse }> => {
+  const { newPassword, token: rawToken } = body;
+
+  const hashedToken = encodeToken(rawToken);
+  const redisKey = `forgot-password:${hashedToken}`;
+
+  const userId = await getByKey(dependencies, redisKey);
+
+  if (!userId) {
+    return {
+      status: HttpStatusCodes.BAD_REQUEST as TStatusCodes,
+    };
+  }
+
+  await deleteByKey(dependencies, redisKey);
+
+  const user = await getUserByIdQuery(dependencies, userId);
+
+  if (!user) {
+    return {
+      status: HttpStatusCodes.BAD_REQUEST as TStatusCodes,
+    };
+  }
+
+  const newPasswordHash = await hashString(newPassword);
+
+  await updateUserByIdQuery(
+    dependencies,
+    { password: newPasswordHash },
+    user.id,
+  );
+
+  await invalidateAllSessions(dependencies, userId);
+
+  const sessionToken = generateSessionToken();
+
+  const { expiresAt } = await createSession(
+    dependencies,
+    sessionToken,
+    user.id,
+  );
+
+  // TODO: Implement blacklist check
+
+  const fullUserInfo = await getUserInfoQuery(dependencies, user.id);
+  if (!fullUserInfo || !fullUserInfo.userInfo) {
     dependencies.logger.error({
       message: "User info not found after login",
       source: "loginUser",

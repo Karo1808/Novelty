@@ -67,3 +67,14 @@ export const blacklistedSchema = z
       message: "Access denied",
     },
   });
+
+export const csrfErrorSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Invalid or missing CSRF token.",
+    },
+    description: "Response returned when CSRF validation fails.",
+  });

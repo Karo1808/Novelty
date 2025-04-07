@@ -5,7 +5,7 @@ import "dotenv/config";
 import { encodeHexLowerCase } from "@oslojs/encoding";
 import { sha256 } from "@oslojs/crypto/sha2";
 
-export async function hashPassword(password: string): Promise<string> {
+export async function hashString(password: string): Promise<string> {
   return await hash(password, {
     memoryCost: 19456,
     timeCost: 2,
@@ -14,7 +14,7 @@ export async function hashPassword(password: string): Promise<string> {
   });
 }
 
-export async function verifyPassword(
+export async function verifyHash(
   password: string,
   hashedPassword: string,
 ): Promise<boolean> {
@@ -74,4 +74,19 @@ export function constantTimeCompare(a: string, b: string): boolean {
   catch {
     return false;
   }
+}
+export function generatePasswordResetToken(): {
+  hashedToken: string;
+  rawToken: string;
+} {
+  const randomBytes = crypto.randomBytes(32);
+
+  const rawToken = randomBytes.toString("hex");
+
+  const hashedToken = encodeToken(rawToken);
+
+  return {
+    hashedToken,
+    rawToken,
+  };
 }

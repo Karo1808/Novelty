@@ -1,13 +1,19 @@
 import type { AppRouteHandler } from "@/types/index.types";
 import type {
+  ForgotPasswordRoute,
   LoginRoute,
+  LogoutRoute,
   RegisterRoute,
+  SendForgotPasswordEmailRoute,
   SendVerificationEmailRoute,
   VerifyEmailRoute,
 } from "./auth.routes";
 import {
+  forgotPassword,
   loginUser,
+  logoutUser,
   registerUser,
+  sendForgotPasswordEmail,
   sendVerificationEmail,
   verifyEmail,
 } from "@novelty/services/auth.service";
@@ -17,7 +23,7 @@ import { prometheusRegistry } from "@/lib/metrics";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
 import { emailQueue } from "@novelty/message-queue/queues/email.queue";
-import { setCookie } from "hono/cookie";
+import { deleteCookie, setCookie } from "hono/cookie";
 import env from "@/env";
 import { SESSION_EXPIRATION_TIME } from "@novelty/services/session.service";
 
@@ -206,6 +212,106 @@ export const handleLogin: AppRouteHandler<LoginRoute> = async (c) => {
   return c.json(
     {
       message: `Login successful`,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleLogout: AppRouteHandler<LogoutRoute> = async (c) => {
+  const { userId, sessionId } = c.var.user;
+
+  await logoutUser<keyof LogoutRoute["responses"]>(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    userId,
+    sessionId,
+  );
+
+  deleteCookie(c, "session");
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
+};
+
+export const handleSendForgotPasswordEmail: AppRouteHandler<
+  SendForgotPasswordEmailRoute
+> = async (c) => {
+  const body = c.req.valid("json");
+
+  const res = await sendForgotPasswordEmail<
+    keyof SendForgotPasswordEmailRoute["responses"]
+  >(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      messageQueueInstance: emailQueue,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
+
+  if (res.status === HttpStatusCodes.CONFLICT) {
+    return c.json(
+      {
+        message: "Password reset request already in progress for this email.",
+        success: false,
+      },
+      HttpStatusCodes.CONFLICT,
+    );
+  }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
+};
+
+export const handleForgotPasswordRoute: AppRouteHandler<
+  ForgotPasswordRoute
+> = async (c) => {
+  const body = c.req.valid("json");
+
+  const res = await forgotPassword<keyof ForgotPasswordRoute["responses"]>(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      messageQueueInstance: emailQueue,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
+
+  if (res.status === HttpStatusCodes.BAD_REQUEST) {
+    return c.json(
+      {
+        message: "Invalid token or expired token",
+        success: false,
+      },
+      HttpStatusCodes.BAD_REQUEST,
+    );
+  }
+
+  if (res.data) {
+    const { token, expiresAt } = res.data;
+
+    setCookie(c, "session", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      maxAge: SESSION_EXPIRATION_TIME / 1000,
+      expires: expiresAt,
+    });
+  }
+
+  return c.json(
+    {
+      message: "Password successfully reset",
     },
     HttpStatusCodes.OK,
   );
