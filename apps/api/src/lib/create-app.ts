@@ -54,6 +54,8 @@ export default function createApp() {
   // AUTH
   app.use("/auth/send-verification-email", emailVerificationLimiter);
   app.use("/auth/verify-email", emailVerificationLimiter);
+  app.use("/auth/logout", authMiddleware());
+  app.use("/auth/send-forgot-password-email", emailVerificationLimiter);
 
   // USER
   app.use("/user/*", authMiddleware());

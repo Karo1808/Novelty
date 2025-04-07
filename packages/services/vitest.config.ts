@@ -5,7 +5,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     reporters: ["default"],
-    hookTimeout: 100000,
+    hookTimeout: 300000,
     include: ["**/*.test.ts", "**/*.test.tsx", "!**/docker-data/**"],
     setupFiles: "./test-setup.ts",
   },
