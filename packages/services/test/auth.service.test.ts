@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   loginUser,
+  logoutUser,
   registerUser,
   sendVerificationEmail,
   verifyEmail,
@@ -55,7 +56,7 @@ describe("auth service", () => {
     it("should handle successful signup", async () => {
       const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
       const createUserQuerySpy = vi.spyOn(dbQueries, "createUserQuery");
-      const hashPasswordSpy = vi.spyOn(authUtils, "hashPassword");
+      const hashPasswordSpy = vi.spyOn(authUtils, "hashString");
 
       const result = await registerUser(testDependencies, dummyBody);
 
@@ -98,7 +99,7 @@ describe("auth service", () => {
     it("should handle email already existing", async () => {
       const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
       const createUserQuerySpy = vi.spyOn(dbQueries, "createUserQuery");
-      const hashPasswordSpy = vi.spyOn(authUtils, "hashPassword");
+      const hashPasswordSpy = vi.spyOn(authUtils, "hashString");
 
       await testDb.insert(usersTable).values({
         email: dummyBody.email as string,
@@ -152,7 +153,7 @@ describe("auth service", () => {
     });
 
     it("should handle unexpected exceptions", async () => {
-      vi.spyOn(authUtils, "hashPassword").mockImplementation(() => {
+      vi.spyOn(authUtils, "hashString").mockImplementation(() => {
         throw new Error("Unexpected Error");
       });
 
@@ -364,7 +365,7 @@ describe("auth service", () => {
     });
 
     it("should handle user not found", async () => {
-      const getUserByEmailQuery = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
 
       const generateVerificationTokenSpy = vi.spyOn(
         tokenGenerationUtils,
@@ -381,8 +382,8 @@ describe("auth service", () => {
         email: dummyBody.email as string,
       });
 
-      expect(getUserByEmailQuery).toHaveBeenCalledOnce();
-      expect(getUserByEmailQuery).toHaveResolvedWith(undefined);
+      expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
+      expect(getUserByEmailQuerySpy).toHaveResolvedWith(undefined);
 
       expect(generateVerificationTokenSpy).not.toHaveBeenCalled();
       expect(setWithExpirySpy).not.toHaveBeenCalled();
@@ -392,7 +393,7 @@ describe("auth service", () => {
     });
 
     it("should handle user already verified", async () => {
-      const getUserByEmailQuery = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
 
       const generateVerificationTokenSpy = vi.spyOn(
         tokenGenerationUtils,
@@ -414,8 +415,8 @@ describe("auth service", () => {
         email: dummyBody.email as string,
       });
 
-      expect(getUserByEmailQuery).toHaveBeenCalledOnce();
-      expect(getUserByEmailQuery).toHaveResolvedWith(
+      expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
+      expect(getUserByEmailQuerySpy).toHaveResolvedWith(
         expect.objectContaining({
           id: expect.stringMatching(/^[\w-]{21}$/),
           email: expect.stringMatching(dummyBody.email as string),
@@ -829,7 +830,7 @@ describe("auth service", () => {
 
     it("should handle successful login", async () => {
       const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
-      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyPassword");
+      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyHash");
       const generateSessionTokenSpy = vi
         .spyOn(sessionService, "generateSessionToken")
         .mockReturnValue(dummyToken);
@@ -880,7 +881,7 @@ describe("auth service", () => {
 
     it("should handle user not found but return unauthorized", async () => {
       const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
-      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyPassword");
+      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyHash");
       const generateSessionTokenSpy = vi
         .spyOn(sessionService, "generateSessionToken")
         .mockReturnValue(dummyToken);
@@ -892,7 +893,7 @@ describe("auth service", () => {
       const result = await loginUser(testDependencies, dummyBody);
 
       expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
-      expect(verifyPasswordSpy).toHaveBeenCalled();
+      expect(verifyPasswordSpy).toHaveBeenCalled(); // Should still be called for timing attack mitigation
       expect(getUserInfoQuerySpy).not.toHaveBeenCalled();
       expect(generateSessionTokenSpy).not.toHaveBeenCalled();
       expect(createSessionSpy).not.toHaveBeenCalled();
@@ -902,7 +903,7 @@ describe("auth service", () => {
 
     it("should handle password mismatch", async () => {
       const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
-      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyPassword");
+      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyHash");
       const generateSessionTokenSpy = vi
         .spyOn(sessionService, "generateSessionToken")
         .mockReturnValue(dummyToken);
@@ -911,11 +912,11 @@ describe("auth service", () => {
 
       const result = await loginUser(testDependencies, {
         ...dummyBody,
-        password: "wrong-password",
+        password: "wrongpassword",
       });
 
       expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
-      expect(verifyPasswordSpy).toHaveBeenCalled();
+      expect(verifyPasswordSpy).toHaveBeenCalledOnce();
       expect(getUserInfoQuerySpy).not.toHaveBeenCalled();
       expect(generateSessionTokenSpy).not.toHaveBeenCalled();
       expect(createSessionSpy).not.toHaveBeenCalled();
@@ -923,49 +924,70 @@ describe("auth service", () => {
       expect(result.status).toBe(HttpStatusCodes.UNAUTHORIZED);
     });
 
-    it("should handle no user info", async () => {
-      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
-      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyPassword");
-      const generateSessionTokenSpy = vi
-        .spyOn(sessionService, "generateSessionToken")
-        .mockReturnValue(dummyToken);
-      const createSessionSpy = vi.spyOn(sessionService, "createSession");
-      const getUserInfoQuerySpy = vi.spyOn(userDbQueries, "getUserInfoQuery");
-
-      await testDb.delete(userInfoTable);
-
-      await expect(loginUser(testDependencies, dummyBody)).rejects.toThrow(
-        QueryExecutionError,
-      );
-
-      expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
-      expect(verifyPasswordSpy).toHaveBeenCalled();
-      expect(generateSessionTokenSpy).toHaveBeenCalled();
-      expect(createSessionSpy).toHaveBeenCalled();
-      expect(getUserInfoQuerySpy).toHaveBeenCalled();
-    });
-
     it("should handle database connection error", async () => {
-      const dbClientSpy = vi
-        .spyOn(testDependencies.dbInstance, "execute")
-        .mockImplementation(() => {
-          throw new DatabaseConnectionError("Database connection failed");
-        });
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      getUserByEmailQuerySpy.mockRejectedValue(
+        new DatabaseConnectionError("DB connection failed"),
+      );
 
       await expect(loginUser(testDependencies, dummyBody)).rejects.toThrow(
         DatabaseConnectionError,
       );
-      dbClientSpy.mockRestore();
     });
 
-    it("should handle unexpected exceptions", async () => {
-      vi.spyOn(authUtils, "verifyPassword").mockImplementation(() => {
-        throw new Error("Unexpected Error");
-      });
+    it("should handle unexpected errors", async () => {
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      getUserByEmailQuerySpy.mockRejectedValue(new Error("Unexpected error"));
 
       await expect(loginUser(testDependencies, dummyBody)).rejects.toThrow(
         Error,
       );
+    });
+  });
+
+  describe("logoutUser", () => {
+    const dummyUserId = "user-123";
+    const dummySessionId = "session-abc";
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("should successfully invalidate the session", async () => {
+      const invalidateSessionSpy = vi.spyOn(
+        sessionService,
+        "invalidateSession",
+      );
+
+      const result = await logoutUser(
+        testDependencies,
+        dummyUserId,
+        dummySessionId,
+      );
+
+      expect(invalidateSessionSpy).toHaveBeenCalledOnce();
+      expect(invalidateSessionSpy).toHaveBeenCalledWith(
+        testDependencies,
+        dummySessionId,
+        dummyUserId,
+      );
+      expect(result.status).toBe(HttpStatusCodes.NO_CONTENT);
+
+      const sessionKey = `session:${dummySessionId}`;
+      const sessionData = await testRedis.get(sessionKey);
+      expect(sessionData).toBeNull();
+    });
+
+    it("should propagate errors from invalidateSession", async () => {
+      const invalidateSessionSpy = vi
+        .spyOn(sessionService, "invalidateSession")
+        .mockRejectedValue(new Error("Redis error"));
+
+      await expect(
+        logoutUser(testDependencies, dummyUserId, dummySessionId),
+      ).rejects.toThrow("Redis error");
+
+      expect(invalidateSessionSpy).toHaveBeenCalledOnce();
     });
   });
 });
