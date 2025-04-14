@@ -4,18 +4,19 @@ import {
   createUserQuery,
   getIsEmailVerifiedQuery,
   getUserByEmailQuery,
+  getUserByIdQuery,
   updateUserByIdQuery,
 } from "@novelty/db/queries/auth.query";
 import {
   constantTimeCompare,
   decryptString,
+  encodeToken,
   encryptString,
-  hashPassword,
+  generatePasswordResetToken,
+  hashString,
+  verifyHash,
 } from "@novelty/lib/auth/cryptography";
-import {
-  DatabaseConnectionError,
-  QueryExecutionError,
-} from "@novelty/db/lib/errors";
+import { QueryExecutionError } from "@novelty/db/lib/errors";
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
 import { prepareDependencies } from "./lib/utils";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
@@ -30,16 +31,28 @@ import {
 } from "@novelty/redis/queries/index.query";
 import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import {
+  DUMMY_PASSWORD_HASH,
   EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
   EMAIL_QUEUE_COMPLETED_JOBS_TIME,
   EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
+  EMAIL_QUEUE_REMOVED_JOBS_TIME,
+  FORGOT_PASSWORD_EMAIL_EXPIRY_TIME,
+  LOCK_TTL,
   VERIFICATION_EMAIL_EXPIRY_TIME,
   VERIFICATION_EMAIL_TOKEN_LENGTH,
-  VERIFICATION_EMAIL_TTL,
 } from "./lib/config";
 import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
-import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
-import { createSession, generateSessionToken } from "./session.service";
+import type {
+  ForgotPasswordBodySchema,
+  VerifyEmailBodySchema,
+} from "@novelty/lib/validations/auth";
+import {
+  createSession,
+  generateSessionToken,
+  invalidateAllSessions,
+  invalidateSession,
+} from "./session.service";
+import { getUserInfoQuery } from "@novelty/db/queries/user.query";
 
 export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
   dependencies: MarkKeysAsPartial<
@@ -50,87 +63,59 @@ export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
 ): Promise<ServiceResponse<TStatusCodes> & { body?: SelectUser }> => {
   const deps = prepareDependencies(dependencies, "redisClient");
 
+  const existingUser = await getUserByEmailQuery(deps, body.email);
+
+  if (existingUser) {
+    return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+  }
+
+  const hashedPassword = await hashString(body.password as string);
+
+  let newUser;
   try {
-    const existingUser = await getUserByEmailQuery(deps, body.email as string);
-
+    [newUser] = await createUserQuery(deps, {
+      email: body.email,
+      password: hashedPassword,
+    });
+  }
+  catch (err: any) {
     if (
-      existingUser !== undefined
-      && (typeof existingUser !== "object" || Array.isArray(existingUser))
+      err?.message
+      && err.message.includes("duplicate key value violates unique constraint")
     ) {
-      throw new QueryExecutionError(
-        "Invalid data returned from getUserByEmailQuery",
-      );
-    }
-
-    if (existingUser) {
       return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
     }
-
-    const hashedPassword = await hashPassword(body.password as string);
-
-    let newUser;
-    try {
-      [newUser] = await createUserQuery(deps, {
-        email: body.email,
-        password: hashedPassword,
-      });
-    }
-    catch (err: any) {
-      if (
-        err?.message
-        && err.message.includes("duplicate key value violates unique constraint")
-      ) {
-        return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
-      }
-      throw new QueryExecutionError("Failed to create user", err);
-    }
-
-    if (!newUser || typeof newUser !== "object") {
-      throw new QueryExecutionError(
-        "Failed to create user",
-        new Error("Unknown error"),
-      );
-    }
-
-    return {
-      status: HttpStatusCodes.CREATED as TStatusCodes,
-      body: newUser,
-    };
+    throw new QueryExecutionError("Failed to create user", err);
   }
-  catch (error) {
-    if (error instanceof DatabaseConnectionError) {
-      throw error;
-    }
 
-    if (error instanceof QueryExecutionError) {
-      throw error;
-    }
-
-    throw error;
+  if (!newUser || typeof newUser !== "object") {
+    throw new QueryExecutionError(
+      "Failed to create user",
+      new Error("Unknown error"),
+    );
   }
+
+  return {
+    status: HttpStatusCodes.CREATED as TStatusCodes,
+    body: newUser,
+  };
 };
 
 export const sendVerificationEmail = async <
   TStatusCodes extends HttpStatusCodeValue,
 >(
   dependencies: Required<Omit<ServiceDependencies, "s3Client" | "bucketName">>,
-  body: InsertUser["sendVerificationEmail"],
+  body: InsertUser["sendEmail"],
 ): Promise<ServiceResponse<TStatusCodes> & { body?: string }> => {
   const dbDependencies = prepareDependencies(dependencies, "redisClient");
   const redisDependencies = prepareDependencies(dependencies, "dbInstance");
 
   const lockKey = `lock:send-email-verification:${body.email}`;
-  const lockValue = `unique-lock-value-${Date.now()}`;
-  const ttl = VERIFICATION_EMAIL_TTL;
+  const ttl = LOCK_TTL;
 
-  const isLockAcquired = await acquireLock(
-    redisDependencies,
-    lockKey,
-    lockValue,
-    ttl,
-  );
+  const lock = await acquireLock(redisDependencies, lockKey, ttl);
 
-  if (!isLockAcquired) {
+  if (!lock) {
     return {
       status: HttpStatusCodes.CONFLICT as TStatusCodes,
       error: {
@@ -139,12 +124,8 @@ export const sendVerificationEmail = async <
       },
     };
   }
-
   try {
-    const user = await getUserByEmailQuery(
-      dbDependencies,
-      body.email as string,
-    );
+    const user = await getUserByEmailQuery(dbDependencies, body.email);
 
     if (!user) {
       return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
@@ -182,14 +163,14 @@ export const sendVerificationEmail = async <
             count: EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
           },
           removeOnFail: {
-            age: EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
+            age: EMAIL_QUEUE_REMOVED_JOBS_TIME,
             count: EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
           },
         },
       );
     }
     catch (err: unknown) {
-      deleteByKey(redisDependencies, redisKey);
+      await deleteByKey(redisDependencies, redisKey);
       throw new EnqueuingError("send-verification-email", err as Error);
     }
 
@@ -199,7 +180,9 @@ export const sendVerificationEmail = async <
     };
   }
   finally {
-    await releaseLock(redisDependencies, lockKey, lockValue);
+    if (lock) {
+      await releaseLock(redisDependencies, lock);
+    }
   }
 };
 
@@ -280,4 +263,298 @@ export const verifyEmail = async <TStatusCodes extends HttpStatusCodeValue>(
       expiresAt,
     },
   };
+};
+
+interface AuthenticatedSessionResponseData {
+  user: {
+    id: string;
+    isEmailVerified: boolean;
+    isOnboarded: boolean;
+    userInfo: Record<string, unknown>;
+  };
+  token: string;
+  expiresAt: Date;
+}
+
+export const createAuthenticatedSessionResponse = async (
+  dependencies: MarkKeysAsPartial<ServiceDependencies, "messageQueueInstance">,
+  userId: string,
+): Promise<{
+  token: string;
+  expiresAt: Date;
+  user: AuthenticatedSessionResponseData["user"];
+}> => {
+  // TODO: Implement blacklist check
+
+  const sessionToken = generateSessionToken();
+  const { expiresAt } = await createSession(dependencies, sessionToken, userId);
+
+  const fullUserInfo = await getUserInfoQuery(dependencies, userId);
+  if (!fullUserInfo || !fullUserInfo.userInfo) {
+    dependencies.logger.error({
+      message: "User info not found after successful authentication step",
+      source: "_createAuthenticatedSessionResponse",
+      userId,
+      reqId: dependencies.reqId,
+    });
+
+    throw new QueryExecutionError("User info missing for authenticated user.");
+  }
+
+  return {
+    token: sessionToken,
+    expiresAt,
+    user: fullUserInfo as AuthenticatedSessionResponseData["user"],
+  };
+};
+
+export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
+  dependencies: MarkKeysAsPartial<ServiceDependencies, "messageQueueInstance">,
+  body: InsertUser["login"],
+): Promise<
+  ServiceResponse<TStatusCodes> & { data?: AuthenticatedSessionResponseData }
+> => {
+  const { email, password } = body;
+  const user = await getUserByEmailQuery(dependencies, email, true);
+
+  let passwordMatch = false;
+
+  if (user) {
+    passwordMatch = await verifyHash(password, user.password);
+  }
+  else {
+    try {
+      await verifyHash(password, DUMMY_PASSWORD_HASH);
+    }
+    catch (dummyError: unknown) {
+      dependencies.logger.warn({
+        message: "Ignored expected error during dummy password check",
+        source: "loginUser",
+        email,
+        reqId: dependencies.reqId,
+        dummyError,
+      });
+    }
+  }
+
+  if (!passwordMatch) {
+    dependencies.logger.warn({
+      message: "Invalid credentials",
+      source: "loginUser",
+      reqId: dependencies.reqId,
+    });
+
+    return { status: HttpStatusCodes.UNAUTHORIZED as TStatusCodes };
+  }
+
+  if (!user) {
+    dependencies.logger.error({
+      message: "Password matched but user not found",
+      source: "loginUser",
+      email,
+      reqId: dependencies.reqId,
+    });
+    throw new Error("User data inconsistency during login.");
+  }
+
+  const sessionData = await createAuthenticatedSessionResponse(
+    dependencies,
+    user.id,
+  );
+
+  return {
+    status: HttpStatusCodes.OK as TStatusCodes,
+    data: sessionData,
+  };
+};
+
+export const logoutUser = async <TStatusCodes extends HttpStatusCodeValue>(
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["messageQueueInstance", "dbInstance"]
+  >,
+  userId: string,
+  sessionId: string,
+): Promise<ServiceResponse<TStatusCodes>> => {
+  await invalidateSession(dependencies, sessionId, userId);
+
+  return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
+};
+
+export const sendForgotPasswordEmail = async <
+  TStatusCodes extends HttpStatusCodeValue,
+>(
+  dependencies: Required<Omit<ServiceDependencies, "s3Client" | "bucketName">>,
+  body: InsertUser["sendEmail"],
+): Promise<ServiceResponse<TStatusCodes>> => {
+  const dbDependencies = prepareDependencies(dependencies, "redisClient");
+  const { email } = body;
+
+  const lockKey = `lock:send-forgot-password-email:${email}`;
+  const ttl = LOCK_TTL;
+
+  const lock = await acquireLock(dbDependencies, lockKey, ttl);
+
+  if (!lock) {
+    return {
+      status: HttpStatusCodes.CONFLICT as TStatusCodes,
+      error: {
+        name: "Locker failure",
+        message: "Password reset request already in progress for this email",
+      },
+    };
+  }
+
+  try {
+    const user = await getUserByEmailQuery(dependencies, email);
+    const { rawToken, hashedToken } = generatePasswordResetToken();
+    const redisKey = `forgot-password:${hashedToken}`;
+
+    if (user) {
+      await setWithExpiry(
+        dependencies,
+        redisKey,
+        user.id,
+        FORGOT_PASSWORD_EMAIL_EXPIRY_TIME,
+      );
+
+      try {
+        await addJobToQueue(
+          dependencies.messageQueueInstance!,
+          "send-forgot-password-email",
+          {
+            email: user.email,
+            token: rawToken,
+          },
+          {
+            jobId: dependencies.reqId,
+            removeOnComplete: {
+              age: EMAIL_QUEUE_COMPLETED_JOBS_TIME,
+              count: EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
+            },
+            removeOnFail: {
+              age: EMAIL_QUEUE_REMOVED_JOBS_TIME,
+              count: EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
+            },
+          },
+        );
+      }
+      catch (err: unknown) {
+        deleteByKey(dependencies, redisKey);
+        throw new EnqueuingError("send-forgot-password-email", err as Error);
+      }
+    }
+    else {
+      const dummyValue = "dummy_user_not_found";
+
+      try {
+        await setWithExpiry(
+          dependencies,
+          redisKey,
+          dummyValue,
+          FORGOT_PASSWORD_EMAIL_EXPIRY_TIME,
+        );
+      }
+      catch (redisErr: unknown) {
+        dependencies.logger.warn({
+          message:
+            "Error during dummy Redis write for timing attack mitigation",
+          source: "sendForgotPasswordEmail",
+          email,
+          redisKey,
+          reqId: dependencies.reqId,
+          error: redisErr,
+        });
+      }
+    }
+
+    return {
+      status: HttpStatusCodes.NO_CONTENT as TStatusCodes,
+    };
+  }
+  finally {
+    await releaseLock(dependencies, lock);
+  }
+};
+
+export const forgotPassword = async <TStatusCodes extends HttpStatusCodeValue>(
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["messageQueueInstance"]
+  >,
+  body: ForgotPasswordBodySchema,
+): Promise<
+  ServiceResponse<TStatusCodes> & { data?: AuthenticatedSessionResponseData }
+> => {
+  const { newPassword, token: rawToken } = body;
+
+  const hashedToken = encodeToken(rawToken);
+  const redisKey = `forgot-password:${hashedToken}`;
+
+  const lockKey = `forgot-password-lock:${hashedToken}`;
+  const ttl = LOCK_TTL;
+
+  const lock = await acquireLock(dependencies, lockKey, ttl);
+
+  if (!lock) {
+    return {
+      status: HttpStatusCodes.CONFLICT as TStatusCodes,
+      error: {
+        name: "Locker failure",
+        message: "Password forgot request already in progress for this email",
+      },
+    };
+  }
+  const userId = await getByKey(dependencies, redisKey);
+
+  if (!userId) {
+    return {
+      status: HttpStatusCodes.BAD_REQUEST as TStatusCodes,
+    };
+  }
+
+  const user = await getUserByIdQuery(dependencies, userId);
+
+  if (!user) {
+    await deleteByKey(dependencies, redisKey);
+    return {
+      status: HttpStatusCodes.BAD_REQUEST as TStatusCodes,
+    };
+  }
+
+  const newPasswordHash = await hashString(newPassword);
+
+  await updateUserByIdQuery(
+    dependencies,
+    { password: newPasswordHash },
+    user.id,
+  );
+
+  try {
+    await deleteByKey(dependencies, redisKey);
+
+    await invalidateAllSessions(dependencies, user.id);
+
+    const sessionData = await createAuthenticatedSessionResponse(
+      dependencies,
+      user.id,
+    );
+
+    return {
+      status: HttpStatusCodes.OK as TStatusCodes,
+      data: sessionData,
+    };
+  }
+  catch (redisOrSessionError) {
+    dependencies.logger.error({
+      message:
+        "Password reset successful, but failed during Redis cleanup or new session creation",
+      source: "forgotPassword",
+
+      userId: user.id,
+      reqId: dependencies.reqId,
+      error: redisOrSessionError,
+    });
+    return { status: HttpStatusCodes.OK as TStatusCodes };
+  }
 };

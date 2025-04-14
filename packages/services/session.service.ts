@@ -113,6 +113,7 @@ export const validateSessionToken = async (
   if (item === null) {
     return null;
   }
+
   const result = JSON.parse(item);
 
   let session: Session = {

@@ -8,6 +8,7 @@ import type { Logger } from "@novelty/lib/types";
 import type { Dependencies } from "lib/types";
 import type { StartedTestContainer } from "testcontainers";
 import { GenericContainer } from "testcontainers";
+import Redlock from "redlock";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {
@@ -18,6 +19,7 @@ let container: StartedTestContainer;
 let testClient: TRedis;
 let testDependencies: Dependencies;
 let testLogger: Logger;
+let testRedlockClient: Redlock;
 
 beforeAll(async () => {
   container = await new GenericContainer("redis/redis-stack-server:latest")
@@ -29,6 +31,10 @@ beforeAll(async () => {
     port: container.getMappedPort(6379), // Must match the above
   });
 
+  const redisClients = [testClient];
+
+  const testRedlockClient = new Redlock(redisClients);
+
   testLogger = configureLogger({
     nodeEnvironment: "test",
     hostUrl: "",
@@ -38,6 +44,7 @@ beforeAll(async () => {
 
   testDependencies = {
     redisClient: testClient,
+    redlockClient: testRedlockClient,
     logger: testLogger,
     reqId: "test-req-id",
     prometheusRegistry: new Registry(),
@@ -49,4 +56,4 @@ afterAll(async () => {
   vi.clearAllMocks();
 });
 
-export { testClient, testDependencies, testLogger };
+export { testClient, testDependencies, testLogger, testRedlockClient };

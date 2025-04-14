@@ -48,8 +48,12 @@ export const insertUserSchema = z.object({
     email: baseSchema.shape.email,
     password: baseSchema.shape.password,
   }),
-  sendVerificationEmail: z.object({
+  sendEmail: z.object({
     email: baseSchema.shape.email,
+  }),
+  login: z.object({
+    email: baseSchema.shape.email,
+    password: baseSchema.shape.password,
   }),
 });
 

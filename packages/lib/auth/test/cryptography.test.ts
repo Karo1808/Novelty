@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decryptString, encryptString, hashPassword } from "../cryptography";
+import { decryptString, encryptString, hashString } from "../cryptography";
 
 // eslint-disable-next-line node/no-process-env
 process.env.ENCRYPTION_KEY = "12345678901234567890123456789012";
@@ -8,15 +8,15 @@ describe("cryptography", () => {
   describe("hashPassword", () => {
     it("should return a hash that is different from the original password", async () => {
       const password = "mysecretpassword";
-      const hashed = await hashPassword(password);
+      const hashed = await hashString(password);
       expect(hashed).toBeDefined();
       expect(hashed).not.toBe(password);
     });
 
     it("should produce different hashes for the same password (due to salting)", async () => {
       const password = "mysecretpassword";
-      const hash1 = await hashPassword(password);
-      const hash2 = await hashPassword(password);
+      const hash1 = await hashString(password);
+      const hash2 = await hashString(password);
       expect(hash1).not.toBe(hash2);
     });
   });
