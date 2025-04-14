@@ -292,6 +292,10 @@ export const forgotPasswordRoute = createRoute({
       description: "Password reset",
       headers: cookieSchema,
     },
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      forgotPasswordConflictSchema,
+      "Lock not acquired",
+    ),
     [HttpStatusCodes.BAD_REQUEST]: jsonContent(
       verifyEmailBadRequestSchema,
       "Password reset token does not match or it has expired",

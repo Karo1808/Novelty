@@ -3,6 +3,7 @@ import { Redis } from "ioredis";
 import "dotenv/config";
 import { configureLogger } from "@novelty/lib/logger";
 import type { NodeEnvironment } from "@novelty/lib/types";
+import Redlock from "redlock";
 
 const redisPort = process.env.REDIS_PORT;
 const redisPassword = process.env.REDIS_PASSWORD;
@@ -37,4 +38,20 @@ export const redis = new Redis({
 
     return 200;
   },
+});
+
+const redisClients = [redis];
+
+export const redlock = new Redlock(redisClients, {
+  driftFactor: 0.01,
+  retryCount: 10,
+  retryDelay: 200,
+  retryJitter: 200,
+});
+
+redlock.on("error", (err: unknown) => {
+  logger.error({
+    message: "Failed to initialize Redlock",
+    error: err,
+  });
 });

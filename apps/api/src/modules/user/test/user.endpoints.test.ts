@@ -22,6 +22,7 @@ import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import createErrorSchema from "@/lib/create-error-schema";
 import type { z } from "zod";
 import { RedisConnectionError } from "@novelty/redis/lib/errors";
+import { USER_INFO_DRAFT_KEY } from "@novelty/services/lib/config";
 
 vi.mock("@hono/node-server/conninfo", () => ({
   getConnInfo: vi.fn(() => ({
@@ -580,6 +581,21 @@ describe("user routes", () => {
   });
 
   describe("get /user/draft", () => {
+    const dummyKey = `${USER_INFO_DRAFT_KEY}:${dummyUser.id}`;
+
+    beforeEach(async () => {
+      await testRedis.call(
+        "JSON.SET",
+        dummyKey,
+        "$",
+        JSON.stringify(dummyUserInfoDraft),
+      );
+    });
+
+    afterEach(async () => {
+      await testRedis.flushall();
+    });
+
     it("returns the cached user info", async () => {
       const res = await client.user.draft.$get({
         header: { cookie: dummyCookie },
@@ -588,13 +604,13 @@ describe("user routes", () => {
       const data = await res.json();
 
       if ("userInfo" in data) {
-        expect(data.userInfo).toEqual(dummyUserInfoDraft);
+        expect(data.userInfo).toEqual([dummyUserInfoDraft]);
       }
       expect(res.status).toBe(HttpStatusCodes.OK);
     });
 
     it("should handle not found", async () => {
-      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE users CASCADE`);
 
       const res = await client.user.draft.$get({
         header: { cookie: dummyCookie },
@@ -610,6 +626,8 @@ describe("user routes", () => {
     });
 
     it("should handle conflict", async () => {
+      await testRedis.del(dummyKey);
+
       vi.spyOn(redisQueries, "doesKeyExists").mockResolvedValue(1);
 
       const res = await client.user.draft.$get({
