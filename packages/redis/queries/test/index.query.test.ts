@@ -10,6 +10,7 @@ import {
   removeFromSet,
   setWithExpiry,
 } from "queries/index.query";
+import type { Lock } from "redlock";
 import { testClient, testDependencies } from "test-setup";
 import { describe, expect, it } from "vitest";
 
@@ -205,46 +206,82 @@ describe("index redis queries", () => {
 
   describe("acquireLock", () => {
     const key: RedisKey = "test-lock-key";
-    const value: RedisValue = "lock-value";
     const expiryTime = 5;
     it("should acquire the lock when key does not exist", async () => {
-      await testClient.del(key);
-      const result = await acquireLock(
-        testDependencies,
-        key,
-        value,
-        expiryTime,
-      );
-      expect(result).toBe("OK");
+      const result = await acquireLock(testDependencies, key, expiryTime);
+      expect(result).toBeTruthy();
     });
 
     it("should fail to acquire the lock when key already exists", async () => {
-      await testClient.set(key, value);
-      const result = await acquireLock(testDependencies, key, value, 60);
-      expect(result).toBeNull();
+      await acquireLock(testDependencies, key, 60);
+      const result = await acquireLock(testDependencies, key, 60);
+      expect(result).toBe(false);
+    });
+
+    it("should handle concurrent acquire attempts correctly", async () => {
+      const key: RedisKey = "concurrent-lock-key";
+      const expiry = 10;
+      await testClient.del(key);
+
+      const attempts = 5;
+      const promises = [];
+      for (let i = 0; i < attempts; i++) {
+        // Introduce a small staggered delay
+        await new Promise(resolve => setTimeout(resolve, i * 10));
+        promises.push(acquireLock(testDependencies, key, expiry));
+      }
+
+      const results = await Promise.all(promises);
+
+      const successfulAcquisitions = results.filter(res => res);
+      expect(successfulAcquisitions).toHaveLength(1);
+
+      const failedAcquisitions = results.filter(res => res === false);
+      expect(failedAcquisitions).toHaveLength(attempts - 1);
+
+      // Clean up
+      await testClient.del(key);
     });
   });
 
   describe("releaseLock", () => {
     const key: RedisKey = "test-lock-key";
-    const value: RedisValue = "lock-value";
 
     it("should release the lock if the key exists and matches the value", async () => {
-      await testClient.set(key, value);
-      const result = await releaseLock(testDependencies, key, value);
+      const lock = await acquireLock(testDependencies, key, 60);
+      const result = await releaseLock(testDependencies, lock as Lock);
       expect(result).toBe(1);
     });
 
     it("should not release the lock if the key does not exist", async () => {
-      await testClient.del(key);
-      const result = await releaseLock(testDependencies, key, value);
-      expect(result).toBe(0);
+      const lock = "" as unknown as Lock;
+      const result = await releaseLock(testDependencies, lock);
+      expect(result).toBeFalsy();
     });
 
-    it("should not release the lock if the value does not match", async () => {
-      await testClient.set(key, "different-value");
-      const result = await releaseLock(testDependencies, key, value);
-      expect(result).toBe(0);
-    });
+    // it("should handle concurrent release attempts correctly", async () => {
+    //   const key: RedisKey = "concurrent-release-key";
+    //   const value: RedisValue = "concurrent-release-value";
+
+    //   const attempts = 5;
+    //   const promises = [];
+    //   for (let i = 0; i < attempts; i++) {
+    //     // Use the same value for all attempts to release the lock
+    //     promises.push(releaseLock(testDependencies, key, value));
+    //   }
+
+    //   const results = await Promise.all(promises);
+
+    //   // Only one attempt should succeed (return 1)
+    //   const successfulReleases = results.filter(res => res === 1);
+    //   expect(successfulReleases).toHaveLength(1);
+
+    //   // The rest should fail (return 0) because the key was already deleted
+    //   const failedReleases = results.filter(res => res === 0);
+    //   expect(failedReleases).toHaveLength(attempts - 1);
+
+    //   // Verify the key is actually deleted
+    //   expect(await testClient.exists(key)).toBe(0);
+    // });
   });
 });

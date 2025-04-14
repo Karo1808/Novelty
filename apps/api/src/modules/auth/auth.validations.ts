@@ -102,3 +102,43 @@ export const verifyEmailConflictSchema = z
       message: "This email has already been verified",
     },
   });
+
+export const loginSuccessSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Login successful",
+    },
+  });
+
+export const loginUnauthorizedSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Invalid credentials",
+    },
+  });
+
+export const forgotPasswordConflictSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Another process is already handling this email",
+    },
+  });
+
+export const forgotPasswordSuccessSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Password successfully reset",
+    },
+  });

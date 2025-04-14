@@ -14,7 +14,7 @@ export default antfu(
       semi: true,
       quotes: "double",
     },
-    ignores: ["**/migrations/*", "**/*.yml", "**/*.yaml"],
+    ignores: ["**/migrations/*", "**/*.yml", "**/*.yaml", "**/*.md"],
   },
   {
     rules: {

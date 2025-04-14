@@ -9,4 +9,11 @@ export const authRouter = createRouter()
     routes.sendVerificationEmailRoute,
     handlers.handleSendVerificationEmail,
   )
-  .openapi(routes.verifyEmailRoute, handlers.handleVerifyEmail);
+  .openapi(routes.verifyEmailRoute, handlers.handleVerifyEmail)
+  .openapi(routes.loginRoute, handlers.handleLogin)
+  .openapi(routes.logoutRoute, handlers.handleLogout)
+  .openapi(
+    routes.sendForgotPasswordEmailRoute,
+    handlers.handleSendForgotPasswordEmail,
+  )
+  .openapi(routes.forgotPasswordRoute, handlers.handleForgotPasswordRoute);

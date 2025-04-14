@@ -1,6 +1,11 @@
+/* eslint-disable unused-imports/no-unused-vars */
 import type { RedisKey, RedisValue } from "ioredis";
-import { createRedisQuery } from "../lib/create-redis-query";
+import {
+  createRedisQuery,
+  createRedlockQuery,
+} from "../lib/create-redis-query";
 import type { Dependencies } from "../lib/types";
+import type { Lock } from "redlock";
 
 export const pingRedisQuery = (dependencies: Dependencies) => {
   return createRedisQuery({
@@ -97,36 +102,36 @@ export const removeFromSet = (
 
 export const acquireLock = (
   dependencies: Dependencies,
-  key: RedisKey,
-  value: RedisValue,
+  key: string,
   expiryTime: number,
-) => {
-  return createRedisQuery({
+): Promise<Lock | false> => {
+  return createRedlockQuery({
     dependencies,
     queryName: "acquireLockQuery",
-    query: async (redis) => {
-      return await redis.set(key, value, "EX", expiryTime, "NX");
+    query: async (redlock) => {
+      try {
+        const lock = await redlock.acquire([key], expiryTime * 1000);
+        return lock;
+      }
+      catch (_) {
+        return false;
+      }
     },
   });
 };
 
-export const releaseLock = (
-  dependencies: Dependencies,
-  key: RedisKey,
-  value: RedisValue,
-) => {
-  return createRedisQuery({
+export const releaseLock = (dependencies: Dependencies, lock: Lock) => {
+  return createRedlockQuery({
     dependencies,
     queryName: "releaseLockQuery",
-    query: async (redis) => {
-      const script = `
-      if redis.call("GET", KEYS[1]) == ARGV[1] then
-          return redis.call("DEL", KEYS[1])
-      else
-          return 0
-      end
-    `;
-      return await redis.eval(script, 1, key, value);
+    query: async (redlock) => {
+      try {
+        await redlock.release(lock);
+        return true;
+      }
+      catch (_) {
+        return false;
+      }
     },
   });
 };

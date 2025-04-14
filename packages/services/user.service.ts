@@ -251,15 +251,15 @@ export const getUserDraft = async <TStatusCodes extends HttpStatusCodeValue>(
   const { userId } = body;
   const redisKey = `${USER_INFO_DRAFT_KEY}:${userId}`;
 
+  const user = await getUserInfoQuery(dependencies, userId);
+
+  if (!user || !user.userInfo) {
+    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+  }
+
   let userInfo = await getByKeyJson(dependencies, redisKey);
 
   if (!userInfo) {
-    const user = await getUserInfoQuery(dependencies, userId);
-
-    if (!user || !user.userInfo) {
-      return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
-    }
-
     const isCached = await doesKeyExists(dependencies, redisKey);
 
     if (isCached) {

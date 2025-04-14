@@ -57,3 +57,24 @@ export const cookieSchema = z.object({
       "sessionId=abc123; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800",
   }),
 });
+
+export const blacklistedSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Access denied",
+    },
+  });
+
+export const csrfErrorSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Invalid or missing CSRF token.",
+    },
+    description: "Response returned when CSRF validation fails.",
+  });
