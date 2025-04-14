@@ -21,6 +21,7 @@ import { createWorker } from "@novelty/message-queue/lib/create-worker";
 import { GenericContainer } from "testcontainers";
 import type { StartedTestContainer } from "testcontainers";
 import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import Redlock from "redlock";
 
 if (process.env.NODE_ENV !== "test") {
   throw new Error("NODE_ENV must be 'test'");
@@ -36,6 +37,7 @@ let testRedis: TRedis;
 let testDependencies: ServiceDependencies;
 let testDependenciesWithQueue: Required<ServiceDependencies>;
 let testQueue: Queue;
+let testRedlock: Redlock;
 
 beforeAll(async () => {
   dbContainer = await new PostgreSqlContainer()
@@ -43,22 +45,27 @@ beforeAll(async () => {
     .start();
 
   redisContainer = await new GenericContainer("redis/redis-stack-server:latest")
-    .withExposedPorts(6379) // Expose the default Redis port
-
+    .withExposedPorts(6379)
     .start();
 
   testRedis = new Redis({
     host: redisContainer.getHost(),
-    port: redisContainer.getMappedPort(6379), // Must match the above
+    port: redisContainer.getMappedPort(6379),
   });
+
   const connectionOptions = {
     host: redisContainer.getHost(),
     port: redisContainer.getMappedPort(6379),
   };
 
+  const redisClients = [testRedis];
+
+  testRedlock = new Redlock(redisClients);
+
   const queueName = "email-queue";
   const jobProcessors: Record<string, (data: any) => Promise<void>> = {
     "send-verification-email": async () => {},
+    "send-forgot-password-email": async () => {},
   };
 
   testQueue = createQueue(queueName, connectionOptions);
@@ -108,6 +115,7 @@ beforeAll(async () => {
     reqId: "test-req-id",
     prometheusRegistry: new Registry(),
     redisClient: testRedis,
+    redlockClient: testRedlock,
     s3Client: testS3,
     bucketName: process.env.R2_BUCKET_NAME!,
   };
@@ -118,6 +126,7 @@ beforeAll(async () => {
     reqId: "test-req-id",
     prometheusRegistry: new Registry(),
     redisClient: testRedis,
+    redlockClient: testRedlock,
     messageQueueInstance: testQueue,
     s3Client: testS3,
     bucketName: process.env.R2_BUCKET_NAME!,
@@ -138,5 +147,6 @@ export {
   testDependenciesWithQueue,
   testQueue,
   testRedis,
+  testRedlock,
   testS3,
 };

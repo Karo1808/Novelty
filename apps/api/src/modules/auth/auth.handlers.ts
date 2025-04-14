@@ -21,7 +21,7 @@ import { db } from "@novelty/db";
 import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import { redis } from "@novelty/redis";
+import { redis, redlock } from "@novelty/redis";
 import { emailQueue } from "@novelty/message-queue/queues/email.queue";
 import { deleteCookie, setCookie } from "hono/cookie";
 import env from "@/env";
@@ -68,6 +68,7 @@ export const handleSendVerificationEmail: AppRouteHandler<
     {
       dbInstance: db,
       redisClient: redis,
+      redlockClient: redlock,
       messageQueueInstance: emailQueue,
       logger,
       prometheusRegistry,
@@ -248,6 +249,7 @@ export const handleSendForgotPasswordEmail: AppRouteHandler<
     {
       dbInstance: db,
       redisClient: redis,
+      redlockClient: redlock,
       messageQueueInstance: emailQueue,
       logger,
       prometheusRegistry,
@@ -278,6 +280,7 @@ export const handleForgotPasswordRoute: AppRouteHandler<
     {
       dbInstance: db,
       redisClient: redis,
+      redlockClient: redlock,
       messageQueueInstance: emailQueue,
       logger,
       prometheusRegistry,
@@ -285,6 +288,16 @@ export const handleForgotPasswordRoute: AppRouteHandler<
     },
     body,
   );
+
+  if (res.status === HttpStatusCodes.CONFLICT) {
+    return c.json(
+      {
+        message: "Password reset request already in progress for this email.",
+        success: false,
+      },
+      HttpStatusCodes.CONFLICT,
+    );
+  }
 
   if (res.status === HttpStatusCodes.BAD_REQUEST) {
     return c.json(

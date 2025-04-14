@@ -21,6 +21,7 @@ import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
 import type { StartedTestContainer } from "testcontainers";
 import { GenericContainer } from "testcontainers";
 import env from "./env";
+import Redlock from "redlock";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {
@@ -36,6 +37,7 @@ let testRedis: TRedis;
 let testQueue: Queue;
 let testS3: S3Client;
 let testDependencies: ServiceDependencies;
+let testRedlock: Redlock;
 
 beforeAll(async () => {
   dbContainer = await new PostgreSqlContainer()
@@ -54,9 +56,14 @@ beforeAll(async () => {
     host: redisContainer.getHost(),
     port: redisContainer.getMappedPort(6379),
   };
+
+  const redisClients = [testRedis];
+  testRedlock = new Redlock(redisClients);
+
   const queueName = "email-queue";
   const jobProcessors: Record<string, (data: any) => Promise<void>> = {
     "send-verification-email": async () => {},
+    "send-forgot-password-email": async () => {},
   };
 
   testQueue = createQueue(queueName, connectionOptions);
@@ -107,6 +114,7 @@ beforeAll(async () => {
     prometheusRegistry: new Registry(),
     redisClient: testRedis,
     s3Client: testS3,
+    redlockClient: testRedlock,
   };
 });
 
@@ -118,4 +126,4 @@ afterAll(async () => {
   vi.clearAllMocks();
 });
 
-export { testDb, testDependencies, testQueue, testRedis, testS3 };
+export { testDb, testDependencies, testQueue, testRedis, testRedlock, testS3 };
