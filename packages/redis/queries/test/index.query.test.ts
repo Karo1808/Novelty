@@ -250,7 +250,7 @@ describe("index redis queries", () => {
     it("should release the lock if the key exists and matches the value", async () => {
       const lock = await acquireLock(testDependencies, key, 60);
       const result = await releaseLock(testDependencies, lock as Lock);
-      expect(result).toBe(1);
+      expect(result).toBe(true);
     });
 
     it("should not release the lock if the key does not exist", async () => {
@@ -258,30 +258,5 @@ describe("index redis queries", () => {
       const result = await releaseLock(testDependencies, lock);
       expect(result).toBeFalsy();
     });
-
-    // it("should handle concurrent release attempts correctly", async () => {
-    //   const key: RedisKey = "concurrent-release-key";
-    //   const value: RedisValue = "concurrent-release-value";
-
-    //   const attempts = 5;
-    //   const promises = [];
-    //   for (let i = 0; i < attempts; i++) {
-    //     // Use the same value for all attempts to release the lock
-    //     promises.push(releaseLock(testDependencies, key, value));
-    //   }
-
-    //   const results = await Promise.all(promises);
-
-    //   // Only one attempt should succeed (return 1)
-    //   const successfulReleases = results.filter(res => res === 1);
-    //   expect(successfulReleases).toHaveLength(1);
-
-    //   // The rest should fail (return 0) because the key was already deleted
-    //   const failedReleases = results.filter(res => res === 0);
-    //   expect(failedReleases).toHaveLength(attempts - 1);
-
-    //   // Verify the key is actually deleted
-    //   expect(await testClient.exists(key)).toBe(0);
-    // });
   });
 });

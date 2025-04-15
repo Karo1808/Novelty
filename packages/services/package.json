@@ -36,6 +36,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@types/pg": "^8.11.11",
+    "@types/redlock": "^4.0.7",
     "bullmq": "^5.40.2",
     "drizzle-orm": "^0.39.3",
     "ioredis": "^5.5.0",

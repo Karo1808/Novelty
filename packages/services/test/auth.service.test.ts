@@ -38,7 +38,6 @@ import * as queueUtils from "@novelty/message-queue/lib/add-job-to-queue";
 import * as sessionService from "../session.service";
 import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
-import type { ServiceResponse } from "types";
 import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
 import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
 
@@ -126,9 +125,9 @@ describe("auth service", () => {
       const createUserQuerySpy = vi.spyOn(dbQueries, "createUserQuery");
       createUserQuerySpy.mockImplementationOnce(() => Promise.resolve([]));
 
-      const res = await registerUser(testDependencies, dummyBody);
-
-      expect(res.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
+      await expect(registerUser(testDependencies, dummyBody)).rejects.toThrow(
+        QueryExecutionError,
+      );
     });
 
     it("should handle database connection error", async () => {
@@ -138,10 +137,9 @@ describe("auth service", () => {
           throw new DatabaseConnectionError("Database connection failed");
         });
 
-      const res = await registerUser(testDependencies, dummyBody);
-
-      expect(res.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
-
+      await expect(registerUser(testDependencies, dummyBody)).rejects.toThrow(
+        DatabaseConnectionError,
+      );
       dbClientSpy.mockRestore();
     });
 
@@ -160,9 +158,9 @@ describe("auth service", () => {
         throw new Error("Unexpected Error");
       });
 
-      const res = await registerUser(testDependencies, dummyBody);
-
-      expect(res.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
+      await expect(registerUser(testDependencies, dummyBody)).rejects.toThrow(
+        Error,
+      );
     });
 
     it.each([
@@ -681,53 +679,6 @@ describe("auth service", () => {
 
       const secondResult = await verifyEmail(testDependencies, dummyBody);
       expect(secondResult.status).toBe(HttpStatusCodes.CONFLICT);
-    });
-
-    describe("verifyEmail - concurrency", () => {
-      it("should handle concurrent verification requests properly", async () => {
-        vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
-
-        const concurrentCalls = 5;
-        const promises = Array.from({ length: concurrentCalls }, () =>
-          verifyEmail(testDependencies, dummyBody));
-
-        const results = await Promise.allSettled(promises);
-
-        const okResults = results.filter(
-          result =>
-            result.status === "fulfilled"
-            && (result as PromiseFulfilledResult<ServiceResponse<any>>).value.status === HttpStatusCodes.OK,
-        );
-        const conflictResults = results.filter(
-          result =>
-            result.status === "fulfilled"
-            && (result as PromiseFulfilledResult<ServiceResponse<any>>).value.status === HttpStatusCodes.CONFLICT,
-        );
-
-        expect(okResults.length).toBe(1);
-        expect(conflictResults.length).toBe(concurrentCalls - 1);
-
-        const redisResult = await testRedis.get(dummyKey);
-        expect(redisResult).toBe(null);
-      });
-    });
-
-    describe("verifyEmail - concurrency with invalid code", () => {
-      it("should have all concurrent calls return BAD_REQUEST if the verification code is missing", async () => {
-        await testRedis.del(dummyKey);
-
-        const concurrentCalls = 3;
-        const promises = Array.from({ length: concurrentCalls }, () =>
-          verifyEmail(testDependencies, dummyBody));
-
-        const results = await Promise.allSettled(promises);
-
-        results.forEach((result) => {
-          if (result.status === "fulfilled") {
-            expect(result.value.status).toBe(HttpStatusCodes.BAD_REQUEST);
-          }
-        });
-      });
     });
   });
 

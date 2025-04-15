@@ -265,6 +265,10 @@ export const sendForgotPasswordEmailRoute = createRoute({
       createErrorSchema(insertUserSchema.shape.sendEmail),
       "Validation error(s)",
     ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      blacklistedSchema,
+      "Access denied (e.g., account banned, inactive)",
+    ),
   },
 });
 
