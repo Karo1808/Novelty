@@ -45,7 +45,7 @@ export const deleteByKey = (dependencies: Dependencies, key: RedisKey) => {
 export const getByKey = (dependencies: Dependencies, key: RedisKey) => {
   return createRedisQuery({
     dependencies,
-    queryName: "deleteByKey",
+    queryName: "getByKey",
     query: async (redis) => {
       return await redis.get(key);
     },
@@ -132,6 +132,51 @@ export const releaseLock = (dependencies: Dependencies, lock: Lock) => {
       catch (_) {
         return false;
       }
+    },
+  });
+};
+
+export const hsetWithExpiry = (
+  dependencies: Dependencies,
+  key: RedisKey,
+  field: string,
+  value: RedisValue,
+  expiryTime: number,
+) => {
+  return createRedisQuery({
+    dependencies,
+    queryName: "hsetWithExpiry",
+    query: async (redis) => {
+      await redis.hset(key, field, value);
+      return await redis.expire(key, expiryTime);
+    },
+  });
+};
+
+export const hexistsQuery = (
+  dependencies: Dependencies,
+  key: RedisKey,
+  field: string,
+) => {
+  return createRedisQuery({
+    dependencies,
+    queryName: "hexistsQuery",
+    query: async (redis) => {
+      return await redis.hexists(key, field);
+    },
+  });
+};
+
+export const hdelQuery = (
+  dependencies: Dependencies,
+  key: RedisKey,
+  field: string,
+) => {
+  return createRedisQuery({
+    dependencies,
+    queryName: "hdelQuery",
+    query: async (redis) => {
+      return await redis.hdel(key, field);
     },
   });
 };

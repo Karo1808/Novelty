@@ -23,3 +23,5 @@ export const DUMMY_PASSWORD_HASH
   = "$argon2id$v=19$m=65536,t=3,p=4$YWFhYWFhYWFhYWFhYWFhYQ$幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌" as const;
 
 export const FORGOT_PASSWORD_EMAIL_EXPIRY_TIME = 15 * 60; // 15 minutes
+
+export const BLACKLIST_KEY = "blacklist" as const;

@@ -26,11 +26,13 @@ import {
   acquireLock,
   deleteByKey,
   getByKey,
+  hexistsQuery,
   releaseLock,
   setWithExpiry,
 } from "@novelty/redis/queries/index.query";
 import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import {
+  BLACKLIST_KEY,
   DUMMY_PASSWORD_HASH,
   EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
   EMAIL_QUEUE_COMPLETED_JOBS_TIME,
@@ -284,8 +286,6 @@ export const createAuthenticatedSessionResponse = async (
   expiresAt: Date;
   user: AuthenticatedSessionResponseData["user"];
 }> => {
-  // TODO: Implement blacklist check
-
   const sessionToken = generateSessionToken();
   const { expiresAt } = await createSession(dependencies, sessionToken, userId);
 
@@ -315,7 +315,25 @@ export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
   ServiceResponse<TStatusCodes> & { data?: AuthenticatedSessionResponseData }
 > => {
   const { email, password } = body;
+
   const user = await getUserByEmailQuery(dependencies, email, true);
+
+  const blacklistKey = `blacklist`;
+  const isBlacklisted = await hexistsQuery(
+    dependencies,
+    blacklistKey,
+    user?.id ?? "",
+  );
+
+  if (isBlacklisted) {
+    dependencies.logger.warn({
+      message: "Login attempt from blacklisted user",
+      source: "loginUser",
+      email,
+      reqId: dependencies.reqId,
+    });
+    return { status: HttpStatusCodes.FORBIDDEN as TStatusCodes };
+  }
 
   let passwordMatch = false;
 
@@ -407,6 +425,23 @@ export const sendForgotPasswordEmail = async <
 
   try {
     const user = await getUserByEmailQuery(dependencies, email);
+
+    const isBlacklisted = await hexistsQuery(
+      dependencies,
+      BLACKLIST_KEY,
+      user?.id ?? "",
+    );
+
+    if (isBlacklisted) {
+      dependencies.logger.warn({
+        message: "Password reset attempt from blacklisted user",
+        source: "sendForgotPasswordEmail",
+        email,
+        reqId: dependencies.reqId,
+      });
+      return { status: HttpStatusCodes.FORBIDDEN as TStatusCodes };
+    }
+
     const { rawToken, hashedToken } = generatePasswordResetToken();
     const redisKey = `forgot-password:${hashedToken}`;
 
