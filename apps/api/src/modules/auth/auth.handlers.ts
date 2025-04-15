@@ -197,6 +197,13 @@ export const handleLogin: AppRouteHandler<LoginRoute> = async (c) => {
     );
   }
 
+  if (res.status === HttpStatusCodes.FORBIDDEN) {
+    return c.json(
+      { message: "Access denied (e.g., account banned, inactive)" },
+      HttpStatusCodes.FORBIDDEN,
+    );
+  }
+
   if (res.data) {
     const { token, expiresAt } = res.data;
 
@@ -257,6 +264,13 @@ export const handleSendForgotPasswordEmail: AppRouteHandler<
     },
     body,
   );
+
+  if (res.status === HttpStatusCodes.FORBIDDEN) {
+    return c.json(
+      { message: "Access denied (e.g., account banned, inactive)" },
+      HttpStatusCodes.FORBIDDEN,
+    );
+  }
 
   if (res.status === HttpStatusCodes.CONFLICT) {
     return c.json(

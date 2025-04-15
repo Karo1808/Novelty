@@ -12,8 +12,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Redis } from "ioredis";
 import type { Redis as TRedis } from "ioredis";
 import { createQueue } from "@novelty/message-queue/lib/create-queue";
-import type { Queue } from "bullmq";
-import { createWorker } from "@novelty/message-queue/lib/create-worker";
+import type { ConnectionOptions, Queue } from "bullmq";
+import { createTestWorker } from "@novelty/message-queue/lib/create-test-worker";
 import type { ServiceDependencies } from "@novelty/services/types";
 import { Registry } from "prom-client";
 import { configureLogger } from "@novelty/lib/logger";
@@ -38,6 +38,7 @@ let testQueue: Queue;
 let testS3: S3Client;
 let testDependencies: ServiceDependencies;
 let testRedlock: Redlock;
+let originalConsoleError: any;
 
 beforeAll(async () => {
   dbContainer = await new PostgreSqlContainer()
@@ -49,13 +50,26 @@ beforeAll(async () => {
     .start();
 
   testRedis = new Redis({
+    maxRetriesPerRequest: null,
     host: redisContainer.getHost(),
     port: redisContainer.getMappedPort(6379),
+    enableReadyCheck: false,
+    enableOfflineQueue: true,
   });
-  const connectionOptions = {
-    host: redisContainer.getHost(),
-    port: redisContainer.getMappedPort(6379),
+
+  originalConsoleError = console.error;
+
+  console.error = (...args) => {
+    const message = args.join(" ");
+    if (message.includes("ECONNREFUSED") || message.includes("ENOTFOUND")) {
+      return;
+    }
+    originalConsoleError(...args);
   };
+
+  testRedis.on("error", () => {});
+
+  const connectionOptions: ConnectionOptions = testRedis;
 
   const redisClients = [testRedis];
   testRedlock = new Redlock(redisClients);
@@ -68,7 +82,9 @@ beforeAll(async () => {
 
   testQueue = createQueue(queueName, connectionOptions);
 
-  createWorker(queueName, jobProcessors, connectionOptions);
+  testQueue.on("error", () => {});
+
+  createTestWorker(queueName, jobProcessors, testRedis);
 
   pool = new Pool({
     connectionString: dbContainer.getConnectionUri(),
@@ -122,6 +138,7 @@ afterAll(async () => {
   await pool.end();
   await redisContainer.stop();
   await dbContainer.stop();
+  // console.error = originalConsoleError;
   await s3Container?.stop();
   vi.clearAllMocks();
 });
