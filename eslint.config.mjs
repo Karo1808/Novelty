@@ -1,5 +1,5 @@
 import antfu from "@antfu/eslint-config";
-import eslintConfigTurbo from "eslint-config-turbo";
+import eslintConfigTurbo from "eslint-config-turbo/flat";
 import eslintConfigDrizzle from "eslint-plugin-drizzle";
 
 export default antfu(

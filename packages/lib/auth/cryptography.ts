@@ -50,7 +50,7 @@ export function decryptString(encryptedInput: string): string {
   const iv = Buffer.from(ivHex, "hex");
 
   const decipher = crypto.createDecipheriv(
-    "aes-256-cbc",
+    "aes-256-gcm",
     Buffer.from(encryptionKey, "utf8"),
     iv,
   );

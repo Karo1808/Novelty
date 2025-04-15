@@ -32,7 +32,6 @@
     "db:migrate": "turbo db:migrate"
   },
   "dependencies": {
-    "eslint-config-turbo": "^2.5.0",
     "eslint-plugin-drizzle": "^0.2.3"
   },
   "devDependencies": {
@@ -44,6 +43,7 @@
     "@vitest/coverage-v8": "^3.1.1",
     "commitizen": "^4.3.1",
     "eslint": "^9.24.0",
+    "eslint-config-turbo": "^2.5.0",
     "eslint-plugin-format": "^1.0.1",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.1",
