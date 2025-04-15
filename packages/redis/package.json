@@ -28,6 +28,6 @@
     "@novelty/typescript-config": "workspace:*",
     "@testcontainers/redis": "^10.24.2",
     "testcontainers": "^10.24.2",
-    "typescript": "5.7.3"
+    "typescript": "5.8.3"
   }
 }
