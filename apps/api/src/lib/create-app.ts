@@ -47,8 +47,10 @@ export default function createApp() {
   app.use(secureHeaders());
   app.use("*", requestId());
   app.use("*", sentryTransactionMiddleware());
-  app.use("*", sentry({ dsn: env.SENTRY_DSN }));
-  app.use("*", sentryConfigureScope());
+  if (env.NODE_ENV !== "test") {
+    app.use("*", sentry({ dsn: env.SENTRY_DSN }));
+    app.use("*", sentryConfigureScope());
+  }
   app.use(requestLogger());
 
   // AUTH

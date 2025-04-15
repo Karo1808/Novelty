@@ -31,6 +31,8 @@ beforeAll(async () => {
     port: container.getMappedPort(6379), // Must match the above
   });
 
+  testClient.on("error", () => {});
+
   const redisClients = [testClient];
 
   const testRedlockClient = new Redlock(redisClients);

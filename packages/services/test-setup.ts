@@ -53,6 +53,8 @@ beforeAll(async () => {
     port: redisContainer.getMappedPort(6379),
   });
 
+  testRedis.on("error", () => {});
+
   const connectionOptions = {
     host: redisContainer.getHost(),
     port: redisContainer.getMappedPort(6379),
@@ -69,6 +71,8 @@ beforeAll(async () => {
   };
 
   testQueue = createQueue(queueName, connectionOptions);
+
+  testQueue.on("error", () => {});
 
   createWorker(queueName, jobProcessors, connectionOptions);
 

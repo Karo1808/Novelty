@@ -2,21 +2,17 @@
   // Disable the default formatter, use eslint instead
   "prettier.enable": false,
   "editor.formatOnSave": true,
-
+  "editor.formatOnSaveMode": "file",
   // Auto fix
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit",
     "source.organizeImports": "never"
   },
-
   "eslint.options": {
     "flags": ["unstable_ts_config"]
   },
-
   "eslint.runtime": "node",
-
   // Silent the stylistic rules in you IDE, but still auto fix them
-
   // Enable eslint for all supported languages
   "eslint.validate": [
     "javascript",
@@ -33,7 +29,6 @@
     "toml",
     "xml"
   ],
-
   "pair-diff.patterns": [
     {
       "source": "./fixtures/output/**/*.*",

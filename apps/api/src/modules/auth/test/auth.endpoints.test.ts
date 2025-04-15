@@ -550,7 +550,8 @@ describe("auth routes", () => {
 
     afterEach(async () => {
       await testDb.execute(sql`TRUNCATE table users CASCADE`);
-      vi.clearAllMocks();
+      await testRedis.flushall();
+      vi.restoreAllMocks();
     });
 
     it("handles success", async () => {
@@ -611,6 +612,23 @@ describe("auth routes", () => {
       expect(json).toHaveProperty("message");
     });
 
+    it("handles user blacklisted", async () => {
+      const blacklistKey = `blacklist`;
+      await testRedis.hset(blacklistKey, dummyUser.id, "true");
+
+      const response = await client.auth.login.$post({
+        json: {
+          email: dummyUser.email,
+          password: "password123",
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.FORBIDDEN);
+
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
     it("handles service unavailable (user service error)", async () => {
       vi.spyOn(queries, "getUserByEmailQuery").mockRejectedValue(
         new Error("DB error"),
@@ -631,12 +649,13 @@ describe("auth routes", () => {
 
   describe("post /auth/send-forgot-password-email", () => {
     const dummyEmail = "test@example.com";
+    const dummyId = "dummy-id";
 
     beforeEach(async () => {
       vi.restoreAllMocks();
       await testDb
         .insert(usersTable)
-        .values({ email: dummyEmail, password: "hashedpassword" });
+        .values({ email: dummyEmail, password: "hashedpassword", id: dummyId });
     });
 
     afterEach(async () => {
@@ -691,6 +710,23 @@ describe("auth routes", () => {
       expect(json).toHaveProperty("error");
       expect(json.success).toBe(false);
       expect(json.error.name).toBe("ZodError");
+    });
+
+    it("handles user blacklisted", async () => {
+      const blacklistKey = `blacklist`;
+      await testRedis.hset(blacklistKey, dummyId, "true");
+
+      const response = await client.auth["send-forgot-password-email"].$post({
+        json: {
+          email: dummyEmail,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.FORBIDDEN);
+
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+      await testRedis.flushdb();
     });
 
     it("should return 500 Internal Server Error for unexpected errors", async () => {
