@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const verifyEmailBodySchema = z.object({
-  encryptedUserId: z.string().max(254),
+  email: z.string().email(),
   verificationCode: z.string().max(254),
 });
 

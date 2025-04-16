@@ -6,10 +6,10 @@ import {
   forgotPasswordSuccessSchema,
   loginSuccessSchema,
   loginUnauthorizedSchema,
+  logoutSuccessSchema,
   registerConflictSchema,
   registerCreatedSchema,
   sendVerificationEmailConflictSchema,
-  sendVerificationEmailNotFoundSchema,
   sendVerificationEmailSuccessSchema,
   verifyEmailBadRequestSchema,
   verifyEmailConflictSchema,
@@ -83,13 +83,9 @@ export const sendVerificationEmailRoute = createRoute({
       sendVerificationEmailSuccessSchema,
       "Email sent",
     ),
-    [HttpStatusCodes.NOT_FOUND]: jsonContent(
-      sendVerificationEmailNotFoundSchema,
-      "Email not found",
-    ),
     [HttpStatusCodes.CONFLICT]: jsonContent(
       sendVerificationEmailConflictSchema,
-      "Email already verified",
+      "Lock not acquired",
     ),
     [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
       serviceUnavailableSchema,
@@ -113,7 +109,7 @@ export const verifyEmailRoute = createRoute({
   method: "post",
   path: "/auth/verify-email",
   description:
-    "Verifies the PIN provided by the use, updates the isEmailVerified field in the database, sets the session cookie and caches the user profile data",
+    "Verifies the PIN provided by the user, updates the isEmailVerified field in the database, sets the session cookie and caches the user profile data",
   request: {
     body: jsonContentRequired(
       verifyEmailBodySchema,
@@ -212,10 +208,10 @@ export const logoutRoute = createRoute({
     headers: cookieSchema,
   },
   responses: {
-    [HttpStatusCodes.NO_CONTENT]: {
-      description: "Invalidates the session",
-      headers: cookieSchema,
-    },
+    [HttpStatusCodes.OK]: jsonContent(
+      logoutSuccessSchema,
+      "Invalidates the session",
+    ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
       unauthenticatedSchema,
       "User must be authenticated",
@@ -246,9 +242,8 @@ export const sendForgotPasswordEmailRoute = createRoute({
     ),
   },
   responses: {
-    [HttpStatusCodes.NO_CONTENT]: {
-      description: "Sends the forgot password email, if user exists",
-    },
+    [HttpStatusCodes.OK]: jsonContent(verifyEmailSuccessSchema, "Email sent"),
+
     [HttpStatusCodes.CONFLICT]: jsonContent(
       forgotPasswordConflictSchema,
       "Lock not acquired",
@@ -279,7 +274,8 @@ export const forgotPasswordRoute = createRoute({
   tags,
   method: "post",
   path: "/auth/forgot-password",
-  description: "Changes the password of the user and sets the session cookie",
+  description:
+    "Changes the password of the user, sets the session cookie and returns the user data",
   request: {
     body: jsonContentRequired(
       forgotPasswordBodySchema,

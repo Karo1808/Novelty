@@ -45,6 +45,7 @@ export const userPreferencesSchema = z.object({
 export const baseSelectSchema = createSelectSchema(userInfoTable, {
   preferences: userPreferencesSchema,
 });
+
 export const selectUserInfoSchema = z.object({
   profile: z.object({
     username: baseSelectSchema.shape.username,

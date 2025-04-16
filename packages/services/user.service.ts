@@ -2,10 +2,8 @@ import type {
   SelectUserInfo,
   UpdateUserInfo,
 } from "@novelty/db/schemas/user-info.schema";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import type { HttpStatusCodeValue } from "@novelty/lib/http-status-codes";
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
-import type { ServiceDependencies, ServiceResponse } from "./types";
+import type { ErrorResponse, Result, ServiceDependencies } from "./types";
 import {
   getIsUsernameUniqueQuery,
   getPreferencesByUserIdQuery,
@@ -15,7 +13,6 @@ import {
   updateUserProfileByUserIdQuery,
 } from "@novelty/db/queries/user.query";
 import type { UpdateProfile } from "./lib/utils";
-import { prepareDependencies } from "./lib/utils";
 import {
   getUserByIdQuery,
   updateUserByIdQuery,
@@ -32,28 +29,38 @@ import {
 import { doesKeyExists } from "@novelty/redis/queries/index.query";
 import type { UserDraftBodySchema } from "@novelty/lib/validations/user";
 
-export const getProfile = async <TStatusCodes extends HttpStatusCodeValue>(
+export type GetProfileError = ErrorResponse<"NOT_FOUND">;
+
+export const getProfile = async (
   dependencies: MarkKeysAsPartial<
     ServiceDependencies,
     ["redisClient", "messageQueueInstance"]
   >,
   userId: string,
-): Promise<
-  ServiceResponse<TStatusCodes> & { body?: SelectUserInfo["profile"] }
-> => {
+): Promise<Result<SelectUserInfo["profile"], GetProfileError>> => {
   const userProfile = await getProfileByUserIdQuery(dependencies, userId);
 
   if (!userProfile) {
-    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+    return {
+      success: false,
+      error: {
+        kind: "NOT_FOUND",
+        message: "No user profile found",
+      },
+    };
   }
 
   return {
-    status: HttpStatusCodes.OK as TStatusCodes,
-    body: userProfile,
+    success: true,
+    data: userProfile,
   };
 };
 
-export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
+export type UpdateProfileError =
+  | ErrorResponse<"NOT_FOUND">
+  | ErrorResponse<"CONFLICT">;
+
+export const updateProfile = async (
   dependencies: MarkKeysAsPartial<
     ServiceDependencies,
     ["messageQueueInstance"]
@@ -62,34 +69,44 @@ export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
     userId: string;
     payload: UpdateProfile;
   },
-): Promise<ServiceResponse<TStatusCodes>> => {
-  const dbDependencies = prepareDependencies(dependencies, "redisClient");
-
+): Promise<Result<void, UpdateProfileError>> => {
   const { userId, payload } = body;
   const { username, profileImage, bio } = payload;
 
-  const user = await getUserByIdQuery(dbDependencies, userId);
+  const user = await getUserByIdQuery(dependencies, userId);
 
   if (!user) {
-    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+    return {
+      success: false,
+      error: {
+        kind: "NOT_FOUND",
+        message: "Account does not exist",
+      },
+    };
   }
 
   if (username) {
     const isUnique = await getIsUsernameUniqueQuery(
-      dbDependencies,
+      dependencies,
       username,
       userId,
     );
 
     if (!isUnique) {
-      return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+      return {
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: "Username already exists",
+        },
+      };
     }
   }
 
   let newAvatarUrl = null;
 
   if (profileImage) {
-    const userProfile = await getProfileByUserIdQuery(dbDependencies, userId);
+    const userProfile = await getProfileByUserIdQuery(dependencies, userId);
 
     if (userProfile?.avatarUrl) {
       await deleteFile({
@@ -123,7 +140,7 @@ export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
 
   try {
     await updateUserProfileByUserIdQuery(
-      dbDependencies,
+      dependencies,
       {
         ...(username !== undefined && { username }),
         ...(newAvatarUrl !== null && { avatarUrl: newAvatarUrl }),
@@ -149,47 +166,65 @@ export const updateProfile = async <TStatusCodes extends HttpStatusCodeValue>(
       error as Error,
     );
   }
-  return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
+
+  return {
+    success: true,
+    data: undefined,
+  };
 };
 
-export const getPreferences = async <TStatusCodes extends HttpStatusCodeValue>(
+export type GetPreferencesError = ErrorResponse<"NOT_FOUND">;
+
+export const getPreferences = async (
   dependencies: MarkKeysAsPartial<
     ServiceDependencies,
     ["redisClient", "messageQueueInstance"]
   >,
   userId: string,
-): Promise<
-  ServiceResponse<TStatusCodes> & { body?: SelectUserInfo["preferences"] }
-> => {
+): Promise<Result<SelectUserInfo["preferences"], GetPreferencesError>> => {
   const res = await getPreferencesByUserIdQuery(dependencies, userId);
 
   if (!res?.preferences) {
-    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+    return {
+      success: false,
+      error: {
+        kind: "NOT_FOUND",
+        message: "No user preferences found",
+      },
+    };
   }
 
   const userPreferences = res.preferences as SelectUserInfo["preferences"];
 
   return {
-    status: HttpStatusCodes.OK as TStatusCodes,
-    body: userPreferences,
+    success: true,
+    data: userPreferences,
   };
 };
 
-export const updatePreferences = async <
-  TStatusCodes extends HttpStatusCodeValue,
->(
+export type UpdatePreferencesError =
+  | ErrorResponse<"NOT_FOUND">
+  | ErrorResponse<"CONFLICT">;
+
+export const updatePreferences = async (
   dependencies: MarkKeysAsPartial<ServiceDependencies, "redisClient">,
   body: {
     userId: string;
     payload: UpdateUserInfo["preferences"];
   },
-): Promise<ServiceResponse<TStatusCodes>> => {
+): Promise<Result<void, UpdatePreferencesError>> => {
   const { userId, payload } = body;
 
   const user = await getUserByIdQuery(dependencies, userId);
 
   if (!user) {
-    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+    return {
+      success: false,
+      error: {
+        kind: "NOT_FOUND",
+        message: "Account does not exist",
+      },
+    };
   }
 
   try {
@@ -202,27 +237,45 @@ export const updatePreferences = async <
     );
   }
 
-  return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
+  return {
+    success: true,
+    data: undefined,
+  };
 };
 
-export const completeOnboarding = async <
-  TStatusCodes extends HttpStatusCodeValue,
->(
+export type CompleteOnboardingError =
+  | ErrorResponse<"NOT_FOUND">
+  | ErrorResponse<"CONFLICT">
+  | ErrorResponse<"BAD_REQUEST">;
+
+export const completeOnboarding = async (
   dependencies: MarkKeysAsPartial<ServiceDependencies, "redisClient">,
   body: {
     userId: string;
   },
-): Promise<ServiceResponse<TStatusCodes>> => {
+): Promise<Result<void, CompleteOnboardingError>> => {
   const { userId } = body;
 
   const user = await getUserInfoQuery(dependencies, userId);
 
   if (!user) {
-    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+    return {
+      success: false,
+      error: {
+        kind: "NOT_FOUND",
+        message: "Account does not exist",
+      },
+    };
   }
 
   if (user.isOnboarded) {
-    return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+    return {
+      success: false,
+      error: {
+        kind: "CONFLICT",
+        message: "User is already onboarded",
+      },
+    };
   }
 
   const preferences = user.userInfo
@@ -234,27 +287,46 @@ export const completeOnboarding = async <
     || !preferences.genres
     || preferences.genres?.length < MIN_REQUIRED_GENRES
   ) {
-    return { status: HttpStatusCodes.BAD_REQUEST as TStatusCodes };
+    return {
+      success: false,
+      error: {
+        kind: "BAD_REQUEST",
+        message: "User is not ready to be onboarded",
+      },
+    };
   }
 
   await updateUserByIdQuery(dependencies, { isOnboarded: true }, userId);
 
-  return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
+  return {
+    success: true,
+    data: undefined,
+  };
 };
 
-export const getUserDraft = async <TStatusCodes extends HttpStatusCodeValue>(
+export type GetUserDraftError =
+  | ErrorResponse<"NOT_FOUND">
+  | ErrorResponse<"CONFLICT">;
+
+export const getUserDraft = async (
   dependencies: ServiceDependencies,
   body: {
     userId: string;
   },
-): Promise<ServiceResponse<TStatusCodes> & { body?: SelectUserInfo }> => {
+): Promise<Result<SelectUserInfo, GetUserDraftError>> => {
   const { userId } = body;
   const redisKey = `${USER_INFO_DRAFT_KEY}:${userId}`;
 
   const user = await getUserInfoQuery(dependencies, userId);
 
   if (!user || !user.userInfo) {
-    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+    return {
+      success: false,
+      error: {
+        kind: "NOT_FOUND",
+        message: "Account information is missing",
+      },
+    };
   }
 
   let userInfo = await getByKeyJson(dependencies, redisKey);
@@ -263,7 +335,13 @@ export const getUserDraft = async <TStatusCodes extends HttpStatusCodeValue>(
     const isCached = await doesKeyExists(dependencies, redisKey);
 
     if (isCached) {
-      return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+      return {
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: "User profile draft already exists",
+        },
+      };
     }
 
     await setByKeyJson(dependencies, redisKey, user.userInfo);
@@ -272,25 +350,21 @@ export const getUserDraft = async <TStatusCodes extends HttpStatusCodeValue>(
   }
 
   return {
-    status: HttpStatusCodes.OK as TStatusCodes,
-    body: userInfo,
+    success: true,
+    data: userInfo,
   };
 };
 
-export const updateUserDraft = async <TStatusCodes extends HttpStatusCodeValue>(
+export const updateUserDraft = async (
   dependencies: ServiceDependencies,
   body: {
     userId: string;
     payload: UserDraftBodySchema;
   },
-): Promise<ServiceResponse<TStatusCodes>> => {
+) => {
   const { userId, payload } = body;
 
   const redisKey = `${USER_INFO_DRAFT_KEY}:${userId}`;
 
   await setByKeyJson(dependencies, redisKey, payload);
-
-  return {
-    status: HttpStatusCodes.NO_CONTENT as TStatusCodes,
-  };
 };
