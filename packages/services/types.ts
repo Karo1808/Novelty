@@ -4,6 +4,7 @@ import type { Logger, PrometheusRegistry } from "@novelty/lib/types";
 import type { Queue } from "bullmq";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type Redlock from "redlock";
+import type { HttpStatusCodeKey } from "@novelty/lib/http-status-codes";
 
 export interface ServiceDependencies {
   dbInstance: DBClient;
@@ -17,9 +18,16 @@ export interface ServiceDependencies {
   bucketName?: string;
 }
 
-export interface ServiceResponse<TStatusCodes> {
-  status: TStatusCodes;
-  body?: any;
-  source?: "db" | "redis";
-  error?: Error;
+export type Result<TSuccessData, TErrorReason> =
+  | { success: true; data: TSuccessData }
+  | { success: false; error: TErrorReason };
+
+export interface ErrorResponse<K extends HttpStatusCodeKey> {
+  kind: K;
+  message: string;
+  cause?: unknown;
 }
+
+export type RegisterUserError =
+  | ErrorResponse<"CONFLICT">
+  | ErrorResponse<"INTERNAL_SERVER_ERROR">;

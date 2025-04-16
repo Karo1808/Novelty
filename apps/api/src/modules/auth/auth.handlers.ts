@@ -30,7 +30,7 @@ import { SESSION_EXPIRATION_TIME } from "@novelty/services/session.service";
 export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   const body = c.req.valid("json");
 
-  const res = await registerUser<keyof RegisterRoute["responses"]>(
+  const result = await registerUser(
     {
       dbInstance: db,
       logger,
@@ -40,18 +40,18 @@ export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
     body,
   );
 
-  if (res.status === HttpStatusCodes.CONFLICT) {
-    return c.json(
-      { message: "An account with that email already exists." },
-      HttpStatusCodes.CONFLICT,
-    );
+  if (result.success === false) {
+    const error = result.error;
+    return c.json({ message: error.message }, HttpStatusCodes[error.kind]);
   }
+
+  const newUser = result.data;
 
   return c.json(
     {
       message:
         "Registration successful. Please verify your email to activate your account.",
-      user: res.body,
+      user: newUser,
     },
     HttpStatusCodes.CREATED,
   );
@@ -62,9 +62,7 @@ export const handleSendVerificationEmail: AppRouteHandler<
 > = async (c) => {
   const body = c.req.valid("json");
 
-  const res = await sendVerificationEmail<
-    keyof SendVerificationEmailRoute["responses"]
-  >(
+  const res = await sendVerificationEmail(
     {
       dbInstance: db,
       redisClient: redis,
@@ -77,24 +75,24 @@ export const handleSendVerificationEmail: AppRouteHandler<
     body,
   );
 
-  if (res.status === HttpStatusCodes.NOT_FOUND) {
+  // Prevent pwning of the email
+  if (res.success === false && res.error.kind === "NOT_FOUND") {
     return c.json(
       {
-        message: "This email does not exist",
-        success: false,
+        message: "Email sent to the recipient",
+        success: true,
       },
-      HttpStatusCodes.NOT_FOUND,
+      HttpStatusCodes.OK,
     );
   }
 
-  if (res.status === HttpStatusCodes.CONFLICT) {
+  if (res.success === false && res.error.kind !== "NOT_FOUND") {
     return c.json(
       {
-        message:
-          res?.body?.error.message ?? "This email has already been verified",
+        message: res.error.message,
         success: false,
       },
-      HttpStatusCodes.CONFLICT,
+      HttpStatusCodes[res.error.kind],
     );
   }
 
@@ -102,7 +100,6 @@ export const handleSendVerificationEmail: AppRouteHandler<
     {
       message: "Email sent to the recipient",
       success: true,
-      encryptedUserId: res.body,
     },
     HttpStatusCodes.OK,
   );
@@ -113,7 +110,7 @@ export const handleVerifyEmail: AppRouteHandler<VerifyEmailRoute> = async (
 ) => {
   const body = c.req.valid("json");
 
-  const res = await verifyEmail<keyof VerifyEmailRoute["responses"]>(
+  const res = await verifyEmail(
     {
       dbInstance: db,
       redisClient: redis,
@@ -124,47 +121,14 @@ export const handleVerifyEmail: AppRouteHandler<VerifyEmailRoute> = async (
     body,
   );
 
-  if (res.status === HttpStatusCodes.NOT_FOUND) {
+  if (res.success === false) {
     return c.json(
       {
-        message: "User not found",
+        message: res.error.message,
         success: false,
       },
-      HttpStatusCodes.NOT_FOUND,
+      HttpStatusCodes[res.error.kind],
     );
-  }
-
-  if (res.status === HttpStatusCodes.BAD_REQUEST) {
-    return c.json(
-      {
-        message: "The code is invalid or it has already expired",
-        success: false,
-      },
-      HttpStatusCodes.BAD_REQUEST,
-    );
-  }
-
-  if (res.status === HttpStatusCodes.CONFLICT) {
-    return c.json(
-      {
-        message: "This email has already been verified",
-        success: false,
-      },
-      HttpStatusCodes.CONFLICT,
-    );
-  }
-
-  if (res.data) {
-    const { sessionToken, expiresAt } = res.data;
-
-    setCookie(c, "session", sessionToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: env.NODE_ENV === "production",
-      path: "/",
-      maxAge: SESSION_EXPIRATION_TIME / 1000,
-      expires: expiresAt,
-    });
   }
 
   return c.json(
@@ -179,7 +143,7 @@ export const handleVerifyEmail: AppRouteHandler<VerifyEmailRoute> = async (
 export const handleLogin: AppRouteHandler<LoginRoute> = async (c) => {
   const body = c.req.valid("json");
 
-  const res = await loginUser<keyof LoginRoute["responses"]>(
+  const res = await loginUser(
     {
       dbInstance: db,
       redisClient: redis,
@@ -190,17 +154,13 @@ export const handleLogin: AppRouteHandler<LoginRoute> = async (c) => {
     body,
   );
 
-  if (res.status === HttpStatusCodes.UNAUTHORIZED) {
+  if (res.success === false) {
     return c.json(
-      { message: "Invalid credentials" },
-      HttpStatusCodes.UNAUTHORIZED,
-    );
-  }
-
-  if (res.status === HttpStatusCodes.FORBIDDEN) {
-    return c.json(
-      { message: "Access denied (e.g., account banned, inactive)" },
-      HttpStatusCodes.FORBIDDEN,
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
     );
   }
 
@@ -219,7 +179,9 @@ export const handleLogin: AppRouteHandler<LoginRoute> = async (c) => {
 
   return c.json(
     {
+      success: true,
       message: `Login successful`,
+      user: res.data.user,
     },
     HttpStatusCodes.OK,
   );
@@ -228,7 +190,7 @@ export const handleLogin: AppRouteHandler<LoginRoute> = async (c) => {
 export const handleLogout: AppRouteHandler<LogoutRoute> = async (c) => {
   const { userId, sessionId } = c.var.user;
 
-  await logoutUser<keyof LogoutRoute["responses"]>(
+  await logoutUser(
     {
       dbInstance: db,
       redisClient: redis,
@@ -242,7 +204,13 @@ export const handleLogout: AppRouteHandler<LogoutRoute> = async (c) => {
 
   deleteCookie(c, "session");
 
-  return c.body(null, HttpStatusCodes.NO_CONTENT);
+  return c.json(
+    {
+      message: "Logout successful",
+      success: true,
+    },
+    HttpStatusCodes.OK,
+  );
 };
 
 export const handleSendForgotPasswordEmail: AppRouteHandler<
@@ -250,9 +218,7 @@ export const handleSendForgotPasswordEmail: AppRouteHandler<
 > = async (c) => {
   const body = c.req.valid("json");
 
-  const res = await sendForgotPasswordEmail<
-    keyof SendForgotPasswordEmailRoute["responses"]
-  >(
+  const res = await sendForgotPasswordEmail(
     {
       dbInstance: db,
       redisClient: redis,
@@ -265,24 +231,23 @@ export const handleSendForgotPasswordEmail: AppRouteHandler<
     body,
   );
 
-  if (res.status === HttpStatusCodes.FORBIDDEN) {
-    return c.json(
-      { message: "Access denied (e.g., account banned, inactive)" },
-      HttpStatusCodes.FORBIDDEN,
-    );
-  }
-
-  if (res.status === HttpStatusCodes.CONFLICT) {
+  if (res.success === false) {
     return c.json(
       {
-        message: "Password reset request already in progress for this email.",
+        message: res.error.message,
         success: false,
       },
-      HttpStatusCodes.CONFLICT,
+      HttpStatusCodes[res.error.kind],
     );
   }
 
-  return c.body(null, HttpStatusCodes.NO_CONTENT);
+  return c.json(
+    {
+      message: "Email sent to the recipient",
+      success: true,
+    },
+    HttpStatusCodes.OK,
+  );
 };
 
 export const handleForgotPasswordRoute: AppRouteHandler<
@@ -290,7 +255,7 @@ export const handleForgotPasswordRoute: AppRouteHandler<
 > = async (c) => {
   const body = c.req.valid("json");
 
-  const res = await forgotPassword<keyof ForgotPasswordRoute["responses"]>(
+  const res = await forgotPassword(
     {
       dbInstance: db,
       redisClient: redis,
@@ -303,28 +268,18 @@ export const handleForgotPasswordRoute: AppRouteHandler<
     body,
   );
 
-  if (res.status === HttpStatusCodes.CONFLICT) {
+  if (res.success === false) {
     return c.json(
       {
-        message: "Password reset request already in progress for this email.",
+        message: res.error.message,
         success: false,
       },
-      HttpStatusCodes.CONFLICT,
-    );
-  }
-
-  if (res.status === HttpStatusCodes.BAD_REQUEST) {
-    return c.json(
-      {
-        message: "Invalid token or expired token",
-        success: false,
-      },
-      HttpStatusCodes.BAD_REQUEST,
+      HttpStatusCodes[res.error.kind],
     );
   }
 
   if (res.data) {
-    const { token, expiresAt } = res.data;
+    const { token, expiresAt, user } = res.data;
 
     setCookie(c, "session", token, {
       httpOnly: true,
@@ -334,11 +289,20 @@ export const handleForgotPasswordRoute: AppRouteHandler<
       maxAge: SESSION_EXPIRATION_TIME / 1000,
       expires: expiresAt,
     });
+
+    return c.json(
+      {
+        message: "Password successfully reset",
+        user,
+      },
+      HttpStatusCodes.OK,
+    );
   }
 
   return c.json(
     {
-      message: "Password successfully reset",
+      message:
+        "Password successfully reset, please login with the new password",
     },
     HttpStatusCodes.OK,
   );

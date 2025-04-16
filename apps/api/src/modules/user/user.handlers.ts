@@ -28,7 +28,7 @@ import env from "@/env";
 export const handleGetProfile: AppRouteHandler<GetProfileRoute> = async (c) => {
   const { userId } = c.var.user;
 
-  const res = await getProfile<keyof GetProfileRoute["responses"]>(
+  const res = await getProfile(
     {
       dbInstance: db,
       logger,
@@ -38,19 +38,20 @@ export const handleGetProfile: AppRouteHandler<GetProfileRoute> = async (c) => {
     userId,
   );
 
-  if (res.status === HttpStatusCodes.NOT_FOUND) {
+  if (res.success === false) {
     return c.json(
       {
-        message: "Account does not exist",
         success: false,
+        message: res.error.message,
       },
-      HttpStatusCodes.NOT_FOUND,
+      HttpStatusCodes[res.error.kind],
     );
   }
 
   return c.json(
     {
-      userInfo: res.body,
+      success: true,
+      userInfo: res.data,
     },
     HttpStatusCodes.OK,
   );
@@ -67,7 +68,7 @@ export const handleUpdateProfile: AppRouteHandler<UpdateProfileRoute> = async (
 
   const { userId: currentUserId } = c.var.user;
 
-  const res = await updateProfile<keyof UpdateProfileRoute["responses"]>(
+  const res = await updateProfile(
     {
       dbInstance: db,
       redisClient: redis,
@@ -87,23 +88,13 @@ export const handleUpdateProfile: AppRouteHandler<UpdateProfileRoute> = async (
     },
   );
 
-  if (res.status === HttpStatusCodes.NOT_FOUND) {
+  if (res.success === false) {
     return c.json(
       {
-        message: "Account does not exist",
+        message: res.error.message,
         success: false,
       },
-      HttpStatusCodes.NOT_FOUND,
-    );
-  }
-
-  if (res.status === HttpStatusCodes.CONFLICT) {
-    return c.json(
-      {
-        message: "Username is already taken",
-        success: false,
-      },
-      HttpStatusCodes.CONFLICT,
+      HttpStatusCodes[res.error.kind],
     );
   }
 
@@ -115,7 +106,7 @@ export const handleGetPreferences: AppRouteHandler<
 > = async (c) => {
   const { userId } = c.var.user;
 
-  const res = await getPreferences<keyof GetPreferencesRoute["responses"]>(
+  const res = await getPreferences(
     {
       dbInstance: db,
       logger,
@@ -125,19 +116,20 @@ export const handleGetPreferences: AppRouteHandler<
     userId,
   );
 
-  if (res.status === HttpStatusCodes.NOT_FOUND) {
+  if (res.success === false) {
     return c.json(
       {
-        message: "Account does not exist",
         success: false,
+        message: res.error.message,
       },
-      HttpStatusCodes.NOT_FOUND,
+      HttpStatusCodes[res.error.kind],
     );
   }
 
   return c.json(
     {
-      userPreferences: res.body,
+      success: true,
+      userPreferences: res.data,
     },
     HttpStatusCodes.OK,
   );
@@ -150,9 +142,7 @@ export const handleUpdatePreferences: AppRouteHandler<
 
   const { userId } = c.var.user;
 
-  const res = await updatePreferences<
-    keyof UpdatePreferencesRoute["responses"]
-  >(
+  const res = await updatePreferences(
     {
       dbInstance: db,
       logger,
@@ -165,13 +155,13 @@ export const handleUpdatePreferences: AppRouteHandler<
     },
   );
 
-  if (res.status === HttpStatusCodes.NOT_FOUND) {
+  if (res.success === false) {
     return c.json(
       {
-        message: "Account does not exist",
+        message: res.error.message,
         success: false,
       },
-      HttpStatusCodes.NOT_FOUND,
+      HttpStatusCodes[res.error.kind],
     );
   }
 
@@ -183,9 +173,7 @@ export const handleCompleteOnboarding: AppRouteHandler<
 > = async (c) => {
   const { userId } = c.var.user;
 
-  const res = await completeOnboarding<
-    keyof CompleteOnboardingRoute["responses"]
-  >(
+  const res = await completeOnboarding(
     {
       dbInstance: db,
       logger,
@@ -197,33 +185,13 @@ export const handleCompleteOnboarding: AppRouteHandler<
     },
   );
 
-  if (res.status === HttpStatusCodes.NOT_FOUND) {
+  if (res.success === false) {
     return c.json(
       {
-        message: "Account does not exist",
+        message: res.error.message,
         success: false,
       },
-      HttpStatusCodes.NOT_FOUND,
-    );
-  }
-
-  if (res.status === HttpStatusCodes.CONFLICT) {
-    return c.json(
-      {
-        message: "User already onboarded",
-        success: false,
-      },
-      HttpStatusCodes.CONFLICT,
-    );
-  }
-
-  if (res.status === HttpStatusCodes.BAD_REQUEST) {
-    return c.json(
-      {
-        message: "Please provide all required information",
-        success: false,
-      },
-      HttpStatusCodes.BAD_REQUEST,
+      HttpStatusCodes[res.error.kind],
     );
   }
 
@@ -235,7 +203,7 @@ export const handleGetUserDraft: AppRouteHandler<GetUserDraftRoute> = async (
 ) => {
   const { userId } = c.var.user;
 
-  const res = await getUserDraft<keyof GetUserDraftRoute["responses"]>(
+  const res = await getUserDraft(
     {
       dbInstance: db,
       redisClient: redis,
@@ -248,29 +216,19 @@ export const handleGetUserDraft: AppRouteHandler<GetUserDraftRoute> = async (
     },
   );
 
-  if (res.status === HttpStatusCodes.NOT_FOUND) {
+  if (res.success === false) {
     return c.json(
       {
-        message: "Account information is missing",
+        message: res.error.message,
         success: false,
       },
-      HttpStatusCodes.NOT_FOUND,
-    );
-  }
-
-  if (res.status === HttpStatusCodes.CONFLICT) {
-    return c.json(
-      {
-        message: "Data is already cached",
-        success: false,
-      },
-      HttpStatusCodes.CONFLICT,
+      HttpStatusCodes[res.error.kind],
     );
   }
 
   return c.json(
     {
-      userInfo: res?.body,
+      userInfo: res.data,
     },
     HttpStatusCodes.OK,
   );
@@ -282,7 +240,7 @@ export const handleUpdateUserDraft: AppRouteHandler<
   const { userId } = c.var.user;
   const body = c.req.valid("json");
 
-  await updateUserDraft<keyof UpdateUserDraftRoute["responses"]>(
+  await updateUserDraft(
     {
       dbInstance: db,
       redisClient: redis,
