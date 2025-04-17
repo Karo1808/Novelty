@@ -21,39 +21,51 @@ export async function verifyHash(
   return await verify(hashedPassword, password);
 }
 
-export function encryptString(input: string): string {
-  const iv = crypto.randomBytes(16);
+export function encryptString(plainText: string): string {
   // eslint-disable-next-line node/no-process-env
   const encryptionKey = process.env.ENCRYPTION_KEY!;
+  const iv = crypto.randomBytes(12);
 
   const cipher = crypto.createCipheriv(
-    "aes-256-cbc",
+    "aes-256-gcm",
     Buffer.from(encryptionKey, "utf8"),
     iv,
   );
 
-  let encrypted = cipher.update(input, "utf8", "hex");
+  let encrypted = cipher.update(plainText, "utf8", "hex");
   encrypted += cipher.final("hex");
 
-  return `${iv.toString("hex")}:${encrypted}`;
+  const authTag = cipher.getAuthTag();
+
+  return `${iv.toString("hex")}:${encrypted}:${authTag.toString("hex")}`;
 }
 
 export function decryptString(encryptedInput: string): string {
   // eslint-disable-next-line node/no-process-env
   const encryptionKey = process.env.ENCRYPTION_KEY!;
 
-  const [ivHex, encryptedData] = encryptedInput.split(":");
-  if (!ivHex || !encryptedData) {
-    throw new Error("Invalid encrypted input format.");
+  const parts = encryptedInput.split(":");
+  if (parts.length !== 3) {
+    throw new Error(
+      "Invalid encrypted input format. Expected iv:encrypted:authTag.",
+    );
+  }
+  const [ivHex, encryptedData, authTagHex] = parts;
+
+  if (!ivHex || !encryptedData || !authTagHex) {
+    throw new Error("Invalid encrypted input format. Missing parts.");
   }
 
   const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
 
   const decipher = crypto.createDecipheriv(
-    "aes-256-cbc",
+    "aes-256-gcm",
     Buffer.from(encryptionKey, "utf8"),
     iv,
   );
+
+  decipher.setAuthTag(authTag);
 
   let decrypted = decipher.update(encryptedData, "hex", "utf8");
   decrypted += decipher.final("utf8");

@@ -1,7 +1,6 @@
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
 import { encodeBase32LowerCaseNoPadding } from "@oslojs/encoding";
 import type { ServiceDependencies } from "./types";
-import { prepareDependencies } from "./lib/utils";
 import {
   addToSet,
   deleteByKey,
@@ -37,8 +36,6 @@ export const createSession = async (
   token: string,
   userId: string,
 ) => {
-  const deps = prepareDependencies(dependencies, "dbInstance");
-
   const sessionId = encodeToken(token);
 
   const session: Session = {
@@ -55,9 +52,9 @@ export const createSession = async (
     expires_at: new Date(expiresAt),
   });
 
-  await setWithExpiry(deps, key, value, expiresAt);
+  await setWithExpiry(dependencies, key, value, expiresAt);
 
-  await addToSet(deps, `user_sessions:${userId}`, sessionId);
+  await addToSet(dependencies, `user_sessions:${userId}`, sessionId);
 
   return session;
 };
@@ -70,10 +67,8 @@ export const invalidateSession = async (
   sessionId: string,
   userId: string,
 ): Promise<void> => {
-  const deps = prepareDependencies(dependencies, "dbInstance");
-
-  await deleteByKey(deps, `session:${sessionId}`);
-  await removeFromSet(deps, `user_sessions:${userId}`, sessionId);
+  await deleteByKey(dependencies, `session:${sessionId}`);
+  await removeFromSet(dependencies, `user_sessions:${userId}`, sessionId);
 };
 
 export const rotateSessionToken = async (
@@ -99,17 +94,15 @@ export const rotateSessionToken = async (
 export const validateSessionToken = async (
   dependencies: MarkKeysAsPartial<
     ServiceDependencies,
-    ["dbInstance", "messageQueueInstance"]
+    ["messageQueueInstance"]
   >,
   token: string,
 ): Promise<Session | null> => {
-  const deps = prepareDependencies(dependencies, "dbInstance");
-
   const sessionId = encodeToken(token);
 
   const key = `session:${sessionId}`;
 
-  const item = await getByKey(deps, key);
+  const item = await getByKey(dependencies, key);
   if (item === null) {
     return null;
   }
@@ -123,14 +116,14 @@ export const validateSessionToken = async (
   };
 
   if (Date.now() >= session.expiresAt.getTime()) {
-    await deleteByKey(deps, key);
-    await removeFromSet(deps, key, sessionId);
+    await deleteByKey(dependencies, key);
+    await removeFromSet(dependencies, key, sessionId);
     return null;
   }
 
   if (Date.now() >= session.expiresAt.getTime() - SESSION_RENEWAL_TIME) {
     const { session: newSession, token: newToken } = await rotateSessionToken(
-      deps,
+      dependencies,
       session,
     );
     session = newSession;
@@ -147,14 +140,15 @@ export const invalidateAllSessions = async (
   >,
   userId: string,
 ): Promise<void> => {
-  const deps = prepareDependencies(dependencies, "dbInstance");
-
-  const sessionIds = await getSetMembers(deps, `user_sessions:${userId}`);
+  const sessionIds = await getSetMembers(
+    dependencies,
+    `user_sessions:${userId}`,
+  );
   if (sessionIds.length < 1) {
     return;
   }
 
-  const pipeline = deps.redisClient.pipeline();
+  const pipeline = dependencies.redisClient.pipeline();
 
   for (const sessionId of sessionIds) {
     pipeline.unlink(`session:${sessionId}`);
