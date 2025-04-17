@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { selectUserSchema } from "@novelty/db/schemas/user.schema";
+import { selectUserWithInfoSchema } from "@novelty/db/lib/types";
 
 export const registerCreatedSchema = z
   .object({
@@ -34,12 +35,10 @@ export const registerConflictSchema = z
 export const sendVerificationEmailSuccessSchema = z
   .object({
     message: z.string(),
-    encryptedUserId: z.string(),
   })
   .openapi({
     example: {
       message: "Email verification sent successfully",
-      encryptedUserId: "encrypted_user_id",
     },
   });
 
@@ -59,7 +58,7 @@ export const sendVerificationEmailConflictSchema = z
   })
   .openapi({
     example: {
-      message: "This email has already been verified",
+      message: "Another process is already handling this email",
     },
   });
 
@@ -106,10 +105,31 @@ export const verifyEmailConflictSchema = z
 export const loginSuccessSchema = z
   .object({
     message: z.string(),
+    user: selectUserWithInfoSchema,
   })
   .openapi({
     example: {
       message: "Login successful",
+      user: {
+        id: "V1StGXR8_Z5jdHi6B-myT",
+        email: "email@mail.com",
+        isEmailVerified: false,
+        createdAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        updatedAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        isOnboarded: false,
+        userInfo: {
+          profile: {
+            avatarUrl: "avatar:url",
+            bio: "some-bio",
+            username: "username",
+          },
+          preferences: {
+            genres: ["fantasy", "sc-fi", "romance"],
+            authors: ["Brandon Sanderson", "Stephen King"],
+            series: ["Mistborn", "The Dark Tower"],
+          },
+        },
+      },
     },
   });
 
@@ -120,6 +140,16 @@ export const loginUnauthorizedSchema = z
   .openapi({
     example: {
       message: "Invalid credentials",
+    },
+  });
+
+export const logoutSuccessSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Logout successful",
     },
   });
 
@@ -140,5 +170,36 @@ export const forgotPasswordSuccessSchema = z
   .openapi({
     example: {
       message: "Password successfully reset",
+    },
+  });
+
+export const forgotPasswordSchema = z
+  .object({
+    message: z.string(),
+    user: selectUserWithInfoSchema.optional(),
+  })
+  .openapi({
+    example: {
+      message: "Email verified",
+      user: {
+        id: "V1StGXR8_Z5jdHi6B-myT",
+        email: "email@mail.com",
+        isEmailVerified: false,
+        createdAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        updatedAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        isOnboarded: false,
+        userInfo: {
+          profile: {
+            avatarUrl: "avatar:url",
+            bio: "some-bio",
+            username: "username",
+          },
+          preferences: {
+            genres: ["fantasy", "sc-fi", "romance"],
+            authors: ["Brandon Sanderson", "Stephen King"],
+            series: ["Mistborn", "The Dark Tower"],
+          },
+        },
+      },
     },
   });

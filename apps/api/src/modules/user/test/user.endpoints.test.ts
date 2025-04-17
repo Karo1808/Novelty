@@ -141,7 +141,10 @@ describe("user routes", () => {
 
       const profileData = await response.json();
 
-      expect(profileData).toEqual({ userInfo: dummyUserInfo.profile });
+      expect(profileData).toEqual({
+        success: true,
+        userInfo: dummyUserInfo.profile,
+      });
     });
 
     it("should handle not found", async () => {
@@ -373,6 +376,7 @@ describe("user routes", () => {
       const profileData = await response.json();
 
       expect(profileData).toEqual({
+        success: true,
         userPreferences: dummyUserInfo.preferences,
       });
     });

@@ -1,26 +1,20 @@
-import type { ServiceDependencies, ServiceResponse } from "./types";
+import type { ErrorResponse, Result, ServiceDependencies } from "./types";
 import type { InsertUser, SelectUser } from "@novelty/db/schemas/user.schema";
+import type { SelectUserWithInfo } from "@novelty/db/lib/types";
 import {
   createUserQuery,
-  getIsEmailVerifiedQuery,
   getUserByEmailQuery,
   getUserByIdQuery,
   updateUserByIdQuery,
 } from "@novelty/db/queries/auth.query";
 import {
-  constantTimeCompare,
-  decryptString,
   encodeToken,
-  encryptString,
   generatePasswordResetToken,
   hashString,
   verifyHash,
 } from "@novelty/lib/auth/cryptography";
 import { QueryExecutionError } from "@novelty/db/lib/errors";
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
-import { prepareDependencies } from "./lib/utils";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import type { HttpStatusCodeValue } from "@novelty/lib/http-status-codes";
 import { generateVerificationToken } from "@novelty/lib/generate-verification-token";
 import {
   acquireLock,
@@ -56,190 +50,214 @@ import {
 } from "./session.service";
 import { getUserInfoQuery } from "@novelty/db/queries/user.query";
 
-export const registerUser = async <TStatusCodes extends HttpStatusCodeValue>(
+export type RegisterUserError = ErrorResponse<"CONFLICT">;
+
+export const registerUser = async (
   dependencies: MarkKeysAsPartial<
     ServiceDependencies,
     ["redisClient", "messageQueueInstance"]
   >,
   body: InsertUser["register"],
-): Promise<ServiceResponse<TStatusCodes> & { body?: SelectUser }> => {
-  const deps = prepareDependencies(dependencies, "redisClient");
-
-  const existingUser = await getUserByEmailQuery(deps, body.email);
+): Promise<Result<SelectUser, RegisterUserError>> => {
+  const existingUser = await getUserByEmailQuery(dependencies, body.email);
 
   if (existingUser) {
-    return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+    return {
+      success: false,
+      error: {
+        kind: "CONFLICT",
+        message: "An account with that email already exists.",
+      },
+    };
   }
 
   const hashedPassword = await hashString(body.password as string);
 
-  let newUser;
   try {
-    [newUser] = await createUserQuery(deps, {
+    const [newUser] = await createUserQuery(dependencies, {
       email: body.email,
       password: hashedPassword,
     });
+
+    if (!newUser || typeof newUser !== "object") {
+      throw new QueryExecutionError("Failed to create user.");
+    }
+
+    return {
+      success: true,
+      data: newUser,
+    };
   }
   catch (err: any) {
     if (
       err?.message
       && err.message.includes("duplicate key value violates unique constraint")
     ) {
-      return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
+      return {
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: "An account with that email already exists.",
+        },
+      };
     }
-    throw new QueryExecutionError("Failed to create user", err);
-  }
 
-  if (!newUser || typeof newUser !== "object") {
-    throw new QueryExecutionError(
-      "Failed to create user",
-      new Error("Unknown error"),
-    );
+    throw err;
   }
-
-  return {
-    status: HttpStatusCodes.CREATED as TStatusCodes,
-    body: newUser,
-  };
 };
 
-export const sendVerificationEmail = async <
-  TStatusCodes extends HttpStatusCodeValue,
->(
+export type SendVerificationEmailError =
+  | ErrorResponse<"CONFLICT">
+  | ErrorResponse<"NOT_FOUND">;
+
+export const sendVerificationEmail = async (
   dependencies: Required<Omit<ServiceDependencies, "s3Client" | "bucketName">>,
   body: InsertUser["sendEmail"],
-): Promise<ServiceResponse<TStatusCodes> & { body?: string }> => {
-  const dbDependencies = prepareDependencies(dependencies, "redisClient");
-  const redisDependencies = prepareDependencies(dependencies, "dbInstance");
-
+): Promise<Result<undefined, SendVerificationEmailError>> => {
   const lockKey = `lock:send-email-verification:${body.email}`;
   const ttl = LOCK_TTL;
 
-  const lock = await acquireLock(redisDependencies, lockKey, ttl);
+  const lock = await acquireLock(dependencies, lockKey, ttl);
 
   if (!lock) {
     return {
-      status: HttpStatusCodes.CONFLICT as TStatusCodes,
+      success: false,
       error: {
-        name: "Locker failure",
+        kind: "CONFLICT",
         message: "Another process is already handling this email",
       },
     };
   }
   try {
-    const user = await getUserByEmailQuery(dbDependencies, body.email);
+    const user = await getUserByEmailQuery(dependencies, body.email);
 
     if (!user) {
-      return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
+      dependencies.logger.error({
+        message: "User not found",
+        source: "sendVerificationEmail",
+        email: body.email,
+        reqId: dependencies.reqId,
+      });
+      return {
+        success: false,
+        error: {
+          kind: "NOT_FOUND",
+          message: "User not found",
+        },
+      };
     }
 
-    if (user.isEmailVerified === true) {
-      return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
-    }
-
-    const encryptedId = encryptString(user.id);
+    const isVerified = user.isEmailVerified;
 
     const token = generateVerificationToken(VERIFICATION_EMAIL_TOKEN_LENGTH);
 
-    const redisKey = `verify-email:${encryptedId}`;
+    const redisKey = `verify-email:${user.email}`;
 
     await setWithExpiry(
-      redisDependencies,
+      dependencies,
       redisKey,
       token,
       VERIFICATION_EMAIL_EXPIRY_TIME,
     );
 
     try {
-      await addJobToQueue(
-        dependencies.messageQueueInstance!,
-        "send-verification-email",
-        {
-          email: body.email,
-          token,
-        },
-        {
-          jobId: dependencies.reqId,
-          removeOnComplete: {
-            age: EMAIL_QUEUE_COMPLETED_JOBS_TIME,
-            count: EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
+      if (!isVerified) {
+        await addJobToQueue(
+          dependencies.messageQueueInstance!,
+          "send-verification-email",
+          {
+            email: body.email,
+            token,
           },
-          removeOnFail: {
-            age: EMAIL_QUEUE_REMOVED_JOBS_TIME,
-            count: EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
+          {
+            jobId: dependencies.reqId,
+            removeOnComplete: {
+              age: EMAIL_QUEUE_COMPLETED_JOBS_TIME,
+              count: EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
+            },
+            removeOnFail: {
+              age: EMAIL_QUEUE_REMOVED_JOBS_TIME,
+              count: EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
+            },
           },
-        },
-      );
+        );
+      }
+      else {
+        await deleteByKey(dependencies, redisKey);
+      }
     }
     catch (err: unknown) {
-      await deleteByKey(redisDependencies, redisKey);
+      await deleteByKey(dependencies, redisKey);
       throw new EnqueuingError("send-verification-email", err as Error);
     }
 
     return {
-      status: HttpStatusCodes.OK as TStatusCodes,
-      body: encryptedId,
+      success: true,
+      data: undefined,
     };
   }
   finally {
     if (lock) {
-      await releaseLock(redisDependencies, lock);
+      await releaseLock(dependencies, lock);
     }
   }
 };
 
-export const verifyEmail = async <TStatusCodes extends HttpStatusCodeValue>(
+export type VerifyEmailError =
+  | ErrorResponse<"CONFLICT">
+  | ErrorResponse<"NOT_FOUND">
+  | ErrorResponse<"BAD_REQUEST">;
+
+export const verifyEmail = async (
   dependencies: MarkKeysAsPartial<
     ServiceDependencies,
     ["messageQueueInstance"]
   >,
   body: VerifyEmailBodySchema,
-): Promise<
-  ServiceResponse<TStatusCodes> & {
-    data?: {
-      sessionToken: string;
-      expiresAt: Date;
+): Promise<Result<undefined, VerifyEmailError>> => {
+  const { email, verificationCode } = body;
+
+  const key = `verify-email:${email}`;
+
+  const redisVerificationCode = await getByKey(dependencies, key);
+
+  if (!redisVerificationCode || redisVerificationCode !== verificationCode) {
+    return {
+      success: false,
+      error: {
+        kind: "BAD_REQUEST",
+        message: "The code is incorrect or it has already expired",
+      },
     };
   }
-> => {
-  const dbDependencies = prepareDependencies(dependencies, "redisClient");
-  const redisDependencies = prepareDependencies(dependencies, "dbInstance");
 
-  const { encryptedUserId, verificationCode } = body;
+  const queryResult = await getUserByEmailQuery(dependencies, email);
 
-  const redisVerificationCode = await getByKey(
-    redisDependencies,
-    `verify-email:${encryptedUserId}`,
-  );
-
-  if (!redisVerificationCode) {
-    constantTimeCompare("", "");
-    return { status: HttpStatusCodes.BAD_REQUEST as TStatusCodes };
+  if (queryResult === undefined || !queryResult) {
+    return {
+      success: false,
+      error: {
+        kind: "NOT_FOUND",
+        message: "User with that email does not exist",
+      },
+    };
   }
 
-  if (!constantTimeCompare(redisVerificationCode ?? "", verificationCode)) {
-    return { status: HttpStatusCodes.BAD_REQUEST as TStatusCodes };
+  if (queryResult.isEmailVerified) {
+    await deleteByKey(dependencies, key);
+    return {
+      success: false,
+      error: {
+        kind: "CONFLICT",
+        message: "Email already verified",
+      },
+    };
   }
 
-  const userId = decryptString(encryptedUserId);
-
-  const queryResult = await getIsEmailVerifiedQuery(
-    dbDependencies,
-    "id",
-    userId,
-  );
-
-  if (queryResult === undefined) {
-    return { status: HttpStatusCodes.NOT_FOUND as TStatusCodes };
-  }
-
-  if (queryResult?.isEmailVerified) {
-    await deleteByKey(redisDependencies, `verify-email:${encryptedUserId}`);
-    return { status: HttpStatusCodes.CONFLICT as TStatusCodes };
-  }
+  const userId = queryResult.id;
 
   const [updatedUser] = await updateUserByIdQuery(
-    dbDependencies,
+    dependencies,
     { isEmailVerified: true },
     userId,
   );
@@ -248,32 +266,16 @@ export const verifyEmail = async <TStatusCodes extends HttpStatusCodeValue>(
     throw new QueryExecutionError("Failed to update user");
   }
 
-  await deleteByKey(redisDependencies, `verify-email:${encryptedUserId}`);
-
-  const sessionToken = generateSessionToken();
-
-  const { expiresAt } = await createSession(
-    redisDependencies,
-    sessionToken,
-    userId,
-  );
+  await deleteByKey(dependencies, key);
 
   return {
-    status: HttpStatusCodes.OK as TStatusCodes,
-    data: {
-      sessionToken,
-      expiresAt,
-    },
+    success: true,
+    data: undefined,
   };
 };
 
 interface AuthenticatedSessionResponseData {
-  user: {
-    id: string;
-    isEmailVerified: boolean;
-    isOnboarded: boolean;
-    userInfo: Record<string, unknown>;
-  };
+  user: SelectUserWithInfo;
   token: string;
   expiresAt: Date;
 }
@@ -281,11 +283,7 @@ interface AuthenticatedSessionResponseData {
 export const createAuthenticatedSessionResponse = async (
   dependencies: MarkKeysAsPartial<ServiceDependencies, "messageQueueInstance">,
   userId: string,
-): Promise<{
-  token: string;
-  expiresAt: Date;
-  user: AuthenticatedSessionResponseData["user"];
-}> => {
+): Promise<AuthenticatedSessionResponseData> => {
   const sessionToken = generateSessionToken();
   const { expiresAt } = await createSession(dependencies, sessionToken, userId);
 
@@ -293,7 +291,7 @@ export const createAuthenticatedSessionResponse = async (
   if (!fullUserInfo || !fullUserInfo.userInfo) {
     dependencies.logger.error({
       message: "User info not found after successful authentication step",
-      source: "_createAuthenticatedSessionResponse",
+      source: "createAuthenticatedSessionResponse",
       userId,
       reqId: dependencies.reqId,
     });
@@ -302,26 +300,41 @@ export const createAuthenticatedSessionResponse = async (
   }
 
   return {
+    user: {
+      id: userId,
+      email: fullUserInfo.email,
+      isEmailVerified: fullUserInfo.isEmailVerified,
+      isOnboarded: fullUserInfo.isOnboarded,
+      userInfo: {
+        profile: {
+          avatarUrl: fullUserInfo.userInfo.avatarUrl,
+          bio: fullUserInfo.userInfo.bio,
+          username: fullUserInfo.userInfo.username,
+        },
+        // @ts-expect-error: 'preferences is json'
+        preferences: fullUserInfo.userInfo.preferences,
+      },
+    },
     token: sessionToken,
     expiresAt,
-    user: fullUserInfo as AuthenticatedSessionResponseData["user"],
   };
 };
 
-export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
+export type LoginUserError =
+  | ErrorResponse<"UNAUTHORIZED">
+  | ErrorResponse<"FORBIDDEN">;
+
+export const loginUser = async (
   dependencies: MarkKeysAsPartial<ServiceDependencies, "messageQueueInstance">,
   body: InsertUser["login"],
-): Promise<
-  ServiceResponse<TStatusCodes> & { data?: AuthenticatedSessionResponseData }
-> => {
+): Promise<Result<AuthenticatedSessionResponseData, LoginUserError>> => {
   const { email, password } = body;
 
   const user = await getUserByEmailQuery(dependencies, email, true);
 
-  const blacklistKey = `blacklist`;
   const isBlacklisted = await hexistsQuery(
     dependencies,
-    blacklistKey,
+    BLACKLIST_KEY,
     user?.id ?? "",
   );
 
@@ -332,7 +345,14 @@ export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
       email,
       reqId: dependencies.reqId,
     });
-    return { status: HttpStatusCodes.FORBIDDEN as TStatusCodes };
+
+    return {
+      success: false,
+      error: {
+        kind: "FORBIDDEN",
+        message: "Access denied (e.g., account banned, inactive)",
+      },
+    };
   }
 
   let passwordMatch = false;
@@ -345,7 +365,7 @@ export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
       await verifyHash(password, DUMMY_PASSWORD_HASH);
     }
     catch (dummyError: unknown) {
-      dependencies.logger.warn({
+      dependencies.logger.debug({
         message: "Ignored expected error during dummy password check",
         source: "loginUser",
         email,
@@ -362,7 +382,13 @@ export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
       reqId: dependencies.reqId,
     });
 
-    return { status: HttpStatusCodes.UNAUTHORIZED as TStatusCodes };
+    return {
+      success: false,
+      error: {
+        kind: "UNAUTHORIZED",
+        message: "Invalid credentials",
+      },
+    };
   }
 
   if (!user) {
@@ -372,7 +398,7 @@ export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
       email,
       reqId: dependencies.reqId,
     });
-    throw new Error("User data inconsistency during login.");
+    throw new QueryExecutionError("User data inconsistency during login.");
   }
 
   const sessionData = await createAuthenticatedSessionResponse(
@@ -381,44 +407,43 @@ export const loginUser = async <TStatusCodes extends HttpStatusCodeValue>(
   );
 
   return {
-    status: HttpStatusCodes.OK as TStatusCodes,
+    success: true,
     data: sessionData,
   };
 };
 
-export const logoutUser = async <TStatusCodes extends HttpStatusCodeValue>(
+export const logoutUser = async (
   dependencies: MarkKeysAsPartial<
     ServiceDependencies,
     ["messageQueueInstance", "dbInstance"]
   >,
   userId: string,
   sessionId: string,
-): Promise<ServiceResponse<TStatusCodes>> => {
+) => {
   await invalidateSession(dependencies, sessionId, userId);
-
-  return { status: HttpStatusCodes.NO_CONTENT as TStatusCodes };
 };
 
-export const sendForgotPasswordEmail = async <
-  TStatusCodes extends HttpStatusCodeValue,
->(
+export type SendForgotPasswordEmailError =
+  | ErrorResponse<"CONFLICT">
+  | ErrorResponse<"FORBIDDEN">;
+
+export const sendForgotPasswordEmail = async (
   dependencies: Required<Omit<ServiceDependencies, "s3Client" | "bucketName">>,
   body: InsertUser["sendEmail"],
-): Promise<ServiceResponse<TStatusCodes>> => {
-  const dbDependencies = prepareDependencies(dependencies, "redisClient");
+): Promise<Result<undefined, SendForgotPasswordEmailError>> => {
   const { email } = body;
 
   const lockKey = `lock:send-forgot-password-email:${email}`;
   const ttl = LOCK_TTL;
 
-  const lock = await acquireLock(dbDependencies, lockKey, ttl);
+  const lock = await acquireLock(dependencies, lockKey, ttl);
 
   if (!lock) {
     return {
-      status: HttpStatusCodes.CONFLICT as TStatusCodes,
+      success: false,
       error: {
-        name: "Locker failure",
-        message: "Password reset request already in progress for this email",
+        kind: "CONFLICT",
+        message: "Password reset request already in progress for this email.",
       },
     };
   }
@@ -439,7 +464,14 @@ export const sendForgotPasswordEmail = async <
         email,
         reqId: dependencies.reqId,
       });
-      return { status: HttpStatusCodes.FORBIDDEN as TStatusCodes };
+
+      return {
+        success: false,
+        error: {
+          kind: "FORBIDDEN",
+          message: "Access denied (e.g., account banned, inactive)",
+        },
+      };
     }
 
     const { rawToken, hashedToken } = generatePasswordResetToken();
@@ -504,7 +536,8 @@ export const sendForgotPasswordEmail = async <
     }
 
     return {
-      status: HttpStatusCodes.NO_CONTENT as TStatusCodes,
+      success: true,
+      data: undefined,
     };
   }
   finally {
@@ -512,14 +545,18 @@ export const sendForgotPasswordEmail = async <
   }
 };
 
-export const forgotPassword = async <TStatusCodes extends HttpStatusCodeValue>(
+type ForgotPasswordError =
+  | ErrorResponse<"BAD_REQUEST">
+  | ErrorResponse<"CONFLICT">;
+
+export const forgotPassword = async (
   dependencies: MarkKeysAsPartial<
     ServiceDependencies,
     ["messageQueueInstance"]
   >,
   body: ForgotPasswordBodySchema,
 ): Promise<
-  ServiceResponse<TStatusCodes> & { data?: AuthenticatedSessionResponseData }
+  Result<undefined | AuthenticatedSessionResponseData, ForgotPasswordError>
 > => {
   const { newPassword, token: rawToken } = body;
 
@@ -533,63 +570,83 @@ export const forgotPassword = async <TStatusCodes extends HttpStatusCodeValue>(
 
   if (!lock) {
     return {
-      status: HttpStatusCodes.CONFLICT as TStatusCodes,
+      success: false,
       error: {
-        name: "Locker failure",
-        message: "Password forgot request already in progress for this email",
+        kind: "CONFLICT",
+        message: "Password reset request already in progress.",
       },
     };
   }
-  const userId = await getByKey(dependencies, redisKey);
-
-  if (!userId) {
-    return {
-      status: HttpStatusCodes.BAD_REQUEST as TStatusCodes,
-    };
-  }
-
-  const user = await getUserByIdQuery(dependencies, userId);
-
-  if (!user) {
-    await deleteByKey(dependencies, redisKey);
-    return {
-      status: HttpStatusCodes.BAD_REQUEST as TStatusCodes,
-    };
-  }
-
-  const newPasswordHash = await hashString(newPassword);
-
-  await updateUserByIdQuery(
-    dependencies,
-    { password: newPasswordHash },
-    user.id,
-  );
 
   try {
-    await deleteByKey(dependencies, redisKey);
+    const userId = await getByKey(dependencies, redisKey);
 
-    await invalidateAllSessions(dependencies, user.id);
+    if (!userId) {
+      return {
+        success: false,
+        error: {
+          kind: "BAD_REQUEST",
+          message: "Invalid or expired password reset token.",
+        },
+      };
+    }
 
-    const sessionData = await createAuthenticatedSessionResponse(
+    const user = await getUserByIdQuery(dependencies, userId);
+
+    if (!user) {
+      await deleteByKey(dependencies, redisKey);
+
+      return {
+        success: false,
+        error: {
+          kind: "BAD_REQUEST",
+          message: "Invalid or expired password reset token.",
+        },
+      };
+    }
+
+    const newPasswordHash = await hashString(newPassword);
+
+    await updateUserByIdQuery(
       dependencies,
+      { password: newPasswordHash },
       user.id,
     );
 
-    return {
-      status: HttpStatusCodes.OK as TStatusCodes,
-      data: sessionData,
-    };
-  }
-  catch (redisOrSessionError) {
-    dependencies.logger.error({
-      message:
-        "Password reset successful, but failed during Redis cleanup or new session creation",
-      source: "forgotPassword",
+    try {
+      await deleteByKey(dependencies, redisKey);
 
-      userId: user.id,
-      reqId: dependencies.reqId,
-      error: redisOrSessionError,
-    });
-    return { status: HttpStatusCodes.OK as TStatusCodes };
+      await invalidateAllSessions(dependencies, user.id);
+
+      const sessionData = await createAuthenticatedSessionResponse(
+        dependencies,
+        user.id,
+      );
+
+      return {
+        success: true,
+        data: sessionData,
+      };
+    }
+    catch (redisOrSessionError) {
+      dependencies.logger.error({
+        message:
+          "Password reset successful, but failed during Redis cleanup or new session creation",
+        source: "forgotPassword",
+
+        userId: user.id,
+        reqId: dependencies.reqId,
+        error: redisOrSessionError,
+      });
+      return {
+        success: true,
+        data: undefined,
+      };
+    }
+  }
+  finally {
+    if (lock) {
+      await releaseLock(dependencies, lock);
+    }
   }
 };

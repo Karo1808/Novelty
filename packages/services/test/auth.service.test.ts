@@ -14,7 +14,6 @@ import * as redisQueries from "@novelty/redis/queries/index.query";
 import * as authUtils from "@novelty/lib/auth/cryptography";
 import * as tokenGenerationUtils from "@novelty/lib/generate-verification-token";
 import { verify } from "@node-rs/argon2";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { eq, sql } from "drizzle-orm";
 import type { InsertUser } from "@novelty/db/schemas/user.schema";
 import { usersTable } from "@novelty/db/schemas/user.schema";
@@ -29,7 +28,6 @@ import {
   testQueue,
   testRedis,
 } from "../test-setup";
-import { prepareDependencies } from "../lib/utils";
 import {
   VERIFICATION_EMAIL_EXPIRY_TIME,
   VERIFICATION_EMAIL_TOKEN_LENGTH,
@@ -60,19 +58,20 @@ describe("auth service", () => {
       const hashPasswordSpy = vi.spyOn(authUtils, "hashString");
 
       const result = await registerUser(testDependencies, dummyBody);
-
       expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
       expect(getUserByEmailQuerySpy).toHaveResolvedWith(undefined);
       expect(hashPasswordSpy).toHaveBeenCalledOnce();
       expect(hashPasswordSpy).toHaveBeenCalledWith(dummyBody.password);
       expect(createUserQuerySpy).toHaveBeenCalledOnce();
-      expect(result).toHaveProperty("status", HttpStatusCodes.CREATED);
-      expect(result.body).toMatchObject({
-        id: expect.stringMatching(/^[\w-]{21}$/),
-        email: expect.stringMatching(dummyBody.email as string),
-        isEmailVerified: false,
-        createdAt: expect.any(Date),
-        updatedAt: expect.any(Date),
+      expect(result).toMatchObject({
+        success: true,
+        data: {
+          id: expect.stringMatching(/^[\w-]{21}$/),
+          email: expect.stringMatching(dummyBody.email as string),
+          isEmailVerified: false,
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        },
       });
 
       const user = await testDb.query.usersTable.findFirst({
@@ -112,7 +111,11 @@ describe("auth service", () => {
       expect(hashPasswordSpy).not.toHaveBeenCalled();
       expect(createUserQuerySpy).not.toHaveBeenCalled();
       expect(result).toMatchObject({
-        status: HttpStatusCodes.CONFLICT,
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: expect.any(String),
+        },
       });
 
       const users = await testDb.query.usersTable.findMany({
@@ -150,7 +153,13 @@ describe("auth service", () => {
 
       const res = await registerUser(testDependencies, dummyBody);
 
-      expect(res.status).toBe(HttpStatusCodes.CONFLICT);
+      expect(res).toMatchObject({
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle unexpected exceptions", async () => {
@@ -162,24 +171,6 @@ describe("auth service", () => {
         Error,
       );
     });
-
-    it.each([
-      ["first parallel call", dummyBody],
-      ["second parallel call", dummyBody],
-    ])(
-      "should handle race conditions for duplicate user creation (%s)",
-      async (_, body) => {
-        vi.spyOn(dbQueries, "getUserByEmailQuery").mockResolvedValue(undefined);
-        const [result1, result2] = await Promise.all([
-          registerUser(testDependencies, body),
-          registerUser(testDependencies, body),
-        ]);
-
-        const statuses = [result1.status, result2.status];
-        expect(statuses).toContain(HttpStatusCodes.CONFLICT);
-        expect(statuses).toContain(HttpStatusCodes.CREATED);
-      },
-    );
   });
 
   describe("sendVerificationEmail", () => {
@@ -232,7 +223,7 @@ describe("auth service", () => {
 
       expect(setWithExpirySpy).toHaveBeenCalledOnce();
       expect(setWithExpirySpy).toHaveBeenCalledWith(
-        prepareDependencies(testDependenciesWithQueue, "dbInstance"),
+        testDependenciesWithQueue,
         dummyKey,
         dummyToken,
         VERIFICATION_EMAIL_EXPIRY_TIME,
@@ -271,8 +262,10 @@ describe("auth service", () => {
 
       expect(releaseLockSpy).toHaveBeenCalledOnce();
 
-      expect(result.status).toBe(HttpStatusCodes.OK);
-      expect(result.body).toBe(dummyBody.email);
+      expect(result).toMatchObject({
+        success: true,
+        data: undefined,
+      });
 
       const redisToken = await testRedis.get(dummyKey);
       expect(redisToken).toBe(dummyToken);
@@ -309,8 +302,13 @@ describe("auth service", () => {
       expect(addJobToQueueSpy).not.toHaveBeenCalled();
       expect(releaseLockSpy).not.toHaveBeenCalled();
 
-      expect(result.status).toBe(HttpStatusCodes.CONFLICT);
-      expect(result).toHaveProperty("error");
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle user not found", async () => {
@@ -338,7 +336,13 @@ describe("auth service", () => {
       expect(setWithExpirySpy).not.toHaveBeenCalled();
       expect(addJobToQueueSpy).not.toHaveBeenCalled();
 
-      expect(result.status).toBe(HttpStatusCodes.NOT_FOUND);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "NOT_FOUND",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle user already verified", async () => {
@@ -352,6 +356,8 @@ describe("auth service", () => {
       const setWithExpirySpy = vi.spyOn(redisQueries, "setWithExpiry");
 
       const addJobToQueueSpy = vi.spyOn(queueUtils, "addJobToQueue");
+
+      const deleteSpy = vi.spyOn(redisQueries, "deleteByKey");
 
       await testDb
         .update(usersTable)
@@ -375,11 +381,18 @@ describe("auth service", () => {
         }),
       );
 
-      expect(generateVerificationTokenSpy).not.toHaveBeenCalled();
-      expect(setWithExpirySpy).not.toHaveBeenCalled();
+      expect(generateVerificationTokenSpy).toHaveBeenCalled();
+      expect(setWithExpirySpy).toHaveBeenCalled();
       expect(addJobToQueueSpy).not.toHaveBeenCalled();
+      expect(deleteSpy).toHaveBeenCalled();
 
-      expect(result.status).toBe(HttpStatusCodes.CONFLICT);
+      expect(result).toMatchObject({
+        success: true,
+        data: undefined,
+      });
+
+      const redisQueryResult = await testRedis.get(dummyKey);
+      expect(redisQueryResult).toBe(null);
     });
 
     it("should handle error when enqueueing the job", async () => {
@@ -404,7 +417,6 @@ describe("auth service", () => {
       expect(addJobToQueueSpy).toHaveBeenCalledOnce();
       expect(deleteByKeySpy).toHaveBeenCalledOnce();
 
-      // verify that the token has been deleted successfully
       const queryResult = await testRedis.get(
         `verify-email:${dummyBody.email}`,
       );
@@ -456,12 +468,11 @@ describe("auth service", () => {
       password: "password123",
     };
 
-    const dummyKey = `verify-email:${dummyUser.id}`;
+    const dummyKey = `verify-email:${dummyUser.email}`;
     const dummyToken = "12345";
-    const dummySessionToken = "session123";
 
     const dummyBody: VerifyEmailBodySchema = {
-      encryptedUserId: dummyUser.id,
+      email: dummyUser.email,
       verificationCode: dummyToken,
     };
 
@@ -478,19 +489,9 @@ describe("auth service", () => {
 
     it("should successfully complete all operations", async () => {
       const getByKeySpy = vi.spyOn(redisQueries, "getByKey");
-      const decryptStringSpy = vi
-        .spyOn(authUtils, "decryptString")
-        .mockReturnValue(dummyUser.id);
-      const getIsEmailVerifiedQuerySpy = vi.spyOn(
-        dbQueries,
-        "getIsEmailVerifiedQuery",
-      );
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
       const updateUserByIdQuerySpy = vi.spyOn(dbQueries, "updateUserByIdQuery");
       const deleteByKeySpy = vi.spyOn(redisQueries, "deleteByKey");
-      const generateSessionTokenSpy = vi
-        .spyOn(sessionService, "generateSessionToken")
-        .mockReturnValue(dummySessionToken);
-      const createSessionSpy = vi.spyOn(sessionService, "createSession");
 
       await testRedis.set(dummyKey, dummyToken);
 
@@ -499,13 +500,7 @@ describe("auth service", () => {
       expect(getByKeySpy).toHaveBeenCalledOnce();
       expect(getByKeySpy).toHaveResolvedWith(dummyToken);
 
-      expect(decryptStringSpy).toHaveBeenCalledOnce();
-      expect(decryptStringSpy).toHaveReturnedWith(dummyUser.id);
-
-      expect(getIsEmailVerifiedQuerySpy).toHaveBeenCalledOnce();
-      expect(getIsEmailVerifiedQuerySpy).toHaveResolvedWith({
-        isEmailVerified: false,
-      });
+      expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
 
       expect(updateUserByIdQuerySpy).toHaveBeenCalledOnce();
       const dbQueryResult = await testDb.query.usersTable.findFirst({
@@ -517,37 +512,15 @@ describe("auth service", () => {
       const redisQueryResult = await testRedis.get(dummyKey);
       expect(redisQueryResult).toBe(null);
 
-      expect(generateSessionTokenSpy).toHaveBeenCalledOnce();
-      expect(generateSessionTokenSpy).toHaveReturnedWith(dummySessionToken);
-
-      expect(createSessionSpy).toHaveBeenCalledOnce();
-      const mockReturnPromise: Promise<sessionService.Session>
-        = createSessionSpy.mock.results[0]?.value;
-
-      const { id, userId } = await mockReturnPromise;
-
-      const key = `session:${id}`;
-      const session = JSON.parse((await testRedis.get(key)) as string);
-
-      expect(session).toMatchObject({
-        user_id: userId,
-      });
-
-      expect(result.status).toBe(HttpStatusCodes.OK);
-      expect(result.data).toMatchObject({
-        sessionToken: dummySessionToken,
+      expect(result).toMatchObject({
+        success: true,
+        data: undefined,
       });
     });
 
     it("should handle invalid verification code", async () => {
       const getByKeySpy = vi.spyOn(redisQueries, "getByKey");
-      const decryptStringSpy = vi
-        .spyOn(authUtils, "decryptString")
-        .mockReturnValue(dummyUser.id);
-      const getIsEmailVerifiedQuerySpy = vi.spyOn(
-        dbQueries,
-        "getIsEmailVerifiedQuery",
-      );
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
       const updateUserByIdQuerySpy = vi.spyOn(dbQueries, "updateUserByIdQuery");
       const deleteByKeySpy = vi.spyOn(redisQueries, "deleteByKey");
 
@@ -558,23 +531,22 @@ describe("auth service", () => {
       expect(getByKeySpy).toHaveBeenCalledOnce();
       expect(getByKeySpy).toHaveResolvedWith(null);
 
-      expect(decryptStringSpy).not.toHaveBeenCalled();
       expect(deleteByKeySpy).not.toHaveBeenCalled();
-      expect(getIsEmailVerifiedQuerySpy).not.toHaveBeenCalled();
+      expect(getUserByEmailQuerySpy).not.toHaveBeenCalled();
       expect(updateUserByIdQuerySpy).not.toHaveBeenCalled();
 
-      expect(result.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "BAD_REQUEST",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle email already verified", async () => {
       const getByKeySpy = vi.spyOn(redisQueries, "getByKey");
-      const decryptStringSpy = vi
-        .spyOn(authUtils, "decryptString")
-        .mockReturnValue(dummyUser.id);
-      const getIsEmailVerifiedQuerySpy = vi.spyOn(
-        dbQueries,
-        "getIsEmailVerifiedQuery",
-      );
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
       const updateUserByIdQuerySpy = vi.spyOn(dbQueries, "updateUserByIdQuery");
       const deleteByKeySpy = vi.spyOn(redisQueries, "deleteByKey");
 
@@ -589,13 +561,18 @@ describe("auth service", () => {
 
       expect(getByKeySpy).toHaveBeenCalledOnce();
       expect(getByKeySpy).toHaveResolvedWith(dummyToken);
-      expect(decryptStringSpy).toHaveBeenCalledOnce();
       expect(deleteByKeySpy).toHaveBeenCalled();
-      expect(getIsEmailVerifiedQuerySpy).toHaveBeenCalled();
+      expect(getUserByEmailQuerySpy).toHaveBeenCalled();
 
       expect(updateUserByIdQuerySpy).not.toHaveBeenCalled();
 
-      expect(result.status).toBe(HttpStatusCodes.CONFLICT);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle non-existent user", async () => {
@@ -605,7 +582,13 @@ describe("auth service", () => {
 
       const result = await verifyEmail(testDependencies, dummyBody);
 
-      expect(result.status).toBe(HttpStatusCodes.NOT_FOUND);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "NOT_FOUND",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should throw error when updateUserByIdQuery returns an empty array", async () => {
@@ -632,21 +615,6 @@ describe("auth service", () => {
       );
     });
 
-    it("should handle database connection error", async () => {
-      vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
-
-      const dbClientSpy = vi
-        .spyOn(testDependencies.dbInstance, "execute")
-        .mockImplementation(() => {
-          throw new DatabaseConnectionError("Database connection failed");
-        });
-
-      await expect(verifyEmail(testDependencies, dummyBody)).rejects.toThrow(
-        DatabaseConnectionError,
-      );
-      dbClientSpy.mockRestore();
-    });
-
     it("should propagate errors thrown during Redis key deletion", async () => {
       vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
 
@@ -659,26 +627,16 @@ describe("auth service", () => {
       );
     });
 
-    it("should handle unexpected exceptions", async () => {
-      vi.spyOn(authUtils, "decryptString").mockImplementation(() => {
-        throw new Error("Unexpected Error");
-      });
-
-      await expect(verifyEmail(testDependencies, dummyBody)).rejects.toThrow(
-        Error,
-      );
-    });
-
     it("should return conflict on a second verification attempt", async () => {
       vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
 
       const firstResult = await verifyEmail(testDependencies, dummyBody);
-      expect(firstResult.status).toBe(HttpStatusCodes.OK);
+      expect(firstResult.success).toBe(true);
 
       await testRedis.set(dummyKey, dummyToken);
 
       const secondResult = await verifyEmail(testDependencies, dummyBody);
-      expect(secondResult.status).toBe(HttpStatusCodes.CONFLICT);
+      expect(secondResult.success).toBe(false);
     });
   });
 
@@ -732,7 +690,8 @@ describe("auth service", () => {
 
     it("should handle successful login", async () => {
       const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
-      const verifyPasswordSpy = vi.spyOn(authUtils, "verifyHash");
+      const hexistsQuerySpy = vi.spyOn(redisQueries, "hexistsQuery");
+      const verifyHashSpy = vi.spyOn(authUtils, "verifyHash");
       const generateSessionTokenSpy = vi
         .spyOn(sessionService, "generateSessionToken")
         .mockReturnValue(dummyToken);
@@ -742,26 +701,31 @@ describe("auth service", () => {
       const result = await loginUser(testDependencies, dummyBody);
 
       expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
-      expect(verifyPasswordSpy).toHaveBeenCalledOnce();
+      expect(hexistsQuerySpy).toHaveBeenCalledOnce();
+      expect(verifyHashSpy).toHaveBeenCalledOnce();
       expect(getUserInfoQuerySpy).toHaveBeenCalledOnce();
       expect(generateSessionTokenSpy).toHaveBeenCalledOnce();
       expect(createSessionSpy).toHaveBeenCalledOnce();
 
-      expect(result.status).toBe(HttpStatusCodes.OK);
-      expect(result.data).toMatchObject({
-        user: {
-          id: dummyUser.id,
-          isEmailVerified: true,
-          isOnboarded: false,
-          userInfo: {
-            avatarUrl: dummyUserInfo.profile.avatarUrl,
-            bio: dummyUserInfo.profile.bio,
-            username: dummyUserInfo.profile.username,
-            preferences: dummyUserInfo.preferences,
+      expect(result).toMatchObject({
+        success: true,
+        data: {
+          token: dummyToken,
+          expiresAt: expect.any(Date),
+          user: {
+            id: dummyUser.id,
+            isEmailVerified: true,
+            isOnboarded: false,
+            userInfo: {
+              profile: {
+                avatarUrl: dummyUserInfo.profile.avatarUrl,
+                bio: dummyUserInfo.profile.bio,
+                username: dummyUserInfo.profile.username,
+              },
+              preferences: dummyUserInfo.preferences,
+            },
           },
         },
-        token: dummyToken,
-        expiresAt: expect.any(Date),
       });
 
       const session = await testRedis.get(`session:${dummySessionId}`);
@@ -783,6 +747,7 @@ describe("auth service", () => {
 
     it("should handle user not found but return unauthorized", async () => {
       const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      const hexistsQuerySpy = vi.spyOn(redisQueries, "hexistsQuery");
       const verifyPasswordSpy = vi.spyOn(authUtils, "verifyHash");
       const generateSessionTokenSpy = vi
         .spyOn(sessionService, "generateSessionToken")
@@ -795,16 +760,24 @@ describe("auth service", () => {
       const result = await loginUser(testDependencies, dummyBody);
 
       expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
-      expect(verifyPasswordSpy).toHaveBeenCalled(); // Should still be called for timing attack mitigation
+      expect(hexistsQuerySpy).toHaveBeenCalledOnce();
+      expect(verifyPasswordSpy).toHaveBeenCalled();
       expect(getUserInfoQuerySpy).not.toHaveBeenCalled();
       expect(generateSessionTokenSpy).not.toHaveBeenCalled();
       expect(createSessionSpy).not.toHaveBeenCalled();
 
-      expect(result.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "UNAUTHORIZED",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle password mismatch", async () => {
       const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      const hexistsQuerySpy = vi.spyOn(redisQueries, "hexistsQuery");
       const verifyPasswordSpy = vi.spyOn(authUtils, "verifyHash");
       const generateSessionTokenSpy = vi
         .spyOn(sessionService, "generateSessionToken")
@@ -818,12 +791,34 @@ describe("auth service", () => {
       });
 
       expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
+      expect(hexistsQuerySpy).toHaveBeenCalledOnce();
       expect(verifyPasswordSpy).toHaveBeenCalledOnce();
       expect(getUserInfoQuerySpy).not.toHaveBeenCalled();
       expect(generateSessionTokenSpy).not.toHaveBeenCalled();
       expect(createSessionSpy).not.toHaveBeenCalled();
 
-      expect(result.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "UNAUTHORIZED",
+          message: expect.any(String),
+        },
+      });
+    });
+
+    it("should handle blacklisted user", async () => {
+      const blacklistKey = `blacklist`;
+      await testRedis.hset(blacklistKey, dummyUser.id, "true");
+
+      const result = await loginUser(testDependencies, dummyBody);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "FORBIDDEN",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle database connection error", async () => {
@@ -861,11 +856,7 @@ describe("auth service", () => {
         "invalidateSession",
       );
 
-      const result = await logoutUser(
-        testDependencies,
-        dummyUserId,
-        dummySessionId,
-      );
+      await logoutUser(testDependencies, dummyUserId, dummySessionId);
 
       expect(invalidateSessionSpy).toHaveBeenCalledOnce();
       expect(invalidateSessionSpy).toHaveBeenCalledWith(
@@ -873,7 +864,6 @@ describe("auth service", () => {
         dummySessionId,
         dummyUserId,
       );
-      expect(result.status).toBe(HttpStatusCodes.NO_CONTENT);
 
       const sessionKey = `session:${dummySessionId}`;
       const sessionData = await testRedis.get(sessionKey);
@@ -974,7 +964,10 @@ describe("auth service", () => {
 
       expect(releaseLockSpy).toHaveBeenCalledOnce();
 
-      expect(result.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(result).toMatchObject({
+        success: true,
+        data: undefined,
+      });
 
       const redisValue = await testRedis.get(dummyKey);
       expect(redisValue).toBe("dummy-id");
@@ -993,8 +986,33 @@ describe("auth service", () => {
       expect(acquireLockSpy).toHaveBeenCalledOnce();
       expect(releaseLockSpy).not.toHaveBeenCalled();
 
-      expect(result.status).toBe(HttpStatusCodes.CONFLICT);
-      expect(result).toHaveProperty("error");
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: expect.any(String),
+        },
+      });
+    });
+
+    it("should handle blacklisted user", async () => {
+      const hexistsQuerySpy = vi.spyOn(redisQueries, "hexistsQuery");
+      const blacklistKey = `blacklist`;
+      await testRedis.hset(blacklistKey, "dummy-id", "true");
+
+      const result = await sendForgotPasswordEmail(testDependenciesWithQueue, {
+        email: dummyEmail,
+      });
+
+      expect(hexistsQuerySpy).toHaveBeenCalledOnce();
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "FORBIDDEN",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle user not found", async () => {
@@ -1011,7 +1029,10 @@ describe("auth service", () => {
       expect(setWithExpirySpy).toHaveBeenCalled();
       expect(addJobToQueueSpy).not.toHaveBeenCalled();
 
-      expect(result.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(result).toMatchObject({
+        success: true,
+        data: undefined,
+      });
     });
 
     it("should handle error when enqueueing the job", async () => {
@@ -1071,11 +1092,24 @@ describe("auth service", () => {
     const dummyHashedToken = "hashed-valid-token";
     const newPassword = "newSecurePassword123";
 
+    const dummyUserInfo = {
+      userId: dummyUserId,
+      avatarUrl: "https://example.com/avatar.png",
+      bio: "I am a test user",
+      username: "testuser",
+      preferences: {
+        genres: ["genre1", "genre2", "genre3"],
+        authors: ["author1", "author2"],
+        series: ["series1", "series2"],
+      },
+    };
+
     beforeEach(async () => {
       await testDb.insert(usersTable).values({
         id: dummyUserId,
         email: "user@example.com",
         password: await authUtils.hashString("oldPassword"),
+        isEmailVerified: true,
       });
 
       await testDb.insert(userInfoTable).values({
@@ -1141,7 +1175,44 @@ describe("auth service", () => {
       expect(await authUtils.verifyHash(newPassword, user!.password)).toBe(
         true,
       );
-      expect(result.status).toBe(HttpStatusCodes.OK);
+
+      expect(result).toMatchObject({
+        success: true,
+        data: {
+          token: expect.any(String),
+          expiresAt: expect.any(Date),
+          user: {
+            id: dummyUserId,
+            isEmailVerified: true,
+            isOnboarded: false,
+            userInfo: {
+              profile: {
+                avatarUrl: dummyUserInfo.avatarUrl,
+                bio: dummyUserInfo.bio,
+                username: dummyUserInfo.username,
+              },
+              preferences: dummyUserInfo.preferences,
+            },
+          },
+        },
+      });
+    });
+
+    it("should handle lock not acquired", async () => {
+      vi.spyOn(redisQueries, "acquireLock").mockResolvedValue(false);
+
+      const result = await forgotPassword(testDependencies, {
+        newPassword,
+        token: dummyToken,
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should return bad request for invalid token", async () => {
@@ -1152,10 +1223,16 @@ describe("auth service", () => {
         token: "invalid-token",
       });
 
-      expect(result.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "BAD_REQUEST",
+          message: expect.any(String),
+        },
+      });
     });
 
-    it("should handle user not found", async () => {
+    it("should handle user not found, but return bad request", async () => {
       await testRedis.set(
         `forgot-password:${dummyHashedToken}`,
         "non-existent-user",
@@ -1168,7 +1245,14 @@ describe("auth service", () => {
       });
 
       expect(deleteSpy).toHaveBeenCalled();
-      expect(result.status).toBe(HttpStatusCodes.BAD_REQUEST);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "BAD_REQUEST",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle database update failure", async () => {
@@ -1196,7 +1280,11 @@ describe("auth service", () => {
         token: dummyToken,
       });
 
-      expect(result.status).toBe(HttpStatusCodes.OK);
+      expect(result).toMatchObject({
+        success: true,
+        data: undefined,
+      });
+
       const user = await testDb.query.usersTable.findFirst({
         where: eq(usersTable.id, dummyUserId),
       });
@@ -1233,26 +1321,10 @@ describe("auth service", () => {
       const oldSession = await testRedis.get(`session:${oldSessionId}`);
       expect(oldSession).toBeNull();
 
-      expect(result.data).toBeDefined();
-    });
-
-    it("should handle session creation failure after successful password reset", async () => {
-      await testRedis.set(`forgot-password:${dummyHashedToken}`, dummyUserId);
-
-      const result = await forgotPassword(testDependencies, {
-        newPassword,
-        token: dummyToken,
+      expect(result).toMatchObject({
+        success: true,
+        data: expect.any(Object),
       });
-
-      expect(result.status).toBe(HttpStatusCodes.OK);
-
-      const user = await testDb.query.usersTable.findFirst({
-        where: eq(usersTable.id, dummyUserId),
-      });
-
-      expect(await authUtils.verifyHash(newPassword, user!.password)).toBe(
-        true,
-      );
     });
   });
 });

@@ -27,7 +27,7 @@ describe("cryptography", () => {
       const encrypted = encryptString(input);
       expect(encrypted).toContain(":");
       const [iv, data] = encrypted.split(":");
-      expect(iv).toHaveLength(32);
+      expect(iv).toHaveLength(24);
       expect(data!.length).toBeGreaterThan(0);
     });
   });

@@ -1,6 +1,7 @@
 import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
 import type { User } from "@/types/index.types";
+import { db } from "@novelty/db";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
 import {
@@ -30,6 +31,7 @@ export const authMiddleware = (): MiddlewareHandler => {
         logger,
         prometheusRegistry,
         redisClient: redis,
+        dbInstance: db,
         reqId: c.var.requestId,
       },
       sessionToken,
