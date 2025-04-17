@@ -221,7 +221,7 @@ describe("auth routes", () => {
       });
     });
 
-    it("returns not found if email does not exist", async () => {
+    it("returns ok if email does not exist", async () => {
       await testDb
         .delete(usersTable)
         .where(eq(usersTable.email, dummyBody.email));
@@ -230,15 +230,15 @@ describe("auth routes", () => {
         json: dummyBody,
       });
 
-      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+      expect(response.status).toBe(HttpStatusCodes.OK);
       const json = await response.json();
       expect(json).toMatchObject({
-        message: expect.stringMatching(/not exist/i),
-        success: false,
+        message: expect.stringMatching(/email sent/i),
+        success: true,
       });
     });
 
-    it("returns conflict if email is already verified", async () => {
+    it("returns ok if email is already verified", async () => {
       await testDb
         .update(usersTable)
         .set({ isEmailVerified: true, ...dummyBody });
@@ -247,12 +247,12 @@ describe("auth routes", () => {
         json: dummyBody,
       });
 
-      expect(response.status).toBe(HttpStatusCodes.CONFLICT);
+      expect(response.status).toBe(HttpStatusCodes.OK);
       const json = await response.json();
 
       expect(json).toMatchObject({
-        message: expect.stringMatching(/verified/i),
-        success: false,
+        message: expect.stringMatching(/email sent/i),
+        success: true,
       });
     });
 
@@ -369,15 +369,13 @@ describe("auth routes", () => {
       password: "password123",
     };
 
-    const dummyKey = `verify-email:${dummyUser.id}`;
+    const dummyKey = `verify-email:${dummyUser.email}`;
     const dummyToken = "12345";
 
     const dummyBody: VerifyEmailBodySchema = {
-      encryptedUserId: dummyUser.id,
+      email: dummyUser.email,
       verificationCode: dummyToken,
     };
-
-    const dummySessionToken = "session123";
 
     beforeEach(async () => {
       vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
@@ -392,10 +390,6 @@ describe("auth routes", () => {
     });
 
     it("handles success", async () => {
-      vi.spyOn(sessionService, "generateSessionToken").mockReturnValue(
-        dummySessionToken,
-      );
-
       const response = await client.auth["verify-email"].$post({
         json: dummyBody,
       });
@@ -408,11 +402,6 @@ describe("auth routes", () => {
         message: expect.stringMatching(/email verified/i),
         success: true,
       });
-
-      const header = response.headers.get("Set-Cookie");
-      const [_, sessionId] = header!.split(";")[0]!.split("=");
-
-      expect(sessionId).toBe(dummySessionToken);
     });
 
     it("returns not found if user does not exist", async () => {
@@ -425,7 +414,7 @@ describe("auth routes", () => {
       expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
       const json = await response.json();
       expect(json).toMatchObject({
-        message: expect.stringMatching(/not found/i),
+        message: expect.stringMatching(/not exist/i),
         success: false,
       });
     });
@@ -459,8 +448,8 @@ describe("auth routes", () => {
       const json = await response.json();
 
       expect(json).toMatchObject({
-        message: expect.stringMatching(/verified/i),
         success: false,
+        message: expect.stringMatching(/already verified/i),
       });
     });
 
@@ -484,31 +473,15 @@ describe("auth routes", () => {
     });
 
     it("returns service unavailable if database connection fails", async () => {
-      vi.spyOn(queries, "getIsEmailVerifiedQuery").mockImplementationOnce(
-        () => {
-          throw new DatabaseConnectionError("Database connection failed");
-        },
-      );
+      vi.spyOn(queries, "getUserByEmailQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
 
       const response = await client.auth["verify-email"].$post({
         json: dummyBody,
       });
 
       expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
-      const json = await response.json();
-      expect(json).toHaveProperty("message");
-    });
-
-    it("returns internal server error on unexpected error", async () => {
-      vi.spyOn(authUtils, "decryptString").mockImplementationOnce(() => {
-        throw new Error("Unexpected error");
-      });
-
-      const response = await client.auth["verify-email"].$post({
-        json: dummyBody,
-      });
-
-      expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
       const json = await response.json();
       expect(json).toHaveProperty("message");
     });
@@ -667,7 +640,7 @@ describe("auth routes", () => {
         json: { email: dummyEmail },
       });
 
-      expect(response.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(response.status).toBe(HttpStatusCodes.OK);
     });
 
     it("should return 204 No Content even if user not found (security measure)", async () => {
@@ -677,7 +650,7 @@ describe("auth routes", () => {
         json: { email: nonExistentEmail },
       });
 
-      expect(response.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(response.status).toBe(HttpStatusCodes.OK);
     });
 
     it("should return 503 Service Unavailable for database connection failure", async () => {
@@ -779,7 +752,7 @@ describe("auth routes", () => {
       for (const result of results) {
         if (result.status === "fulfilled") {
           const response = result.value;
-          if (response.status === HttpStatusCodes.NO_CONTENT) {
+          if (response.status === HttpStatusCodes.OK) {
             successCount++;
           }
           else {
@@ -1063,7 +1036,7 @@ describe("auth routes", () => {
         },
       });
 
-      expect(response.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(response.status).toBe(HttpStatusCodes.OK);
 
       const header = response.headers.get("Set-Cookie");
       expect(header).toMatch(/session=;/);

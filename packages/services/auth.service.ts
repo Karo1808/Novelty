@@ -182,6 +182,9 @@ export const sendVerificationEmail = async (
           },
         );
       }
+      else {
+        await deleteByKey(dependencies, redisKey);
+      }
     }
     catch (err: unknown) {
       await deleteByKey(dependencies, redisKey);
@@ -575,68 +578,75 @@ export const forgotPassword = async (
     };
   }
 
-  const userId = await getByKey(dependencies, redisKey);
-
-  if (!userId) {
-    return {
-      success: false,
-      error: {
-        kind: "BAD_REQUEST",
-        message: "Invalid or expired password reset token.",
-      },
-    };
-  }
-
-  const user = await getUserByIdQuery(dependencies, userId);
-
-  if (!user) {
-    await deleteByKey(dependencies, redisKey);
-
-    return {
-      success: false,
-      error: {
-        kind: "BAD_REQUEST",
-        message: "Invalid or expired password reset token.",
-      },
-    };
-  }
-
-  const newPasswordHash = await hashString(newPassword);
-
-  await updateUserByIdQuery(
-    dependencies,
-    { password: newPasswordHash },
-    user.id,
-  );
-
   try {
-    await deleteByKey(dependencies, redisKey);
+    const userId = await getByKey(dependencies, redisKey);
 
-    await invalidateAllSessions(dependencies, user.id);
+    if (!userId) {
+      return {
+        success: false,
+        error: {
+          kind: "BAD_REQUEST",
+          message: "Invalid or expired password reset token.",
+        },
+      };
+    }
 
-    const sessionData = await createAuthenticatedSessionResponse(
+    const user = await getUserByIdQuery(dependencies, userId);
+
+    if (!user) {
+      await deleteByKey(dependencies, redisKey);
+
+      return {
+        success: false,
+        error: {
+          kind: "BAD_REQUEST",
+          message: "Invalid or expired password reset token.",
+        },
+      };
+    }
+
+    const newPasswordHash = await hashString(newPassword);
+
+    await updateUserByIdQuery(
       dependencies,
+      { password: newPasswordHash },
       user.id,
     );
 
-    return {
-      success: true,
-      data: sessionData,
-    };
-  }
-  catch (redisOrSessionError) {
-    dependencies.logger.error({
-      message:
-        "Password reset successful, but failed during Redis cleanup or new session creation",
-      source: "forgotPassword",
+    try {
+      await deleteByKey(dependencies, redisKey);
 
-      userId: user.id,
-      reqId: dependencies.reqId,
-      error: redisOrSessionError,
-    });
-    return {
-      success: true,
-      data: undefined,
-    };
+      await invalidateAllSessions(dependencies, user.id);
+
+      const sessionData = await createAuthenticatedSessionResponse(
+        dependencies,
+        user.id,
+      );
+
+      return {
+        success: true,
+        data: sessionData,
+      };
+    }
+    catch (redisOrSessionError) {
+      dependencies.logger.error({
+        message:
+          "Password reset successful, but failed during Redis cleanup or new session creation",
+        source: "forgotPassword",
+
+        userId: user.id,
+        reqId: dependencies.reqId,
+        error: redisOrSessionError,
+      });
+      return {
+        success: true,
+        data: undefined,
+      };
+    }
+  }
+  finally {
+    if (lock) {
+      await releaseLock(dependencies, lock);
+    }
   }
 };
