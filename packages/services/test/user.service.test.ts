@@ -22,7 +22,6 @@ import {
   updateProfile,
   updateUserDraft,
 } from "../user.service";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
 import { Buffer } from "node:buffer";
 import type { UpdateProfile } from "lib/utils";
@@ -95,8 +94,10 @@ describe("user service", () => {
 
       expect(getProfileByUserIdQuerySpy).toHaveBeenCalledOnce();
 
-      expect(result.status).toBe(HttpStatusCodes.OK);
-      expect(result.body).toEqual(dummyUserInfo.profile);
+      expect(result).toMatchObject({
+        success: true,
+        data: dummyUserInfo.profile,
+      });
     });
 
     it("should handle no profile found", async () => {
@@ -117,7 +118,13 @@ describe("user service", () => {
 
       expect(getProfileByUserIdQuerySpy).toHaveBeenCalledOnce();
 
-      expect(result.status).toBe(HttpStatusCodes.NOT_FOUND);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "NOT_FOUND",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle database errors", async () => {
@@ -238,7 +245,10 @@ describe("user service", () => {
       );
       expect(updatedDb?.username).toBe(dummyPayload.username);
 
-      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(res).toMatchObject({
+        success: true,
+        data: undefined,
+      });
     });
 
     it("should handle existing profile, updated profile picture", async () => {
@@ -308,7 +318,10 @@ describe("user service", () => {
       );
       expect(updatedDb?.username).toBe(dummyUserInfo.profile.username);
 
-      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(res).toMatchObject({
+        success: true,
+        data: undefined,
+      });
     });
 
     it("should handle partial update (username, bio)", async () => {
@@ -362,7 +375,10 @@ describe("user service", () => {
       expect(updatedDb?.avatarUrl).toBeFalsy();
       expect(updatedDb?.username).toBe(dummyPayload.username);
 
-      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(res).toMatchObject({
+        success: true,
+        data: undefined,
+      });
     });
 
     it("should handle partial update (bio)", async () => {
@@ -414,7 +430,10 @@ describe("user service", () => {
       expect(updatedDb?.avatarUrl).toBeFalsy();
       expect(updatedDb?.username).toBe(dummyUserInfo.profile.username);
 
-      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(res).toMatchObject({
+        success: true,
+        data: undefined,
+      });
     });
 
     it("should handle user not found", async () => {
@@ -451,7 +470,13 @@ describe("user service", () => {
 
       expect(updatedDb).toBeUndefined();
 
-      expect(res.status).toBe(HttpStatusCodes.NOT_FOUND);
+      expect(res).toMatchObject({
+        success: false,
+        error: {
+          kind: "NOT_FOUND",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle username already exists", async () => {
@@ -505,7 +530,13 @@ describe("user service", () => {
 
       expect(updatedDb?.username).toBe(dummyUserInfo.profile.username);
 
-      expect(res.status).toBe(HttpStatusCodes.CONFLICT);
+      expect(res).toMatchObject({
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should rollback S3 upload when database update fails", async () => {
@@ -546,7 +577,10 @@ describe("user service", () => {
         dummyUser.id,
       );
 
-      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(res).toMatchObject({
+        success: true,
+        data: undefined,
+      });
     });
 
     it("should handle update failure", async () => {
@@ -639,8 +673,10 @@ describe("user service", () => {
 
       expect(getPreferencesByUserIdQuerySpy).toHaveBeenCalledOnce();
 
-      expect(result.status).toBe(HttpStatusCodes.OK);
-      expect(result.body).toEqual(dummyUserInfo.preferences);
+      expect(result).toMatchObject({
+        success: true,
+        data: dummyUserInfo.preferences,
+      });
     });
 
     it("should handle no profile found", async () => {
@@ -661,7 +697,13 @@ describe("user service", () => {
 
       expect(getPreferencesByUserIdQuerySpy).toHaveBeenCalledOnce();
 
-      expect(result.status).toBe(HttpStatusCodes.NOT_FOUND);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "NOT_FOUND",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle database errors", async () => {
@@ -741,7 +783,10 @@ describe("user service", () => {
 
       expect(preferences.series).toEqual(dummyPayload.series);
 
-      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(res).toMatchObject({
+        success: true,
+        data: undefined,
+      });
     });
 
     it("should handle user not found", async () => {
@@ -770,7 +815,13 @@ describe("user service", () => {
 
       expect(updatedDb).toBeUndefined();
 
-      expect(res.status).toBe(HttpStatusCodes.NOT_FOUND);
+      expect(res).toMatchObject({
+        success: false,
+        error: {
+          kind: "NOT_FOUND",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle update failure", async () => {
@@ -834,7 +885,10 @@ describe("user service", () => {
         userId: dummyUser.id,
       });
 
-      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+      expect(res).toMatchObject({
+        success: true,
+        data: undefined,
+      });
 
       const updatedUser = await testDb.query.usersTable.findFirst({
         where: eq(usersTable.id, dummyUser.id),
@@ -849,7 +903,13 @@ describe("user service", () => {
         userId: "non-existing-id",
       });
 
-      expect(res.status).toBe(HttpStatusCodes.NOT_FOUND);
+      expect(res).toMatchObject({
+        success: false,
+        error: {
+          kind: "NOT_FOUND",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should return 409 if user is already onboarded", async () => {
@@ -859,7 +919,13 @@ describe("user service", () => {
         userId: dummyUser.id,
       });
 
-      expect(res.status).toBe(HttpStatusCodes.CONFLICT);
+      expect(res).toMatchObject({
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should return 400 if user email is not verified", async () => {
@@ -869,7 +935,13 @@ describe("user service", () => {
         userId: dummyUser.id,
       });
 
-      expect(res.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      expect(res).toMatchObject({
+        success: false,
+        error: {
+          kind: "BAD_REQUEST",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should return 400 if user has no username set", async () => {
@@ -879,7 +951,13 @@ describe("user service", () => {
         userId: dummyUser.id,
       });
 
-      expect(res.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      expect(res).toMatchObject({
+        success: false,
+        error: {
+          kind: "BAD_REQUEST",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should return 400 if user has fewer than 3 genres", async () => {
@@ -891,7 +969,13 @@ describe("user service", () => {
         userId: dummyUser.id,
       });
 
-      expect(res.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      expect(res).toMatchObject({
+        success: false,
+        error: {
+          kind: "BAD_REQUEST",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle database errors", async () => {
@@ -951,8 +1035,10 @@ describe("user service", () => {
 
       expect(getByKeyJsonSpy).toHaveBeenCalledOnce();
 
-      expect(result.status).toBe(HttpStatusCodes.OK);
-      expect(result.body[0]).toEqual(dummyUserInfo);
+      expect(result).toMatchObject({
+        success: true,
+        data: [dummyUserInfo],
+      });
     });
 
     it("should handle no user info existing", async () => {
@@ -977,12 +1063,14 @@ describe("user service", () => {
       expect(getUserInfoQuerySpy).toHaveBeenCalledOnce();
       expect(setByKeyJsonSpy).toHaveBeenCalledOnce();
 
-      expect(result.status).toBe(HttpStatusCodes.OK);
-      expect(result.body).toEqual({
-        username: dummyUserInfo.profile.username,
-        avatarUrl: dummyUserInfo.profile.avatarUrl,
-        bio: dummyUserInfo.profile.bio,
-        preferences: dummyUserInfo.preferences,
+      expect(result).toMatchObject({
+        success: true,
+        data: {
+          username: dummyUserInfo.profile.username,
+          avatarUrl: dummyUserInfo.profile.avatarUrl,
+          bio: dummyUserInfo.profile.bio,
+          preferences: dummyUserInfo.preferences,
+        },
       });
     });
 
@@ -1001,7 +1089,13 @@ describe("user service", () => {
         },
       );
 
-      expect(result.status).toBe(HttpStatusCodes.NOT_FOUND);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "NOT_FOUND",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle already cached", async () => {
@@ -1020,7 +1114,13 @@ describe("user service", () => {
         },
       );
 
-      expect(result.status).toBe(HttpStatusCodes.CONFLICT);
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: expect.any(String),
+        },
+      });
     });
 
     it("should handle database errors", async () => {
@@ -1083,7 +1183,7 @@ describe("user service", () => {
         },
       };
 
-      const result = await updateUserDraft(
+      await updateUserDraft(
         {
           redisClient: testDependencies.redisClient,
           dbInstance: testDependencies.dbInstance,
@@ -1096,8 +1196,6 @@ describe("user service", () => {
           payload: newPayload,
         },
       );
-
-      expect(result.status).toBe(HttpStatusCodes.NO_CONTENT);
 
       const [json] = await redisJsonQueries.getByKeyJson(
         {

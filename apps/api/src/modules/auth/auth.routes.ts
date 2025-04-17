@@ -109,7 +109,7 @@ export const verifyEmailRoute = createRoute({
   method: "post",
   path: "/auth/verify-email",
   description:
-    "Verifies the PIN provided by the user, updates the isEmailVerified field in the database, sets the session cookie and caches the user profile data",
+    "Verifies the PIN provided by the user, updates the isEmailVerified field in the database",
   request: {
     body: jsonContentRequired(
       verifyEmailBodySchema,
@@ -124,7 +124,6 @@ export const verifyEmailRoute = createRoute({
         },
       },
       description: "Email verified",
-      headers: cookieSchema,
     },
     [HttpStatusCodes.NOT_FOUND]: jsonContent(
       verifyEmailNotFoundSchema,
@@ -155,7 +154,6 @@ export const verifyEmailRoute = createRoute({
 
 export type VerifyEmailRoute = typeof verifyEmailRoute;
 
-// TODO: update so it returns the user info
 export const loginRoute = createRoute({
   tags,
   method: "post",
@@ -269,7 +267,6 @@ export const sendForgotPasswordEmailRoute = createRoute({
 
 export type SendForgotPasswordEmailRoute = typeof sendForgotPasswordEmailRoute;
 
-// TODO: update so it returns the user info
 export const forgotPasswordRoute = createRoute({
   tags,
   method: "post",
