@@ -44,7 +44,7 @@
     "@novelty/services": "workspace:*",
     "@scalar/hono-api-reference": "^0.8.1",
     "@sentry/cli": "^2.43.0",
-    "@sentry/node": "^9.12.0",
+    "@sentry/node": "^9.20.0",
     "@sentry/profiling-node": "^9.12.0",
     "@types/pg": "^8.11.13",
     "dayjs": "^1.11.13",
