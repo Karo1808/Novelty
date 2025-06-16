@@ -1,4 +1,4 @@
-import { createRoute } from "@hono/zod-openapi";
+import { createRoute, z } from "@hono/zod-openapi";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { jsonContent, jsonContentRequired } from "@/lib/json-content";
 import {
@@ -7,6 +7,8 @@ import {
   loginSuccessSchema,
   loginUnauthorizedSchema,
   logoutSuccessSchema,
+  oAuthCallbackQuerySchema,
+  oauthInitParamsSchema,
   registerConflictSchema,
   registerCreatedSchema,
   sendVerificationEmailConflictSchema,
@@ -27,10 +29,13 @@ import {
   blacklistedSchema,
   cookieSchema,
   csrfErrorSchema,
+  locationSchema,
+  oAuthHeaderSchema,
   serviceUnavailableSchema,
   tooManyRequestsSchema,
   unauthenticatedSchema,
 } from "@/lib/response-schemas";
+import { insertAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
 
 const tags = ["Auth"];
 
@@ -197,6 +202,63 @@ export const loginRoute = createRoute({
 
 export type LoginRoute = typeof loginRoute;
 
+export const oAuthInitRoute = createRoute({
+  tags: [...tags, "OAuth"],
+  method: "get",
+  path: "/auth/oauth/{provider}",
+  description: "Redirects to the OAuth provider",
+  request: {
+    params: oauthInitParamsSchema,
+  },
+  responses: {
+    [HttpStatusCodes.FOUND]: {
+      description: "Redirects to the OAuth provider",
+      headers: oAuthHeaderSchema,
+    },
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertAuthProviderSchema.shape.init),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Too many login attempts",
+    ),
+  },
+});
+
+export type OAuthInitRoute = typeof oAuthInitRoute;
+
+export const oAuthCallbackRoute = createRoute({
+  tags: [...tags, "OAuth"],
+  method: "get",
+  path: "/auth/oauth/{provider}/callback",
+  description:
+    "Retrieves user information, creates the user and establishes session",
+  request: {
+    params: oauthInitParamsSchema,
+    query: oAuthCallbackQuerySchema,
+  },
+  responses: {
+    [HttpStatusCodes.FOUND]: {
+      description: "Redirects to the application",
+      headers: z.object({
+        cookie: cookieSchema.shape.cookie,
+        location: locationSchema.shape.Location,
+      }),
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      loginUnauthorizedSchema,
+      "Invalid credentials",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertAuthProviderSchema.shape.init),
+      "Validation error(s)",
+    ),
+  },
+});
+
+export type OAuthCallbackRoute = typeof oAuthCallbackRoute;
+
 export const logoutRoute = createRoute({
   tags,
   method: "post",
@@ -258,10 +320,7 @@ export const sendForgotPasswordEmailRoute = createRoute({
       createErrorSchema(insertUserSchema.shape.sendEmail),
       "Validation error(s)",
     ),
-    [HttpStatusCodes.FORBIDDEN]: jsonContent(
-      blacklistedSchema,
-      "Access denied (e.g., account banned, inactive)",
-    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(csrfErrorSchema, "CSRF failure"),
   },
 });
 

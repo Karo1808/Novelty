@@ -25,3 +25,8 @@ export const DUMMY_PASSWORD_HASH
 export const FORGOT_PASSWORD_EMAIL_EXPIRY_TIME = 15 * 60; // 15 minutes
 
 export const BLACKLIST_KEY = "blacklist" as const;
+
+export const GOOGLE_SCOPES = ["openid", "email", "profile"];
+export const AMAZON_SCOPES = ["openid", "email", "profile"];
+
+export const OAUTH_COOKIE_EXPIRATION = 60 * 10; // 10 minutes

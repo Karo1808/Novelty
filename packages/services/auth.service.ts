@@ -1,8 +1,16 @@
 import type { ErrorResponse, Result, ServiceDependencies } from "./types";
+import {
+  decodeIdToken,
+  generateCodeVerifier,
+  generateState,
+  OAuth2RequestError,
+} from "arctic";
 import type { InsertUser, SelectUser } from "@novelty/db/schemas/user.schema";
 import type { SelectUserWithInfo } from "@novelty/db/lib/types";
 import {
+  createProvider,
   createUserQuery,
+  getProvidersByProviderUserId,
   getUserByEmailQuery,
   getUserByIdQuery,
   updateUserByIdQuery,
@@ -26,6 +34,7 @@ import {
 } from "@novelty/redis/queries/index.query";
 import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import {
+  AMAZON_SCOPES,
   BLACKLIST_KEY,
   DUMMY_PASSWORD_HASH,
   EMAIL_QUEUE_COMPLETED_JOBS_LIMIT,
@@ -33,13 +42,16 @@ import {
   EMAIL_QUEUE_REMOVED_JOBS_LIMIT,
   EMAIL_QUEUE_REMOVED_JOBS_TIME,
   FORGOT_PASSWORD_EMAIL_EXPIRY_TIME,
+  GOOGLE_SCOPES,
   LOCK_TTL,
   VERIFICATION_EMAIL_EXPIRY_TIME,
   VERIFICATION_EMAIL_TOKEN_LENGTH,
 } from "./lib/config";
 import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
+import { oauthIdTokenSchema } from "@novelty/lib/validations/auth";
 import type {
   ForgotPasswordBodySchema,
+  OAuthIdTokenSchema,
   VerifyEmailBodySchema,
 } from "@novelty/lib/validations/auth";
 import {
@@ -48,7 +60,12 @@ import {
   invalidateAllSessions,
   invalidateSession,
 } from "./session.service";
-import { getUserInfoQuery } from "@novelty/db/queries/user.query";
+import {
+  getUserInfoQuery,
+  updateUserProfileByUserIdQuery,
+} from "@novelty/db/queries/user.query";
+import { captureException } from "@novelty/lib/sentry";
+import type { SelectAuthProvider } from "@novelty/db/schemas/auth-provider.schema";
 
 export type RegisterUserError = ErrorResponse<"CONFLICT">;
 
@@ -74,10 +91,14 @@ export const registerUser = async (
   const hashedPassword = await hashString(body.password as string);
 
   try {
-    const [newUser] = await createUserQuery(dependencies, {
-      email: body.email,
-      password: hashedPassword,
-    });
+    const newUser = await createUserQuery(
+      dependencies,
+      {
+        email: body.email,
+        password: hashedPassword,
+      },
+      "email",
+    );
 
     if (!newUser || typeof newUser !== "object") {
       throw new QueryExecutionError("Failed to create user.");
@@ -111,7 +132,9 @@ export type SendVerificationEmailError =
   | ErrorResponse<"NOT_FOUND">;
 
 export const sendVerificationEmail = async (
-  dependencies: Required<Omit<ServiceDependencies, "s3Client" | "bucketName">>,
+  dependencies: Required<
+    Omit<ServiceDependencies, "s3Client" | "bucketName" | "providers">
+  >,
   body: InsertUser["sendEmail"],
 ): Promise<Result<undefined, SendVerificationEmailError>> => {
   const lockKey = `lock:send-email-verification:${body.email}`;
@@ -129,7 +152,7 @@ export const sendVerificationEmail = async (
     };
   }
   try {
-    const user = await getUserByEmailQuery(dependencies, body.email);
+    const user = await getUserByEmailQuery(dependencies, body.email!);
 
     if (!user) {
       dependencies.logger.error({
@@ -287,7 +310,7 @@ export const createAuthenticatedSessionResponse = async (
   const sessionToken = generateSessionToken();
   const { expiresAt } = await createSession(dependencies, sessionToken, userId);
 
-  const fullUserInfo = await getUserInfoQuery(dependencies, userId);
+  const fullUserInfo = await getUserInfoQuery(dependencies, "id", userId);
   if (!fullUserInfo || !fullUserInfo.userInfo) {
     dependencies.logger.error({
       message: "User info not found after successful authentication step",
@@ -329,6 +352,8 @@ export const loginUser = async (
   body: InsertUser["login"],
 ): Promise<Result<AuthenticatedSessionResponseData, LoginUserError>> => {
   const { email, password } = body;
+
+  // TODO: update to include provider check
 
   const user = await getUserByEmailQuery(dependencies, email, true);
 
@@ -412,6 +437,235 @@ export const loginUser = async (
   };
 };
 
+interface InitOAuthSuccess {
+  redirectUrl: string;
+  state: string;
+  codeVerifier: string;
+}
+type InitOAuthError = ErrorResponse<"BAD_REQUEST">;
+
+export const initOAuth = async (
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["messageQueueInstance", "dbInstance"]
+  >,
+  provider: SelectAuthProvider["provider"],
+): Promise<Result<InitOAuthSuccess, InitOAuthError>> => {
+  const state = generateState();
+  const codeVerifier = generateCodeVerifier();
+
+  let authorizationURL: URL;
+
+  const providers = dependencies.providers!;
+
+  switch (provider) {
+    case "google":
+      authorizationURL = providers.google.createAuthorizationURL(
+        state,
+        codeVerifier,
+        GOOGLE_SCOPES,
+      );
+      break;
+    case "amazon":
+      authorizationURL = providers.amazon.createAuthorizationURL(
+        state,
+        codeVerifier,
+        AMAZON_SCOPES,
+      );
+      break;
+    default:
+      dependencies.logger.error({
+        message: "Unexpected OAuth provider requested",
+        provider,
+        reqId: dependencies.reqId,
+      });
+      return {
+        success: false,
+        error: { kind: "BAD_REQUEST", message: "Invalid provider specified." },
+      };
+  }
+  return {
+    success: true,
+    data: { redirectUrl: authorizationURL.toString(), state, codeVerifier },
+  };
+};
+
+export const authenticateOAuthUser = async (
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["messageQueueInstance"]
+  >,
+  provider: SelectAuthProvider["provider"],
+  claims: OAuthIdTokenSchema,
+): Promise<AuthenticatedSessionResponseData> => {
+  const existingProvider = await getProvidersByProviderUserId(
+    dependencies,
+    provider,
+    claims.sub,
+  );
+
+  let userId = existingProvider?.userId;
+
+  let existingUser = null;
+
+  if (!userId) {
+    existingUser = await getUserByEmailQuery(dependencies, claims.email);
+    userId = existingUser?.id;
+  }
+  if (!existingUser) {
+    const newUser = await createUserQuery(
+      dependencies,
+      {
+        email: claims.email,
+      },
+      provider,
+    );
+    userId = newUser?.id;
+
+    await updateUserByIdQuery(
+      dependencies,
+      { isEmailVerified: claims.email_verified },
+      userId!,
+    );
+
+    await updateUserProfileByUserIdQuery(
+      dependencies,
+      { username: claims.name, avatarUrl: claims.picture },
+      userId!,
+    );
+  }
+
+  if (existingUser) {
+    await createProvider(dependencies, {
+      provider,
+      providerUserId: claims.sub,
+      userId: userId!,
+    });
+  }
+
+  const sessionData = await createAuthenticatedSessionResponse(
+    dependencies,
+    userId!,
+  );
+
+  return sessionData;
+};
+
+type OAuthcallbackError =
+  | ErrorResponse<"UNAUTHORIZED">
+  | ErrorResponse<"BAD_REQUEST">;
+
+export const oAuthCallback = async (
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["messageQueueInstance"]
+  >,
+  body: {
+    provider: SelectAuthProvider["provider"];
+    codeVerifier: string;
+    code: string;
+  },
+): Promise<Result<AuthenticatedSessionResponseData, OAuthcallbackError>> => {
+  const { provider, codeVerifier, code } = body;
+  const providers = dependencies.providers!;
+
+  let claims;
+
+  try {
+    switch (provider) {
+      case "google": {
+        const tokens = await providers.google.validateAuthorizationCode(
+          code,
+          codeVerifier,
+        );
+        const idToken = tokens.idToken();
+        claims = decodeIdToken(idToken);
+        break;
+      }
+      // TODO: Update the amazon app once I have a client deployed
+      case "amazon": {
+        const tokens = await providers.amazon.validateAuthorizationCode(
+          code,
+          codeVerifier,
+        );
+        const idToken = tokens.idToken();
+        claims = decodeIdToken(idToken);
+        break;
+      }
+      default:
+        dependencies.logger.error({
+          message: "Unexpected OAuth provider requested",
+          provider,
+          reqId: dependencies.reqId,
+        });
+        return {
+          success: false,
+          error: {
+            kind: "BAD_REQUEST",
+            message: "Invalid provider specified.",
+          },
+        };
+    }
+  }
+  catch (error) {
+    if (error instanceof OAuth2RequestError) {
+      dependencies.logger.error({
+        message: "Failed to validate authorization code",
+        source: "oAuthCallback",
+        provider,
+        error,
+        reqId: dependencies.reqId,
+      });
+    }
+    return {
+      success: false,
+      error: {
+        kind: "UNAUTHORIZED",
+        message: "Failed to validate authorization code",
+      },
+    };
+  }
+
+  try {
+    claims = oauthIdTokenSchema.parse(claims);
+
+    const response = await authenticateOAuthUser(
+      dependencies,
+      provider,
+      claims,
+    );
+
+    return {
+      success: true,
+      data: response,
+    };
+  }
+  catch (error: unknown) {
+    dependencies.logger.fatal({
+      message:
+        "[FATAL ERROR]: The parsed output for auth provider user information did not match the schema",
+      source: "oAuthCallback",
+      provider,
+      error,
+      reqId: dependencies.reqId,
+    });
+
+    captureException({
+      error: error as Error,
+      tags: [{ name: "requestId", value: dependencies.reqId }],
+      breadcrumb: {
+        category: "service function",
+        message: (error as Error).message,
+        level: "fatal",
+      },
+      contextName: "oAuthCallback",
+      context: { serviceFunction: "oAuthCallback" },
+    });
+
+    throw error;
+  }
+};
+
 export const logoutUser = async (
   dependencies: MarkKeysAsPartial<
     ServiceDependencies,
@@ -428,7 +682,9 @@ export type SendForgotPasswordEmailError =
   | ErrorResponse<"FORBIDDEN">;
 
 export const sendForgotPasswordEmail = async (
-  dependencies: Required<Omit<ServiceDependencies, "s3Client" | "bucketName">>,
+  dependencies: Required<
+    Omit<ServiceDependencies, "s3Client" | "bucketName" | "providers">
+  >,
   body: InsertUser["sendEmail"],
 ): Promise<Result<undefined, SendForgotPasswordEmailError>> => {
   const { email } = body;
@@ -449,7 +705,7 @@ export const sendForgotPasswordEmail = async (
   }
 
   try {
-    const user = await getUserByEmailQuery(dependencies, email);
+    const user = await getUserByEmailQuery(dependencies, email!);
 
     const isBlacklisted = await hexistsQuery(
       dependencies,

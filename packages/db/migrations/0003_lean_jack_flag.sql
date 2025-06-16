@@ -1,0 +1,1 @@
+CREATE TYPE "public"."auth_provider_enum" AS ENUM('email', 'google', 'amazon');
