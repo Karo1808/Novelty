@@ -297,7 +297,7 @@ export const verifyEmail = async (
   };
 };
 
-interface AuthenticatedSessionResponseData {
+export interface AuthenticatedSessionResponseData {
   user: SelectUserWithInfo;
   token: string;
   expiresAt: Date;

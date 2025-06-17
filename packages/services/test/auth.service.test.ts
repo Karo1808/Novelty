@@ -1546,7 +1546,7 @@ describe("auth service", () => {
 
       const res = await authenticateOAuthUser(testDependencies, "google", {
         ...claims,
-        email: existingUser[0].email,
+        email: existingUser[0]?.email,
       });
 
       expect(spyCreateProvider).toHaveBeenCalledOnce();
