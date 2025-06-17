@@ -3,6 +3,8 @@ import type {
   ForgotPasswordRoute,
   LoginRoute,
   LogoutRoute,
+  OAuthCallbackRoute,
+  OAuthInitRoute,
   RegisterRoute,
   SendForgotPasswordEmailRoute,
   SendVerificationEmailRoute,
@@ -10,8 +12,10 @@ import type {
 } from "./auth.routes";
 import {
   forgotPassword,
+  initOAuth,
   loginUser,
   logoutUser,
+  oAuthCallback,
   registerUser,
   sendForgotPasswordEmail,
   sendVerificationEmail,
@@ -23,9 +27,12 @@ import { prometheusRegistry } from "@/lib/metrics";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis, redlock } from "@novelty/redis";
 import { emailQueue } from "@novelty/message-queue/queues/email.queue";
-import { deleteCookie, setCookie } from "hono/cookie";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import env from "@/env";
 import { SESSION_EXPIRATION_TIME } from "@novelty/services/session.service";
+import { providers } from "./auth.providers";
+import { OAUTH_COOKIE_EXPIRATION } from "@novelty/services/lib/config";
+import type { OauthInitParams } from "./auth.validations";
 
 export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   const body = c.req.valid("json");
@@ -152,6 +159,133 @@ export const handleLogin: AppRouteHandler<LoginRoute> = async (c) => {
       reqId: c.var.requestId,
     },
     body,
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  if (res.data) {
+    const { token, expiresAt } = res.data;
+
+    setCookie(c, "session", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      maxAge: SESSION_EXPIRATION_TIME / 1000,
+      expires: expiresAt,
+    });
+  }
+
+  return c.json(
+    {
+      success: true,
+      message: `Login successful`,
+      user: res.data.user,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleOAuthInit: AppRouteHandler<OAuthInitRoute> = async (c) => {
+  const provider = c.req.param("provider") as OauthInitParams["provider"];
+
+  const res = await initOAuth(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+      providers,
+    },
+    provider,
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  if (res.data) {
+    const { state, codeVerifier } = res.data;
+
+    setCookie(c, "state", state, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      maxAge: OAUTH_COOKIE_EXPIRATION,
+      expires: new Date(Date.now() + OAUTH_COOKIE_EXPIRATION),
+    });
+
+    setCookie(c, "code_verifier", codeVerifier, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      maxAge: OAUTH_COOKIE_EXPIRATION,
+      expires: new Date(Date.now() + OAUTH_COOKIE_EXPIRATION),
+    });
+  }
+
+  logger.info(res.data.redirectUrl);
+
+  return c.redirect(res.data.redirectUrl);
+};
+
+export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
+  c,
+) => {
+  const provider = c.req.param("provider") as OauthInitParams["provider"];
+
+  const { state, code } = c.req.query();
+
+  const cookieState = getCookie(c, "state");
+  const cookieCodeVerifier = getCookie(c, "code_verifier");
+
+  if (
+    !state
+    || !code
+    || !cookieState
+    || !cookieCodeVerifier
+    || state !== cookieState
+  ) {
+    return c.json(
+      {
+        message: "Invalid Request",
+        success: false,
+      },
+      HttpStatusCodes.BAD_REQUEST,
+    );
+  }
+
+  const res = await oAuthCallback(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+      providers,
+    },
+    {
+      provider,
+      codeVerifier: cookieCodeVerifier,
+      code,
+    },
   );
 
   if (res.success === false) {

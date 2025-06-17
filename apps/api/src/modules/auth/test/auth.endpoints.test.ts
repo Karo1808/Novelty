@@ -190,7 +190,7 @@ describe("auth routes", () => {
     beforeEach(async () => {
       await testDb
         .delete(usersTable)
-        .where(eq(usersTable.email, dummyBody.email));
+        .where(eq(usersTable.email, dummyBody.email!));
       await testDb.insert(usersTable).values(dummyUser);
       vi.clearAllMocks();
     });
@@ -224,7 +224,7 @@ describe("auth routes", () => {
     it("returns ok if email does not exist", async () => {
       await testDb
         .delete(usersTable)
-        .where(eq(usersTable.email, dummyBody.email));
+        .where(eq(usersTable.email, dummyBody.email!));
 
       const response = await client.auth["send-verification-email"].$post({
         json: dummyBody,

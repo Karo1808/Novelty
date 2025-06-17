@@ -8,6 +8,27 @@
       "when": 1739890905042,
       "tag": "0000_short_starbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1750066507021,
+      "tag": "0001_outstanding_wild_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1750066572063,
+      "tag": "0002_left_korg",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1750070193890,
+      "tag": "0003_lean_jack_flag",
+      "breakpoints": true
     }
   ]
 }

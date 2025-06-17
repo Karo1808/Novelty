@@ -57,6 +57,7 @@ export const HttpStatusCodes = {
   UNSUPPORTED_MEDIA_TYPE: 415,
   USE_PROXY: 305,
   MISDIRECTED_REQUEST: 421,
+  FOUND: 302,
 } as const;
 
 export const HttpStatusText: Record<number, string> = {
