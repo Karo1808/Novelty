@@ -1121,13 +1121,12 @@ describe("auth routes", () => {
       expect(cookie).toContain("state=");
     });
 
-
-    it("returns unprocessable entity for invalid provider", async () => {
+    it("returns bad request for invalid provider", async () => {
       const response = await client.auth.oauth[":provider"].$get({
         param: { provider: "invalid" as any },
       });
 
-      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      expect(response.status).toBe(HttpStatusCodes.BAD_REQUEST);
       const json = await response.json();
       expect(json).toHaveProperty("message");
     });
@@ -1162,9 +1161,9 @@ describe("auth routes", () => {
         header: { cookie: "state=s; code_verifier=v" },
       });
 
-      expect(response.status).toBe(HttpStatusCodes.FOUND);
-      const location = response.headers.get("location") ?? "";
-      expect(location).not.toBe("");
+      expect(response.status).toBe(HttpStatusCodes.OK);
+      const json = await response.json();
+      expect(json).toHaveProperty("user");
       expect(response.headers.has("set-cookie")).toBe(true);
     });
 
@@ -1185,16 +1184,16 @@ describe("auth routes", () => {
       expect(json).toHaveProperty("message");
     });
 
-    it("returns unprocessable entity for invalid provider", async () => {
+    it("returns bad request for invalid provider", async () => {
       const response = await client.auth.oauth[":provider"].callback.$get({
         param: { provider: "invalid" as any },
         query: { state: "s", code: "c" },
         header: { cookie: "state=s; code_verifier=v" },
       });
 
-      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      expect(response.status).toBe(HttpStatusCodes.BAD_REQUEST);
       const json = await response.json();
-      expect(json).toHaveProperty("error");
+      expect(json).toHaveProperty("message");
     });
   });
 });
