@@ -1093,4 +1093,115 @@ describe("auth routes", () => {
       expect(json).toHaveProperty("message");
     });
   });
+
+  describe("get /oauth/:provider", () => {
+    const dummyData = {
+      redirectUrl: "https://provider.com/auth",
+      state: "state123",
+      codeVerifier: "verifier123",
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("handles success", async () => {
+      vi.spyOn(authServices, "initOAuth").mockResolvedValueOnce({
+        success: true,
+        data: dummyData,
+      });
+
+      const response = await client.auth.oauth[":provider"].$get({
+        param: { provider: "google" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.FOUND);
+      expect(response.headers.get("location")).toBe(dummyData.redirectUrl);
+      const cookie = response.headers.get("set-cookie") ?? "";
+      expect(cookie).toContain("state=");
+    });
+
+    it("returns unprocessable entity for invalid provider", async () => {
+      const response = await client.auth.oauth[":provider"].$get({
+        param: { provider: "invalid" as any },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+  });
+
+  describe("get /oauth/:provider/callback", () => {
+    const dummySession: authServices.AuthenticatedSessionResponseData = {
+      token: "sessiontoken",
+      expiresAt: new Date(),
+      user: {
+        id: "id",
+        email: "mail@mail.com",
+        isEmailVerified: true,
+        isOnboarded: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        userInfo: {
+          profile: { avatarUrl: "", bio: null, username: "" },
+          preferences: { genres: ["fantasy", "sci-fi", "horror"] },
+        },
+      },
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("handles success", async () => {
+      vi.spyOn(authServices, "oAuthCallback").mockResolvedValueOnce({
+        success: true,
+        data: dummySession,
+      });
+
+      const response = await client.auth.oauth[":provider"].callback.$get({
+        param: { provider: "google" },
+        query: { state: "s", code: "c" },
+        // @ts-expect-error header not defined in types
+        header: { cookie: "state=s; code_verifier=v" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.FOUND);
+      const location = response.headers.get("location") ?? "";
+      expect(location).not.toBe("");
+      expect(response.headers.has("set-cookie")).toBe(true);
+      });
+
+    it("returns unauthorized when provider rejects code", async () => {
+      vi.spyOn(authServices, "oAuthCallback").mockResolvedValueOnce({
+        success: false,
+        error: { kind: "UNAUTHORIZED", message: "invalid" },
+      });
+
+      const response = await client.auth.oauth[":provider"].callback.$get({
+        param: { provider: "google" },
+        query: { state: "s", code: "c" },
+        // @ts-expect-error header not defined in types
+        header: { cookie: "state=s; code_verifier=v" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("returns unprocessable entity for invalid provider", async () => {
+      const response = await client.auth.oauth[":provider"].callback.$get({
+        param: { provider: "invalid" as any },
+        query: { state: "s", code: "c" },
+        // @ts-expect-error header not defined in types
+        header: { cookie: "state=s; code_verifier=v" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+  });
 });
