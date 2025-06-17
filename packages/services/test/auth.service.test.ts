@@ -1,13 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  authenticateOAuthUser,
+  createAuthenticatedSessionResponse,
   forgotPassword,
+  initOAuth,
   loginUser,
   logoutUser,
+  oAuthCallback,
   registerUser,
   sendForgotPasswordEmail,
   sendVerificationEmail,
   verifyEmail,
 } from "../auth.service";
+import * as authService from "../auth.service";
 import * as dbQueries from "@novelty/db/queries/auth.query";
 import * as userDbQueries from "@novelty/db/queries/user.query";
 import * as redisQueries from "@novelty/redis/queries/index.query";
@@ -17,6 +22,7 @@ import { verify } from "@node-rs/argon2";
 import { eq, sql } from "drizzle-orm";
 import type { InsertUser } from "@novelty/db/schemas/user.schema";
 import { usersTable } from "@novelty/db/schemas/user.schema";
+import { authProvidersTable } from "@novelty/db/schemas/auth-provider.schema";
 import {
   DatabaseConnectionError,
   QueryExecutionError,
@@ -29,6 +35,7 @@ import {
   testRedis,
 } from "../test-setup";
 import {
+  GOOGLE_SCOPES,
   VERIFICATION_EMAIL_EXPIRY_TIME,
   VERIFICATION_EMAIL_TOKEN_LENGTH,
 } from "../lib/config";
@@ -38,6 +45,7 @@ import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
 import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
+import { OAuth2RequestError } from "arctic";
 
 const dummyBody: InsertUser["register"] = {
   email: "email@mail.com",
@@ -1333,6 +1341,305 @@ describe("auth service", () => {
       expect(result).toMatchObject({
         success: true,
         data: expect.any(Object),
+      });
+    });
+  });
+
+  describe("createAuthenticatedSessionResponse", () => {
+    const dummyUser = {
+      id: "session-user",
+      email: "session@mail.com",
+      isEmailVerified: true,
+    };
+
+    const dummyUserInfo: InsertUserInfo = {
+      profile: {
+        avatarUrl: "avatar",
+        bio: "bio",
+        username: "username",
+      },
+      preferences: {
+        genres: ["g1", "g2", "g3"],
+        authors: ["a"],
+        series: ["s"],
+      },
+    };
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+      await testDb.insert(userInfoTable).values({
+        userId: dummyUser.id,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testRedis.flushall();
+    });
+
+    it("should create a session and return user info", async () => {
+      const generateSessionTokenSpy = vi
+        .spyOn(sessionService, "generateSessionToken")
+        .mockReturnValue("token123");
+      const createSessionSpy = vi.spyOn(sessionService, "createSession");
+      const getUserInfoQuerySpy = vi.spyOn(userDbQueries, "getUserInfoQuery");
+
+      const result = await createAuthenticatedSessionResponse(
+        testDependencies,
+        dummyUser.id,
+      );
+
+      expect(generateSessionTokenSpy).toHaveBeenCalledOnce();
+      expect(createSessionSpy).toHaveBeenCalledOnce();
+      expect(getUserInfoQuerySpy).toHaveBeenCalledOnce();
+
+      expect(result).toMatchObject({
+        token: "token123",
+        expiresAt: expect.any(Date),
+        user: {
+          id: dummyUser.id,
+          email: dummyUser.email,
+          isEmailVerified: true,
+          isOnboarded: false,
+          userInfo: dummyUserInfo,
+        },
+      });
+
+      const sessionId = authUtils.encodeToken("token123");
+      const stored = await testRedis.get(`session:${sessionId}`);
+      expect(stored).toBeTruthy();
+    });
+
+    it("should throw when user info is missing", async () => {
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+
+      await expect(
+        createAuthenticatedSessionResponse(testDependencies, dummyUser.id),
+      ).rejects.toThrow(QueryExecutionError);
+    });
+  });
+
+  describe("initOAuth", () => {
+    const googleProvider = {
+      createAuthorizationURL: vi
+        .fn()
+        .mockReturnValue(new URL("https://google.com/auth")),
+    } as any;
+    const amazonProvider = {
+      createAuthorizationURL: vi
+        .fn()
+        .mockReturnValue(new URL("https://amazon.com/auth")),
+    } as any;
+
+    const deps = {
+      ...testDependencies,
+      providers: { google: googleProvider, amazon: amazonProvider },
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("should return auth url for google", async () => {
+      const res = await initOAuth(deps, "google");
+
+      expect(googleProvider.createAuthorizationURL).toHaveBeenCalledOnce();
+      const args = googleProvider.createAuthorizationURL.mock.calls[0];
+      expect(args[2]).toEqual(GOOGLE_SCOPES);
+
+      expect(res).toMatchObject({
+        success: true,
+        data: {
+          redirectUrl: "https://google.com/auth",
+          state: expect.any(String),
+          codeVerifier: expect.any(String),
+        },
+      });
+    });
+
+    it("should handle invalid provider", async () => {
+      const res = await initOAuth(deps, "invalid" as any);
+      expect(res).toMatchObject({
+        success: false,
+        error: { kind: "BAD_REQUEST", message: expect.any(String) },
+      });
+    });
+  });
+
+  describe("authenticateOAuthUser", () => {
+    const claims = {
+      iss: "http://issuer", // required
+      aud: "client", // required
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      sub: "provider-123",
+      email: "oauth@test.com",
+      email_verified: true,
+      name: "Oauth User",
+      picture: "https://example.com/avatar.png",
+    };
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testRedis.flushall();
+    });
+
+    it("should create new user when none exists", async () => {
+      const spySession = vi.spyOn(
+        authService,
+        "createAuthenticatedSessionResponse",
+      );
+
+      const result = await authenticateOAuthUser(
+        testDependencies,
+        "google",
+        claims,
+      );
+
+      expect(spySession).toHaveBeenCalledOnce();
+
+      expect(result).toMatchObject({
+        token: expect.any(String),
+        expiresAt: expect.any(Date),
+        user: {
+          email: claims.email,
+          isEmailVerified: true,
+        },
+      });
+
+      const user = await testDb.query.usersTable.findFirst({
+        where: eq(usersTable.email, claims.email),
+      });
+      expect(user).toBeTruthy();
+
+      const providerRow = await testDb.query.authProvidersTable.findFirst({
+        where: eq(authProvidersTable.providerUserId, claims.sub),
+      });
+      expect(providerRow).toBeTruthy();
+    });
+
+    it("should link provider to existing user", async () => {
+      const existingUser = await testDb
+        .insert(usersTable)
+        .values({
+          id: "existing-id",
+          email: claims.email,
+          password: "", // unused
+          isEmailVerified: true,
+        })
+        .returning();
+
+      await testDb.insert(userInfoTable).values({
+        userId: existingUser[0].id,
+        avatarUrl: "",
+        bio: null,
+        username: "old",
+        preferences: { genres: ["g1", "g2", "g3"] },
+      });
+
+      const spyCreateProvider = vi.spyOn(dbQueries, "createProvider");
+
+      const res = await authenticateOAuthUser(testDependencies, "google", {
+        ...claims,
+        email: existingUser[0].email,
+      });
+
+      expect(spyCreateProvider).toHaveBeenCalledOnce();
+      expect(res.user.id).toBe(existingUser[0].id);
+    });
+  });
+
+  describe("oAuthCallback", () => {
+    const googleProvider = {
+      validateAuthorizationCode: vi.fn().mockResolvedValue({
+        idToken: () => "id-token",
+      }),
+    } as any;
+
+    const deps = {
+      ...testDependencies,
+      providers: { google: googleProvider, amazon: googleProvider },
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("should authenticate and return session data", async () => {
+      const claims = {
+        iss: "http://issuer",
+        aud: "client",
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        sub: "123",
+        email: "user@test.com",
+        email_verified: true,
+      };
+
+      vi.spyOn(authService, "decodeIdToken").mockReturnValue(claims as any);
+
+      const sessionData = {
+        token: "tok",
+        expiresAt: new Date(),
+        user: {
+          id: "id",
+          email: claims.email,
+          isEmailVerified: true,
+          isOnboarded: false,
+          userInfo: {
+            profile: { avatarUrl: "", bio: null, username: "" },
+            preferences: {},
+          },
+        },
+      } as any;
+      const authSpy = vi
+        .spyOn(authService, "authenticateOAuthUser")
+        .mockResolvedValue(sessionData);
+
+      const res = await oAuthCallback(deps, {
+        provider: "google",
+        codeVerifier: "ver",
+        code: "code",
+      });
+
+      expect(googleProvider.validateAuthorizationCode).toHaveBeenCalledOnce();
+      expect(authService.decodeIdToken).toHaveBeenCalledOnce();
+      expect(authSpy).toHaveBeenCalledWith(deps, "google", claims);
+
+      expect(res).toMatchObject({ success: true, data: sessionData });
+    });
+
+    it("should return bad request for invalid provider", async () => {
+      const res = await oAuthCallback(deps, {
+        provider: "invalid" as any,
+        codeVerifier: "v",
+        code: "c",
+      });
+
+      expect(res).toMatchObject({
+        success: false,
+        error: { kind: "BAD_REQUEST", message: expect.any(String) },
+      });
+    });
+
+    it("should handle authorization errors", async () => {
+      googleProvider.validateAuthorizationCode.mockRejectedValue(
+        new OAuth2RequestError("bad", "", "", ""),
+      );
+
+      const res = await oAuthCallback(deps, {
+        provider: "google",
+        codeVerifier: "v",
+        code: "c",
+      });
+
+      expect(res).toMatchObject({
+        success: false,
+        error: { kind: "UNAUTHORIZED", message: expect.any(String) },
       });
     });
   });
