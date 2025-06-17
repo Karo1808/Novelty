@@ -256,7 +256,7 @@ export const completeOnboarding = async (
 ): Promise<Result<void, CompleteOnboardingError>> => {
   const { userId } = body;
 
-  const user = await getUserInfoQuery(dependencies, userId);
+  const user = await getUserInfoQuery(dependencies, "id", userId);
 
   if (!user) {
     return {
@@ -317,7 +317,7 @@ export const getUserDraft = async (
   const { userId } = body;
   const redisKey = `${USER_INFO_DRAFT_KEY}:${userId}`;
 
-  const user = await getUserInfoQuery(dependencies, userId);
+  const user = await getUserInfoQuery(dependencies, "id", userId);
 
   if (!user || !user.userInfo) {
     return {

@@ -72,7 +72,11 @@ describe("auth queries", () => {
     it("should create user if they don't exist", async () => {
       const startTime = Date.now();
 
-      const [result] = await createUserQuery(testDependencies, dummyUser);
+      const result = await createUserQuery(
+        testDependencies,
+        dummyUser,
+        "email",
+      );
 
       const endTime = Date.now();
 
@@ -97,7 +101,7 @@ describe("auth queries", () => {
       await testDb.insert(usersTable).values(dummyUser);
 
       await expect(
-        createUserQuery(testDependencies, dummyUser),
+        createUserQuery(testDependencies, dummyUser, "email"),
       ).rejects.toMatchObject({
         message: expect.stringContaining(
           "duplicate key value violates unique constraint",
