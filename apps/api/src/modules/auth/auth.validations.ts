@@ -1,6 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import { selectUserSchema } from "@novelty/db/schemas/user.schema";
 import { selectUserWithInfoSchema } from "@novelty/db/lib/types";
+import { selectAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
 
 export const registerCreatedSchema = z
   .object({
@@ -142,6 +143,24 @@ export const loginUnauthorizedSchema = z
       message: "Invalid credentials",
     },
   });
+
+export const oauthInitParamsSchema = z.object({
+  provider: selectAuthProviderSchema.shape.provider.refine(
+    v => v !== "email",
+    {
+      message: "The provider must be oauth",
+    },
+  ),
+});
+
+export type OauthInitParams = z.infer<typeof oauthInitParamsSchema>;
+
+export const oAuthCallbackQuerySchema = z.object({
+  state: z.string(),
+  code: z.string(),
+});
+
+export type OAuthCallbackQuery = z.infer<typeof oAuthCallbackQuerySchema>;
 
 export const logoutSuccessSchema = z
   .object({

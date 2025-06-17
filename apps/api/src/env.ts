@@ -35,6 +35,15 @@ const EnvSchema = z.object({
   R2_SECRET_ACCESS_KEY: z.string(),
   R2_ENDPOINT: z.string().optional(),
   R2_BUCKET_NAME: z.string(),
+
+  GOOGLE_CLIENT_ID: z.string(),
+  GOOGLE_CLIENT_SECRET: z.string(),
+  GOOGLE_REDIRECT_URI: z.string(),
+
+  AMAZON_COGNITO_DOMAIN: z.string(),
+  AMAZON_COGNITO_CLIENT_ID: z.string(),
+  AMAZON_COGNITO_CLIENT_SECRET: z.string(),
+  AMAZON_COGNITO_REDIRECT_URI: z.string(),
 });
 
 export type env = z.infer<typeof EnvSchema>;

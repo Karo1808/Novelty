@@ -8,13 +8,14 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { userInfoTable } from "./user-info.schema";
 import { relations } from "drizzle-orm";
+import { authProvidersTable } from "./auth-provider.schema";
 
 export const usersTable = pgTable("users", {
   id: varchar({ length: 255 })
     .$default(() => nanoid())
     .primaryKey(),
   email: varchar({ length: 255 }).unique().notNull(),
-  password: varchar({ length: 255 }).notNull(),
+  password: varchar({ length: 255 }),
   isEmailVerified: boolean("is_email_verified")
     .notNull()
     .$default(() => false),
@@ -27,33 +28,38 @@ export const usersTable = pgTable("users", {
     .$onUpdate(() => new Date()),
 });
 
-export const userRelations = relations(usersTable, ({ one }) => ({
+export const userRelations = relations(usersTable, ({ one, many }) => ({
   userInfo: one(userInfoTable),
+  authProvider: many(authProvidersTable),
 }));
 
 const baseSchema = createInsertSchema(usersTable, {
-  email: schema => schema.email(),
-  password: schema => schema.min(1),
+  email: schema => schema.email().optional(),
+  password: schema => schema.min(1).optional(),
 }).pick({
   email: true,
   password: true,
+  isEmailVerified: true,
 });
 
 export const selectUserSchema = createSelectSchema(usersTable).omit({
   password: true,
 });
 
+export const oauthProviderSchema = z.enum(["google", "amazon"]);
+
 export const insertUserSchema = z.object({
   register: z.object({
-    email: baseSchema.shape.email,
-    password: baseSchema.shape.password,
+    email: baseSchema.shape.email.unwrap(),
+    password: baseSchema.shape.password.unwrap().unwrap().optional(),
+    isEmailVerified: baseSchema.shape.isEmailVerified.optional(),
   }),
   sendEmail: z.object({
     email: baseSchema.shape.email,
   }),
   login: z.object({
-    email: baseSchema.shape.email,
-    password: baseSchema.shape.password,
+    email: baseSchema.shape.email.unwrap(),
+    password: baseSchema.shape.password.unwrap().unwrap(),
   }),
 });
 

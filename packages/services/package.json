@@ -25,6 +25,7 @@
     "@novelty/redis": "workspace:*",
     "@oslojs/crypto": "^1.0.1",
     "@oslojs/encoding": "^1.1.0",
+    "arctic": "^3.6.0",
     "dotenv": "^16.5.0",
     "fetch-blob": "^4.0.0"
   },

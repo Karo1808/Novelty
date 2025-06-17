@@ -16,4 +16,6 @@ export const authRouter = createRouter()
     routes.sendForgotPasswordEmailRoute,
     handlers.handleSendForgotPasswordEmail,
   )
-  .openapi(routes.forgotPasswordRoute, handlers.handleForgotPasswordRoute);
+  .openapi(routes.forgotPasswordRoute, handlers.handleForgotPasswordRoute)
+  .openapi(routes.oAuthInitRoute, handlers.handleOAuthInit)
+  .openapi(routes.oAuthCallbackRoute, handlers.handleOAuthCallback);

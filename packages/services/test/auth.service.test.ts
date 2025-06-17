@@ -91,7 +91,7 @@ describe("auth service", () => {
         updatedAt: expect.any(Date),
       });
 
-      expect(await verify(user!.password, dummyBody.password as string)).toBe(
+      expect(await verify(user!.password!, dummyBody.password as string)).toBe(
         true,
       );
     });
@@ -126,7 +126,7 @@ describe("auth service", () => {
 
     it("should handle no user returned upon creation", async () => {
       const createUserQuerySpy = vi.spyOn(dbQueries, "createUserQuery");
-      createUserQuerySpy.mockImplementationOnce(() => Promise.resolve([]));
+      createUserQuerySpy.mockImplementationOnce(() => Promise.resolve(null));
 
       await expect(registerUser(testDependencies, dummyBody)).rejects.toThrow(
         QueryExecutionError,
@@ -655,7 +655,7 @@ describe("auth service", () => {
     };
 
     const dummyPassword: string = await authUtils.hashString(
-      dummyBody.password,
+      dummyBody.password!,
     );
 
     const dummyUser = {
@@ -698,7 +698,10 @@ describe("auth service", () => {
       const createSessionSpy = vi.spyOn(sessionService, "createSession");
       const getUserInfoQuerySpy = vi.spyOn(userDbQueries, "getUserInfoQuery");
 
-      const result = await loginUser(testDependencies, dummyBody);
+      const result = await loginUser(
+        testDependencies,
+        dummyBody as InsertUser["login"],
+      );
 
       expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
       expect(hexistsQuerySpy).toHaveBeenCalledOnce();
@@ -757,7 +760,10 @@ describe("auth service", () => {
 
       await testDb.delete(usersTable);
 
-      const result = await loginUser(testDependencies, dummyBody);
+      const result = await loginUser(
+        testDependencies,
+        dummyBody as InsertUser["login"],
+      );
 
       expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
       expect(hexistsQuerySpy).toHaveBeenCalledOnce();
@@ -810,7 +816,10 @@ describe("auth service", () => {
       const blacklistKey = `blacklist`;
       await testRedis.hset(blacklistKey, dummyUser.id, "true");
 
-      const result = await loginUser(testDependencies, dummyBody);
+      const result = await loginUser(
+        testDependencies,
+        dummyBody as InsertUser["login"],
+      );
 
       expect(result).toMatchObject({
         success: false,
@@ -827,18 +836,18 @@ describe("auth service", () => {
         new DatabaseConnectionError("DB connection failed"),
       );
 
-      await expect(loginUser(testDependencies, dummyBody)).rejects.toThrow(
-        DatabaseConnectionError,
-      );
+      await expect(
+        loginUser(testDependencies, dummyBody as InsertUser["login"]),
+      ).rejects.toThrow(DatabaseConnectionError);
     });
 
     it("should handle unexpected errors", async () => {
       const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
       getUserByEmailQuerySpy.mockRejectedValue(new Error("Unexpected error"));
 
-      await expect(loginUser(testDependencies, dummyBody)).rejects.toThrow(
-        Error,
-      );
+      await expect(
+        loginUser(testDependencies, dummyBody as InsertUser["login"]),
+      ).rejects.toThrow(Error);
     });
   });
 
@@ -1172,7 +1181,7 @@ describe("auth service", () => {
       const user = await testDb.query.usersTable.findFirst({
         where: eq(usersTable.id, dummyUserId),
       });
-      expect(await authUtils.verifyHash(newPassword, user!.password)).toBe(
+      expect(await authUtils.verifyHash(newPassword, user!.password!)).toBe(
         true,
       );
 
@@ -1288,7 +1297,7 @@ describe("auth service", () => {
       const user = await testDb.query.usersTable.findFirst({
         where: eq(usersTable.id, dummyUserId),
       });
-      expect(await authUtils.verifyHash(newPassword, user!.password)).toBe(
+      expect(await authUtils.verifyHash(newPassword, user!.password!)).toBe(
         true,
       );
     });

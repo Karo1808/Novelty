@@ -5,6 +5,7 @@ import type { Queue } from "bullmq";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type Redlock from "redlock";
 import type { HttpStatusCodeKey } from "@novelty/lib/http-status-codes";
+import type { AmazonCognito, Google } from "arctic";
 
 export interface ServiceDependencies {
   dbInstance: DBClient;
@@ -16,6 +17,7 @@ export interface ServiceDependencies {
   logger: Logger;
   prometheusRegistry: PrometheusRegistry;
   bucketName?: string;
+  providers?: { google: Google; amazon: AmazonCognito };
 }
 
 export type Result<TSuccessData, TErrorReason> =

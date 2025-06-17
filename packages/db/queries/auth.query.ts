@@ -6,7 +6,12 @@ import type {
 import { usersTable } from "../schemas/user.schema";
 import { createDBQuery } from "../lib/create-db-query";
 import type { Dependencies } from "../lib/types";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import type {
+  InsertAuthProvider,
+  SelectAuthProvider,
+} from "../schemas/auth-provider.schema";
+import { authProvidersTable } from "../schemas/auth-provider.schema";
 
 type SelectUserWithPassword = SelectUser & { password: string };
 
@@ -53,19 +58,36 @@ export function getUserByEmailQuery(
 export const createUserQuery = (
   dependencies: Dependencies,
   newUser: InsertUser["register"],
+  provider: InsertAuthProvider["init"]["provider"],
+  providerUserId?: string,
 ) => {
   return createDBQuery({
     dependencies,
     queryName: "createUser",
     query: async (db) => {
-      return await db.insert(usersTable).values(newUser).returning({
-        id: usersTable.id,
-        email: usersTable.email,
-        isEmailVerified: usersTable.isEmailVerified,
-        createdAt: usersTable.createdAt,
-        updatedAt: usersTable.updatedAt,
-        isOnboarded: usersTable.isOnboarded,
+      const [createdUser] = await db
+        .insert(usersTable)
+        .values(newUser)
+        .returning({
+          id: usersTable.id,
+          email: usersTable.email,
+          isEmailVerified: usersTable.isEmailVerified,
+          createdAt: usersTable.createdAt,
+          updatedAt: usersTable.updatedAt,
+          isOnboarded: usersTable.isOnboarded,
+        });
+
+      if (!createdUser || !createdUser.id) {
+        return null;
+      }
+
+      await db.insert(authProvidersTable).values({
+        provider,
+        userId: createdUser.id,
+        providerUserId,
       });
+
+      return createdUser;
     },
   });
 };
@@ -121,6 +143,38 @@ export const updateUserByIdQuery = (
         .set(body)
         .where(eq(usersTable.id, userId))
         .returning();
+    },
+  });
+};
+
+export const getProvidersByProviderUserId = (
+  dependencies: Dependencies,
+  provider: SelectAuthProvider["provider"],
+  providerUserId: SelectAuthProvider["providerUserId"],
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getProvidersByProviderUserId",
+    query: async (db) => {
+      return await db.query.authProvidersTable.findFirst({
+        where: and(
+          (eq(authProvidersTable.provider, provider),
+          eq(authProvidersTable.providerUserId, providerUserId!)),
+        ),
+      });
+    },
+  });
+};
+
+export const createProvider = (
+  dependencies: Dependencies,
+  newProvider: InsertAuthProvider["authenticate"],
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "createProvider",
+    query: async (db) => {
+      return await db.insert(authProvidersTable).values(newProvider);
     },
   });
 };

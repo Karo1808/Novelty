@@ -384,6 +384,7 @@ describe("getUserInfoQuery", () => {
         ...testDependencies,
         dbInstance: testDb,
       },
+      "id",
       dummyUser.id,
     );
 
@@ -407,6 +408,7 @@ describe("getUserInfoQuery", () => {
         ...testDependencies,
         dbInstance: testDb,
       },
+      "id",
       dummyUser.id,
     );
 
@@ -460,6 +462,7 @@ describe("getPreferencesByUserIdQuery", () => {
         ...testDependencies,
         dbInstance: testDb,
       },
+      "id",
       dummyUser.id,
     );
 
@@ -483,6 +486,7 @@ describe("getPreferencesByUserIdQuery", () => {
         ...testDependencies,
         dbInstance: testDb,
       },
+      "id",
       dummyUser.id,
     );
 

@@ -1,5 +1,34 @@
 import { z } from "@hono/zod-openapi";
 
+// Headers
+
+export const cookieSchema = z.object({
+  cookie: z.string().openapi({
+    example:
+      "sessionId=abc123; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800",
+  }),
+});
+
+export const locationSchema = z.object({
+  Location: z.string().url().openapi({
+    example: "http://localhost:3000/auth/redirect",
+  }),
+});
+
+export const oAuthHeaderSchema = z.object({
+  Location: z.string().url().openapi({
+    example: "http://localhost:3000/auth/redirect",
+  }),
+  state: z.string().openapi({
+    example: "generated-state",
+  }),
+  code_verifier: z.string().openapi({
+    example: "generated-code-verifier",
+  }),
+});
+
+// Responses
+
 export const serviceUnavailableSchema = z
   .object({
     message: z.string(),
@@ -50,13 +79,6 @@ export const ImageUnsupportedMediaSchema = z
       message: "Only JPEG, PNG, and WEBP images are allowed",
     },
   });
-
-export const cookieSchema = z.object({
-  cookie: z.string().openapi({
-    example:
-      "sessionId=abc123; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800",
-  }),
-});
 
 export const blacklistedSchema = z
   .object({
