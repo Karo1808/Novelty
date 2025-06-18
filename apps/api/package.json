@@ -9,13 +9,9 @@
         "types": "./dist/src/rpc.d.ts",
         "default": "./dist/src/rpc.js"
       }
-    },
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/esm/index.js"
     }
   },
-  "main": "index.ts",
+  "main": "./src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "ts-node ./dist/src/index.js",
