@@ -8,19 +8,16 @@ import createApp from "@/lib/create-app";
 import { authRouter } from "./modules/auth/auth.index";
 import { userRouter } from "./modules/user/user.index";
 
-const app = createApp();
-
 startCronJobs();
+
+const app = createApp()
+  .route("/", healthcheckRouter)
+  .route("/", authRouter)
+  .route("/", userRouter);
 
 configureOpenAPI(app);
 configurePrometheus(app);
 
-const routes = [healthcheckRouter, authRouter, userRouter];
-
-routes.forEach((route) => {
-  app.route("/", route);
-});
-
-export type AppType = (typeof routes)[number];
+export type AppType = typeof app;
 
 export default app;
