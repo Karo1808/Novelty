@@ -1,5 +1,4 @@
-import type app from "@/app";
-
+import type app from "./app";
 import { hc } from "hono/client";
 
 // eslint-disable-next-line unused-imports/no-unused-vars
