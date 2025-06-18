@@ -6,6 +6,13 @@
   "main": "./index.ts",
   "types": "./index.ts",
   "scripts": {},
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "@novelty/api": "workspace:*",
+    "@tanstack/react-query": "^5.80.7"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^4.12.0",
+    "@novelty/typescript-config": "workspace:*",
+    "typescript": "5.8.3"
+  }
 }
