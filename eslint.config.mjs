@@ -14,7 +14,7 @@ export default antfu(
       semi: true,
       quotes: "double",
     },
-    ignores: ["**/migrations/*", "**/*.yml", "**/*.yaml", "**/*.md", "**/routeTree.*"],
+    ignores: ["**/migrations/*", "**/*.yml", "**/*.yaml", "**/*.md", "**/routeTree.*", "**/.output/*", "**/.nitro/*", "**/tanstack/*"],
   },
   {
     rules: {
