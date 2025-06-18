@@ -7,11 +7,9 @@ on:
     branches: ["main"]
   merge_group:
 
-# You can leverage Vercel Remote Caching with Turbo to speed up your builds
-# @link https://turborepo.org/docs/core-concepts/remote-caching#remote-caching-on-vercel-builds
 env:
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+  TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
   build-lint:
@@ -43,7 +41,18 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install deps (with cache)
-        run: pnpm install
+        run: pnpm install --shamefully-hoist 
+
+      - name: TurboRepo Remote Cache Server
+        uses: trappar/turborepo-remote-cache-gh-action@main
+        with:
+          storage-provider: s3
+          storage-path: novelty-remote-cache
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}       
 
       - name: Build, lint and type-check
-        run: pnpm turbo build lint typecheck format
+        run: |
+          export SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+          pnpm turbo build lint typecheck format

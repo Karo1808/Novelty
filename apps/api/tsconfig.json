@@ -1,0 +1,31 @@
+{
+  "extends": "@novelty/typescript-config/base.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "lib": ["ESNext"],
+    "baseUrl": "./",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "paths": {
+      "@/*": ["./src/*"],
+      "$/*": ["./src/modules/*"]
+    },
+
+    "types": ["node"],
+    "inlineSources": true,
+    "outDir": "dist",
+    "sourceMap": true,
+
+    // Set `sourceRoot` to  "/" to strip the build path prefix
+    // from generated source code references.
+    // This improves issue grouping in Sentry.
+    "sourceRoot": "/",
+    "plugins": [{ "transform": "typescript-transform-paths" }]
+  },
+  "ts-node": {
+    "require": ["tsconfig-paths/register"]
+  },
+  "include": ["src/**/*"]
+}

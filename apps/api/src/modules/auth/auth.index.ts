@@ -1,0 +1,21 @@
+import { createRouter } from "@/lib/create-app";
+
+import * as handlers from "./auth.handlers";
+import * as routes from "./auth.routes";
+
+export const authRouter = createRouter()
+  .openapi(routes.registerRoute, handlers.handleRegister)
+  .openapi(
+    routes.sendVerificationEmailRoute,
+    handlers.handleSendVerificationEmail,
+  )
+  .openapi(routes.verifyEmailRoute, handlers.handleVerifyEmail)
+  .openapi(routes.loginRoute, handlers.handleLogin)
+  .openapi(routes.logoutRoute, handlers.handleLogout)
+  .openapi(
+    routes.sendForgotPasswordEmailRoute,
+    handlers.handleSendForgotPasswordEmail,
+  )
+  .openapi(routes.forgotPasswordRoute, handlers.handleForgotPasswordRoute)
+  .openapi(routes.oAuthInitRoute, handlers.handleOAuthInit)
+  .openapi(routes.oAuthCallbackRoute, handlers.handleOAuthCallback);

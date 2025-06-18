@@ -1,0 +1,33 @@
+{
+  "name": "@novelty/redis",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest",
+    "test:debug": "vitest run --printConsoleTrace=true --silent=false",
+    "test:ci": "vitest run",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf node_modules .turbo dist coverage"
+  },
+  "dependencies": {
+    "@novelty/lib": "workspace:*",
+    "dotenv": "^16.5.0",
+    "ioredis": "^5.6.1",
+    "prom-client": "^15.1.3",
+    "redlock": "5.0.0-beta.2"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^4.12.0",
+    "@novelty/typescript-config": "workspace:*",
+    "@testcontainers/redis": "^10.24.2",
+    "testcontainers": "^10.24.2",
+    "typescript": "5.8.3"
+  }
+}

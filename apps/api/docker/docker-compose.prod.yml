@@ -1,0 +1,8 @@
+services:
+  node_exporter:
+    network_mode: "bridge"
+    ports:
+      - "${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}"
+    command:
+      - '--collector.systemd'
+      - '--collector.processes'

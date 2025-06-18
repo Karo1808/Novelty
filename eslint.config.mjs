@@ -1,7 +1,11 @@
 import antfu from "@antfu/eslint-config";
+import eslintConfigTurbo from "eslint-config-turbo/flat";
+import eslintConfigDrizzle from "eslint-plugin-drizzle";
 
 export default antfu(
   {
+    lessOpinionated: true,
+    plugins: ({ eslintConfigTurbo, eslintConfigDrizzle }),
     type: "app",
     typescript: true,
     formatters: true,
@@ -10,7 +14,7 @@ export default antfu(
       semi: true,
       quotes: "double",
     },
-    ignores: ["**/migrations/*", '**/routeTree.*'],
+    ignores: ["**/migrations/*", "**/*.yml", "**/*.yaml", "**/*.md", "**/routeTree.*"],
   },
   {
     rules: {
@@ -26,5 +30,5 @@ export default antfu(
         },
       ],
     },
-  }
+  },
 );
