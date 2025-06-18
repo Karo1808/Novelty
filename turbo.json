@@ -1,12 +1,24 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "stream",
+  "globalEnv": [
+    "SENTRY_AUTH_TOKEN",
+    "TURBO_TELEMETRY_DISABLED",
+    "DATABASE_URL",
+    "REDIS_PORT",
+    "REDIS_PASSWORD"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**", "./dist/**"]
     },
+    "db:generate": {
+      "outputs": ["./migrations/**"]
+    },
+    "db:migrate": {},
+    "db:studio": {},
     "dev": {
       "cache": false,
       "persistent": true
@@ -14,10 +26,28 @@
     "lint": {
       "dependsOn": ["^lint"]
     },
+    "lint:fix": {
+      "dependsOn": ["^lint"]
+    },
     "format": {},
     "typecheck": {},
     "clean": {
       "cache": false
-    }
+    },
+    "test": {},
+    "test:ci": {},
+    "test:ui": {},
+    "test:coverage": {},
+    "open-api:generate": {
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["open-api-spec.yaml"]
+    },
+    "open-api:lint": {
+      "dependsOn": ["^open-api:generate"]
+    },
+    "compose:dev:up": {},
+    "compose:dev:down": {},
+    "compose:prod:up": {},
+    "compose:prod:down": {}
   }
 }

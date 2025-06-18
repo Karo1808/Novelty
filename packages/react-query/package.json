@@ -1,0 +1,11 @@
+{
+  "name": "@novelty/react-query",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {}
+}

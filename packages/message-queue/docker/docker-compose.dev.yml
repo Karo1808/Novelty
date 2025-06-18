@@ -1,0 +1,5 @@
+services:
+  redis-queue:
+    ports:
+      - "6380:6380"
+    network_mode: "bridge"

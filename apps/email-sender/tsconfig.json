@@ -1,0 +1,15 @@
+{
+  "extends": "@novelty/typescript-config/base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ESNext"],
+    "baseUrl": "./",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true, // Use appropriate module resolution
+    "strict": true, // Enable compatibility with CommonJS modules
+    "outDir": "dist",
+    "allowSyntheticDefaultImports": true, // Allow importing JavaScript files
+    "esModuleInterop": true
+  }
+}

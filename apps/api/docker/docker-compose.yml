@@ -1,0 +1,8 @@
+services:
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: novelty-node-exporter 
+    restart: always
+    command:
+      - '--collector.systemd'
+      - '--collector.processes'
