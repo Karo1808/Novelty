@@ -54,5 +54,6 @@
       "database": "database",
       "username": "user"
     }
-  ]
+  ],
+  "oxc.enable": true
 }

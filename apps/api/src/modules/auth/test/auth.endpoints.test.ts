@@ -313,7 +313,7 @@ describe("auth routes", () => {
 
       vi.spyOn(queueUtils, "addJobToQueue").mockImplementation(
         async (...args) => {
-          await new Promise(res => setTimeout(res, delayMs));
+          await new Promise((res) => setTimeout(res, delayMs));
           return originalAddJobToQueue(...args);
         },
       );
@@ -336,22 +336,10 @@ describe("auth routes", () => {
           const response = result.value;
           if (response.status === HttpStatusCodes.OK) {
             successCount++;
-          }
-          else {
-            if (
-              response.status !== HttpStatusCodes.CONFLICT
-              && response.status !== HttpStatusCodes.TOO_MANY_REQUESTS
-              && response.status !== HttpStatusCodes.SERVICE_UNAVAILABLE
-            ) {
-              console.warn(
-                `Unexpected status ${response.status} in concurrency test.`,
-              );
-            }
+          } else {
             conflictOrLockFailureCount++;
           }
-        }
-        else {
-          console.error("Request rejected in concurrency test:", result.reason);
+        } else {
           conflictOrLockFailureCount++;
         }
       }
@@ -729,7 +717,7 @@ describe("auth routes", () => {
 
       vi.spyOn(queueUtils, "addJobToQueue").mockImplementation(
         async (...args) => {
-          await new Promise(res => setTimeout(res, delayMs));
+          await new Promise((res) => setTimeout(res, delayMs));
           return originalAddJobToQueue(...args);
         },
       );
@@ -754,22 +742,10 @@ describe("auth routes", () => {
           const response = result.value;
           if (response.status === HttpStatusCodes.OK) {
             successCount++;
-          }
-          else {
-            if (
-              response.status !== HttpStatusCodes.CONFLICT
-              && response.status !== HttpStatusCodes.TOO_MANY_REQUESTS
-              && response.status !== HttpStatusCodes.SERVICE_UNAVAILABLE
-            ) {
-              console.warn(
-                `Unexpected status ${response.status} in concurrency test.`,
-              );
-            }
+          } else {
             conflictOrLockFailureCount++;
           }
-        }
-        else {
-          console.error("Request rejected in concurrency test:", result.reason);
+        } else {
           conflictOrLockFailureCount++;
         }
       }
@@ -955,7 +931,7 @@ describe("auth routes", () => {
 
       vi.spyOn(queueUtils, "addJobToQueue").mockImplementation(
         async (...args) => {
-          await new Promise(res => setTimeout(res, delayMs));
+          await new Promise((res) => setTimeout(res, delayMs));
           return originalAddJobToQueue(...args);
         },
       );
@@ -981,22 +957,10 @@ describe("auth routes", () => {
           const response = result.value;
           if (response.status === HttpStatusCodes.OK) {
             successCount++;
-          }
-          else {
-            if (
-              response.status !== HttpStatusCodes.CONFLICT
-              && response.status !== HttpStatusCodes.TOO_MANY_REQUESTS
-              && response.status !== HttpStatusCodes.SERVICE_UNAVAILABLE
-            ) {
-              console.warn(
-                `Unexpected status ${response.status} in concurrency test.`,
-              );
-            }
+          } else {
             conflictOrLockFailureCount++;
           }
-        }
-        else {
-          console.error("Request rejected in concurrency test:", result.reason);
+        } else {
           conflictOrLockFailureCount++;
         }
       }
