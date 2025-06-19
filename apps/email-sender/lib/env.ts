@@ -31,7 +31,9 @@ export type env = z.infer<typeof EnvSchema>;
 const { data: env, error } = EnvSchema.safeParse(process.env);
 
 if (error) {
+  // oxlint-disable-next-line no-console
   console.error("❌ Invalid env:");
+  // oxlint-disable-next-line no-console
   console.error(JSON.stringify(error.flatten().fieldErrors, null, 2));
   process.exit(1);
 }

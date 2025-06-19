@@ -57,8 +57,10 @@ beforeAll(async () => {
     enableOfflineQueue: true,
   });
 
+  // oxlint-disable-next-line no-console
   originalConsoleError = console.error;
 
+  // oxlint-disable-next-line no-console
   console.error = (...args) => {
     const message = args.join(" ");
     if (message.includes("ECONNREFUSED") || message.includes("ENOTFOUND")) {
@@ -138,7 +140,6 @@ afterAll(async () => {
   await pool.end();
   await redisContainer.stop();
   await dbContainer.stop();
-  // console.error = originalConsoleError;
   await s3Container?.stop();
   vi.clearAllMocks();
 });
