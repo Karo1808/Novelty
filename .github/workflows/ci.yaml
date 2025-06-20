@@ -55,4 +55,5 @@ jobs:
       - name: Build, lint and type-check
         run: |
           export SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+          pnpm turbo build:rpc
           pnpm turbo build lint typecheck format
