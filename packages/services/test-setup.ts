@@ -1,26 +1,26 @@
 /* eslint-disable node/no-process-env */
 /* eslint-disable import/no-mutable-exports */
-import type { DBClient } from "@novelty/db/lib/types";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import type { Queue } from "bullmq";
-import type { Redis as TRedis } from "ioredis";
-import type { Pool as TPool } from "pg";
-import type { StartedTestContainer } from "testcontainers";
-import type { ServiceDependencies } from "types";
-import path from "node:path";
 import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import type { DBClient } from "@novelty/db/lib/types";
 import * as schema from "@novelty/db/schemas/index.schema";
 import { configureLogger } from "@novelty/lib/logger";
 import { createQueue } from "@novelty/message-queue/lib/create-queue";
 import { createWorker } from "@novelty/message-queue/lib/create-worker";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import type { Queue } from "bullmq";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
+import type { Redis as TRedis } from "ioredis";
 import { Redis } from "ioredis";
+import path from "node:path";
+import type { Pool as TPool } from "pg";
 import { Pool } from "pg";
 import { Registry } from "prom-client";
 import Redlock from "redlock";
+import type { StartedTestContainer } from "testcontainers";
 import { GenericContainer } from "testcontainers";
+import type { ServiceDependencies } from "types";
 import { afterAll, beforeAll, vi } from "vitest";
 
 if (process.env.NODE_ENV !== "test") {
@@ -62,6 +62,7 @@ beforeAll(async () => {
 
   const redisClients = [testRedis];
 
+  // @ts-expect-error
   testRedlock = new Redlock(redisClients);
 
   const queueName = "email-queue";

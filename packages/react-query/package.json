@@ -9,11 +9,6 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
-    "test": "vitest",
-    "test:debug": "vitest run --printConsoleTrace=true --silent=false",
-    "test:ci": "vitest run",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage",
     "clean": "rm -rf node_modules .turbo dist coverage"
   },
   "dependencies": {

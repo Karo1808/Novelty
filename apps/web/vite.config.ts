@@ -1,8 +1,9 @@
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 // vite.config.ts
+import tailwindPlugin from "@tailwindcss/vite";
 import { defineConfig } from "vite";
-import tsConfigPaths from "vite-tsconfig-paths";
 import oxlintPlugin from "vite-plugin-oxlint";
+import tsConfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   server: {
@@ -11,6 +12,7 @@ export default defineConfig({
   plugins: [
     tsConfigPaths(),
     tanstackStart(),
+    tailwindPlugin(),
     oxlintPlugin({
       path: "src",
     }),

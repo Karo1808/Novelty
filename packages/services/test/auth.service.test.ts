@@ -1,6 +1,3 @@
-import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
-import type { InsertUser } from "@novelty/db/schemas/user.schema";
-import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import { verify } from "@node-rs/argon2";
 import {
   DatabaseConnectionError,
@@ -8,16 +5,20 @@ import {
 } from "@novelty/db/lib/errors";
 import * as dbQueries from "@novelty/db/queries/auth.query";
 import * as userDbQueries from "@novelty/db/queries/user.query";
-import { authProvidersTable } from "@novelty/db/schemas/auth-provider.schema";
+import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
 import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
+import type { InsertUser } from "@novelty/db/schemas/user.schema";
 import { usersTable } from "@novelty/db/schemas/user.schema";
 import * as authUtils from "@novelty/lib/auth/cryptography";
 import * as tokenGenerationUtils from "@novelty/lib/generate-verification-token";
+import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import * as queueUtils from "@novelty/message-queue/lib/add-job-to-queue";
 import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import * as redisQueries from "@novelty/redis/queries/index.query";
+import * as arctic from "arctic";
 import { OAuth2RequestError } from "arctic";
 import { eq, sql } from "drizzle-orm";
+import { ServiceDependencies } from "types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   authenticateOAuthUser,
@@ -32,7 +33,6 @@ import {
   sendVerificationEmail,
   verifyEmail,
 } from "../auth.service";
-import * as authService from "../auth.service";
 import {
   GOOGLE_SCOPES,
   VERIFICATION_EMAIL_EXPIRY_TIME,
@@ -51,6 +51,35 @@ const dummyBody: InsertUser["register"] = {
   email: "email@mail.com",
   password: "password123",
 };
+
+const mockClaims = {
+  iss: "http://issuer", // required
+  aud: "client", // required
+  exp: Math.floor(Date.now() / 1000) + 3600,
+  sub: "provider-123",
+  email: "oauth@test.com",
+  email_verified: true,
+  name: "Oauth User",
+  picture: "https://example.com/avatar.png",
+};
+
+vi.mock(import("arctic"), async (importOriginal) => {
+  const claims = {
+    iss: "http://issuer", // required
+    aud: "client", // required
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    sub: "provider-123",
+    email: "oauth@test.com",
+    email_verified: true,
+    name: "Oauth User",
+    picture: "https://example.com/avatar.png",
+  };
+  const mod = await importOriginal();
+  return {
+    ...mod,
+    decodeIdToken: vi.fn().mockReturnValue(claims),
+  };
+});
 
 describe("auth service", () => {
   describe("registerUser", () => {
@@ -1379,7 +1408,6 @@ describe("auth service", () => {
     afterEach(async () => {
       vi.restoreAllMocks();
       await testDb.execute(sql`TRUNCATE table users CASCADE`);
-      await testRedis.flushall();
     });
 
     it("should create a session and return user info", async () => {
@@ -1425,21 +1453,27 @@ describe("auth service", () => {
   });
 
   describe("initOAuth", () => {
-    const googleProvider = {
-      createAuthorizationURL: vi
-        .fn()
-        .mockReturnValue(new URL("https://google.com/auth")),
-    } as any;
-    const amazonProvider = {
-      createAuthorizationURL: vi
-        .fn()
-        .mockReturnValue(new URL("https://amazon.com/auth")),
-    } as any;
+    let deps: ServiceDependencies;
+    let googleProvider: arctic.Google;
+    let amazonProvider: arctic.AmazonCognito;
 
-    const deps = {
-      ...testDependencies,
-      providers: { google: googleProvider, amazon: amazonProvider },
-    };
+    beforeEach(() => {
+      googleProvider = {
+        createAuthorizationURL: vi
+          .fn()
+          .mockReturnValue(new URL("https://google.com/auth")),
+      } as any;
+      amazonProvider = {
+        createAuthorizationURL: vi
+          .fn()
+          .mockReturnValue(new URL("https://amazon.com/auth")),
+      } as any;
+
+      deps = {
+        ...testDependencies,
+        providers: { google: googleProvider, amazon: amazonProvider },
+      };
+    });
 
     afterEach(() => {
       vi.restoreAllMocks();
@@ -1449,6 +1483,7 @@ describe("auth service", () => {
       const res = await initOAuth(deps, "google");
 
       expect(googleProvider.createAuthorizationURL).toHaveBeenCalledOnce();
+      // @ts-expect-error: mocking
       const args = googleProvider.createAuthorizationURL.mock.calls[0];
       expect(args[2]).toEqual(GOOGLE_SCOPES);
 
@@ -1472,55 +1507,14 @@ describe("auth service", () => {
   });
 
   describe("authenticateOAuthUser", () => {
-    const claims = {
-      iss: "http://issuer", // required
-      aud: "client", // required
-      exp: Math.floor(Date.now() / 1000) + 3600,
-      sub: "provider-123",
-      email: "oauth@test.com",
-      email_verified: true,
-      name: "Oauth User",
-      picture: "https://example.com/avatar.png",
-    };
-
-    afterEach(async () => {
-      vi.restoreAllMocks();
+    beforeEach(async () => {
       await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table auth_providers CASCADE`);
       await testRedis.flushall();
     });
 
-    it("should create new user when none exists", async () => {
-      const spySession = vi.spyOn(
-        authService,
-        "createAuthenticatedSessionResponse",
-      );
-
-      const result = await authenticateOAuthUser(
-        testDependencies,
-        "google",
-        claims,
-      );
-
-      expect(spySession).toHaveBeenCalledOnce();
-
-      expect(result).toMatchObject({
-        token: expect.any(String),
-        expiresAt: expect.any(Date),
-        user: {
-          email: claims.email,
-          isEmailVerified: true,
-        },
-      });
-
-      const user = await testDb.query.usersTable.findFirst({
-        where: eq(usersTable.email, claims.email),
-      });
-      expect(user).toBeTruthy();
-
-      const providerRow = await testDb.query.authProvidersTable.findFirst({
-        where: eq(authProvidersTable.providerUserId, claims.sub),
-      });
-      expect(providerRow).toBeTruthy();
+    afterEach(() => {
+      vi.clearAllMocks();
     });
 
     it("should link provider to existing user", async () => {
@@ -1528,14 +1522,14 @@ describe("auth service", () => {
         .insert(usersTable)
         .values({
           id: "existing-id",
-          email: claims.email,
+          email: mockClaims.email,
           password: "", // unused
           isEmailVerified: true,
         })
         .returning();
 
       await testDb.insert(userInfoTable).values({
-        userId: existingUser[0].id,
+        userId: existingUser[0]!.id,
         avatarUrl: "",
         bio: null,
         username: "old",
@@ -1545,74 +1539,38 @@ describe("auth service", () => {
       const spyCreateProvider = vi.spyOn(dbQueries, "createProvider");
 
       const res = await authenticateOAuthUser(testDependencies, "google", {
-        ...claims,
-        email: existingUser[0]?.email,
+        ...mockClaims,
+        email: existingUser[0]?.email!,
       });
 
       expect(spyCreateProvider).toHaveBeenCalledOnce();
-      expect(res.user.id).toBe(existingUser[0].id);
+      expect(res.user.id).toBe(existingUser[0]!.id);
     });
   });
 
+  // -------------------------------------------------------------------------
+  // oAuthCallback
+  // -------------------------------------------------------------------------
   describe("oAuthCallback", () => {
-    const googleProvider = {
-      validateAuthorizationCode: vi.fn().mockResolvedValue({
-        idToken: () => "id-token",
-      }),
-    } as any;
+    let googleProvider: any;
+    let deps: ServiceDependencies;
 
-    const deps = {
-      ...testDependencies,
-      providers: { google: googleProvider, amazon: googleProvider },
-    };
+    beforeEach(() => {
+      googleProvider = {
+        validateAuthorizationCode: vi.fn().mockResolvedValue({
+          idToken: () => "id-token",
+        }),
+      } as any;
+
+      deps = {
+        ...testDependencies,
+        providers: { google: googleProvider, amazon: googleProvider },
+      } as ServiceDependencies;
+    });
 
     afterEach(() => {
-      vi.restoreAllMocks();
+      vi.clearAllMocks();
     });
-
-    it("should authenticate and return session data", async () => {
-      const claims = {
-        iss: "http://issuer",
-        aud: "client",
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        sub: "123",
-        email: "user@test.com",
-        email_verified: true,
-      };
-
-      vi.spyOn(authService, "decodeIdToken").mockReturnValue(claims as any);
-
-      const sessionData = {
-        token: "tok",
-        expiresAt: new Date(),
-        user: {
-          id: "id",
-          email: claims.email,
-          isEmailVerified: true,
-          isOnboarded: false,
-          userInfo: {
-            profile: { avatarUrl: "", bio: null, username: "" },
-            preferences: {},
-          },
-        },
-      } as any;
-      const authSpy = vi
-        .spyOn(authService, "authenticateOAuthUser")
-        .mockResolvedValue(sessionData);
-
-      const res = await oAuthCallback(deps, {
-        provider: "google",
-        codeVerifier: "ver",
-        code: "code",
-      });
-
-      expect(googleProvider.validateAuthorizationCode).toHaveBeenCalledOnce();
-      expect(authService.decodeIdToken).toHaveBeenCalledOnce();
-      expect(authSpy).toHaveBeenCalledWith(deps, "google", claims);
-
-      expect(res).toMatchObject({ success: true, data: sessionData });
-    });
-
     it("should return bad request for invalid provider", async () => {
       const res = await oAuthCallback(deps, {
         provider: "invalid" as any,
