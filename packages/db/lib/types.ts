@@ -1,9 +1,9 @@
-import type { db } from "..";
 import type { Logger } from "@novelty/lib/types";
 import type { Registry } from "prom-client";
-import { selectUserSchema } from "../schemas/user.schema";
-import { selectUserInfoSchema } from "../schemas/user-info.schema";
 import type { z } from "zod";
+import type { db } from "..";
+import { selectUserInfoSchema } from "../schemas/user-info.schema";
+import { selectUserSchema } from "../schemas/user.schema";
 
 export type DBClient = typeof db;
 

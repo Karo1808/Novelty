@@ -1,6 +1,6 @@
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
-import { encodeBase32LowerCaseNoPadding } from "@oslojs/encoding";
 import type { ServiceDependencies } from "./types";
+import { encodeToken } from "@novelty/lib/auth/cryptography";
 import {
   addToSet,
   deleteByKey,
@@ -9,7 +9,7 @@ import {
   removeFromSet,
   setWithExpiry,
 } from "@novelty/redis/queries/index.query";
-import { encodeToken } from "@novelty/lib/auth/cryptography";
+import { encodeBase32LowerCaseNoPadding } from "@oslojs/encoding";
 
 export interface Session {
   id: string;

@@ -1,14 +1,14 @@
 /* eslint-disable import/no-mutable-exports */
-import { afterAll, beforeAll, vi } from "vitest";
-import { Redis } from "ioredis";
-import type { Redis as TRedis } from "ioredis";
-import { configureLogger } from "@novelty/lib/logger";
-import { Registry } from "prom-client";
 import type { Logger } from "@novelty/lib/types";
+import type { Redis as TRedis } from "ioredis";
 import type { Dependencies } from "lib/types";
 import type { StartedTestContainer } from "testcontainers";
-import { GenericContainer } from "testcontainers";
+import { configureLogger } from "@novelty/lib/logger";
+import { Redis } from "ioredis";
+import { Registry } from "prom-client";
 import Redlock from "redlock";
+import { GenericContainer } from "testcontainers";
+import { afterAll, beforeAll, vi } from "vitest";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {

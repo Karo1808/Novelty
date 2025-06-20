@@ -1,24 +1,24 @@
-import type { Hook } from "@hono/zod-openapi";
-import { requestId } from "hono/request-id";
-
-import { OpenAPIHono } from "@hono/zod-openapi";
-import { compress } from "hono/compress";
-import { cors } from "hono/cors";
-import { secureHeaders } from "hono/secure-headers";
-
 import type { AppBindings, AppOpenAPI } from "@/types/index.types";
+import type { Hook } from "@hono/zod-openapi";
 
+import env from "@/env";
+import { authMiddleware } from "@/middleware/auth.middleware";
 import notFound from "@/middleware/not-found.middleware";
 import onError from "@/middleware/on-error.middleware";
-import { requestLogger } from "@/middleware/request-logger.middleware";
 
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import { sentry } from "@hono/sentry";
-import env from "@/env";
+import { emailVerificationLimiter } from "@/middleware/rate-limit";
+
+import { requestLogger } from "@/middleware/request-logger.middleware";
 import { sentryConfigureScope } from "@/middleware/sentry-configure-scope.middleware";
 import { sentryTransactionMiddleware } from "@/middleware/sentry-transaction.middleware";
-import { emailVerificationLimiter } from "@/middleware/rate-limit";
-import { authMiddleware } from "@/middleware/auth.middleware";
+
+import { sentry } from "@hono/sentry";
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { compress } from "hono/compress";
+import { cors } from "hono/cors";
+import { requestId } from "hono/request-id";
+import { secureHeaders } from "hono/secure-headers";
 
 const defaultHook: Hook<any, any, any, any> = (result, c) => {
   if (!result.success) {

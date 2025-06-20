@@ -1,17 +1,17 @@
 /* eslint-disable import/no-mutable-exports */
-import path from "node:path";
-import * as schema from "./schemas/index.schema";
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { afterAll, beforeAll, vi } from "vitest";
-import { Pool } from "pg";
-import type { Pool as TPool } from "pg";
-import type { DBClient, Dependencies } from "lib/types";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { configureLogger } from "@novelty/lib/logger";
-import { Registry } from "prom-client";
 import type { Logger } from "@novelty/lib/types";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import type { DBClient, Dependencies } from "lib/types";
+import type { Pool as TPool } from "pg";
+import path from "node:path";
+import { configureLogger } from "@novelty/lib/logger";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { Pool } from "pg";
+import { Registry } from "prom-client";
+import { afterAll, beforeAll, vi } from "vitest";
+import * as schema from "./schemas/index.schema";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {

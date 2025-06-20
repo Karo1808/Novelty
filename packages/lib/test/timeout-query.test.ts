@@ -1,6 +1,6 @@
+import type { Logger } from "../types";
 import { describe, expect, it, vi } from "vitest";
 import { timeoutQuery } from "../timeout-query";
-import type { Logger } from "../types";
 import "dotenv/config";
 
 // eslint-disable-next-line node/no-process-env

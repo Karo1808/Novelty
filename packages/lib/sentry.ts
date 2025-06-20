@@ -1,6 +1,6 @@
-import * as Sentry from "@sentry/node";
 import type { Context, Primitive, Scope } from "@sentry/types";
 import type { NodeEnvironment } from "./types";
+import * as Sentry from "@sentry/node";
 
 interface CaptureExceptionParams {
   error: Error;

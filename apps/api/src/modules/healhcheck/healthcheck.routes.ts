@@ -1,6 +1,6 @@
+import { jsonContent } from "@/lib/json-content";
 import { createRoute } from "@hono/zod-openapi";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import { jsonContent } from "@/lib/json-content";
 import {
   healthcheckOkSchema,
   healthcheckUnavailableSchema,

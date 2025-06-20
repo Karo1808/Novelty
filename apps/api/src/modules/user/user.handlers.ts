@@ -8,6 +8,13 @@ import type {
   UpdateProfileRoute,
   UpdateUserDraftRoute,
 } from "./user.routes";
+import env from "@/env";
+import logger from "@/lib/logger";
+import { prometheusRegistry } from "@/lib/metrics";
+import { db } from "@novelty/db";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { s3Client } from "@novelty/lib/s3-client";
+import { redis } from "@novelty/redis";
 import {
   completeOnboarding,
   getPreferences,
@@ -17,13 +24,6 @@ import {
   updateProfile,
   updateUserDraft,
 } from "@novelty/services/user.service";
-import { db } from "@novelty/db";
-import logger from "@/lib/logger";
-import { prometheusRegistry } from "@/lib/metrics";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import { redis } from "@novelty/redis";
-import { s3Client } from "@novelty/lib/s3-client";
-import env from "@/env";
 
 export const handleGetProfile: AppRouteHandler<GetProfileRoute> = async (c) => {
   const { userId } = c.var.user;

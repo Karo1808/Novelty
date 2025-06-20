@@ -1,11 +1,11 @@
-import type { DBClient } from "@novelty/db/lib/types";
-import type { Redis } from "ioredis";
-import type { Logger, PrometheusRegistry } from "@novelty/lib/types";
-import type { Queue } from "bullmq";
 import type { S3Client } from "@aws-sdk/client-s3";
-import type Redlock from "redlock";
+import type { DBClient } from "@novelty/db/lib/types";
 import type { HttpStatusCodeKey } from "@novelty/lib/http-status-codes";
+import type { Logger, PrometheusRegistry } from "@novelty/lib/types";
 import type { AmazonCognito, Google } from "arctic";
+import type { Queue } from "bullmq";
+import type { Redis } from "ioredis";
+import type Redlock from "redlock";
 
 export interface ServiceDependencies {
   dbInstance: DBClient;

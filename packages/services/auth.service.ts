@@ -1,11 +1,4 @@
-import type { ErrorResponse, Result, ServiceDependencies } from "./types";
-import {
-  decodeIdToken,
-  generateCodeVerifier,
-  generateState,
-  OAuth2RequestError,
-} from "arctic";
-import type { InsertUser, SelectUser } from "@novelty/db/schemas/user.schema";
+import { QueryExecutionError } from "@novelty/db/lib/errors";
 import type { SelectUserWithInfo } from "@novelty/db/lib/types";
 import {
   createProvider,
@@ -16,14 +9,28 @@ import {
   updateUserByIdQuery,
 } from "@novelty/db/queries/auth.query";
 import {
+  getUserInfoQuery,
+  updateUserProfileByUserIdQuery,
+} from "@novelty/db/queries/user.query";
+import type { SelectAuthProvider } from "@novelty/db/schemas/auth-provider.schema";
+import type { InsertUser, SelectUser } from "@novelty/db/schemas/user.schema";
+import {
   encodeToken,
   generatePasswordResetToken,
   hashString,
   verifyHash,
 } from "@novelty/lib/auth/cryptography";
-import { QueryExecutionError } from "@novelty/db/lib/errors";
-import type { MarkKeysAsPartial } from "@novelty/lib/types";
 import { generateVerificationToken } from "@novelty/lib/generate-verification-token";
+import { captureException } from "@novelty/lib/sentry";
+import type { MarkKeysAsPartial } from "@novelty/lib/types";
+import type {
+  ForgotPasswordBodySchema,
+  OAuthIdTokenSchema,
+  VerifyEmailBodySchema,
+} from "@novelty/lib/validations/auth";
+import { oauthIdTokenSchema } from "@novelty/lib/validations/auth";
+import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
+import { EnqueuingError } from "@novelty/message-queue/lib/error";
 import {
   acquireLock,
   deleteByKey,
@@ -32,7 +39,12 @@ import {
   releaseLock,
   setWithExpiry,
 } from "@novelty/redis/queries/index.query";
-import { EnqueuingError } from "@novelty/message-queue/lib/error";
+import {
+  decodeIdToken,
+  generateCodeVerifier,
+  generateState,
+  OAuth2RequestError,
+} from "arctic";
 import {
   AMAZON_SCOPES,
   BLACKLIST_KEY,
@@ -47,25 +59,13 @@ import {
   VERIFICATION_EMAIL_EXPIRY_TIME,
   VERIFICATION_EMAIL_TOKEN_LENGTH,
 } from "./lib/config";
-import { addJobToQueue } from "@novelty/message-queue/lib/add-job-to-queue";
-import { oauthIdTokenSchema } from "@novelty/lib/validations/auth";
-import type {
-  ForgotPasswordBodySchema,
-  OAuthIdTokenSchema,
-  VerifyEmailBodySchema,
-} from "@novelty/lib/validations/auth";
 import {
   createSession,
   generateSessionToken,
   invalidateAllSessions,
   invalidateSession,
 } from "./session.service";
-import {
-  getUserInfoQuery,
-  updateUserProfileByUserIdQuery,
-} from "@novelty/db/queries/user.query";
-import { captureException } from "@novelty/lib/sentry";
-import type { SelectAuthProvider } from "@novelty/db/schemas/auth-provider.schema";
+import type { ErrorResponse, Result, ServiceDependencies } from "./types";
 
 export type RegisterUserError = ErrorResponse<"CONFLICT">;
 
@@ -106,13 +106,13 @@ export const registerUser = async (
 
     return {
       success: true,
+
       data: newUser,
     };
-  }
-  catch (err: any) {
+  } catch (err: any) {
     if (
-      err?.message
-      && err.message.includes("duplicate key value violates unique constraint")
+      err?.message &&
+      err.message.includes("duplicate key value violates unique constraint")
     ) {
       return {
         success: false,
@@ -204,12 +204,10 @@ export const sendVerificationEmail = async (
             },
           },
         );
-      }
-      else {
+      } else {
         await deleteByKey(dependencies, redisKey);
       }
-    }
-    catch (err: unknown) {
+    } catch (err: unknown) {
       await deleteByKey(dependencies, redisKey);
       throw new EnqueuingError("send-verification-email", err as Error);
     }
@@ -218,8 +216,7 @@ export const sendVerificationEmail = async (
       success: true,
       data: undefined,
     };
-  }
-  finally {
+  } finally {
     if (lock) {
       await releaseLock(dependencies, lock);
     }
@@ -384,12 +381,10 @@ export const loginUser = async (
 
   if (user) {
     passwordMatch = await verifyHash(password, user.password);
-  }
-  else {
+  } else {
     try {
       await verifyHash(password, DUMMY_PASSWORD_HASH);
-    }
-    catch (dummyError: unknown) {
+    } catch (dummyError: unknown) {
       dependencies.logger.debug({
         message: "Ignored expected error during dummy password check",
         source: "loginUser",
@@ -535,7 +530,7 @@ export const authenticateOAuthUser = async (
     );
   }
 
-  if (existingUser) {
+  if (!existingProvider) {
     await createProvider(dependencies, {
       provider,
       providerUserId: claims.sub,
@@ -570,7 +565,6 @@ export const oAuthCallback = async (
   const providers = dependencies.providers!;
 
   let claims;
-
   try {
     switch (provider) {
       case "google": {
@@ -578,8 +572,11 @@ export const oAuthCallback = async (
           code,
           codeVerifier,
         );
+
         const idToken = tokens.idToken();
+
         claims = decodeIdToken(idToken);
+
         break;
       }
       // TODO: Update the amazon app once I have a client deployed
@@ -606,8 +603,7 @@ export const oAuthCallback = async (
           },
         };
     }
-  }
-  catch (error) {
+  } catch (error) {
     if (error instanceof OAuth2RequestError) {
       dependencies.logger.error({
         message: "Failed to validate authorization code",
@@ -639,8 +635,7 @@ export const oAuthCallback = async (
       success: true,
       data: response,
     };
-  }
-  catch (error: unknown) {
+  } catch (error: unknown) {
     dependencies.logger.fatal({
       message:
         "[FATAL ERROR]: The parsed output for auth provider user information did not match the schema",
@@ -761,13 +756,11 @@ export const sendForgotPasswordEmail = async (
             },
           },
         );
-      }
-      catch (err: unknown) {
+      } catch (err: unknown) {
         deleteByKey(dependencies, redisKey);
         throw new EnqueuingError("send-forgot-password-email", err as Error);
       }
-    }
-    else {
+    } else {
       const dummyValue = "dummy_user_not_found";
 
       try {
@@ -777,8 +770,7 @@ export const sendForgotPasswordEmail = async (
           dummyValue,
           FORGOT_PASSWORD_EMAIL_EXPIRY_TIME,
         );
-      }
-      catch (redisErr: unknown) {
+      } catch (redisErr: unknown) {
         dependencies.logger.warn({
           message:
             "Error during dummy Redis write for timing attack mitigation",
@@ -795,8 +787,7 @@ export const sendForgotPasswordEmail = async (
       success: true,
       data: undefined,
     };
-  }
-  finally {
+  } finally {
     await releaseLock(dependencies, lock);
   }
 };
@@ -883,8 +874,7 @@ export const forgotPassword = async (
         success: true,
         data: sessionData,
       };
-    }
-    catch (redisOrSessionError) {
+    } catch (redisOrSessionError) {
       dependencies.logger.error({
         message:
           "Password reset successful, but failed during Redis cleanup or new session creation",
@@ -899,8 +889,7 @@ export const forgotPassword = async (
         data: undefined,
       };
     }
-  }
-  finally {
+  } finally {
     if (lock) {
       await releaseLock(dependencies, lock);
     }

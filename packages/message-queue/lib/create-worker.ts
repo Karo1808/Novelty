@@ -1,9 +1,9 @@
-import type { Job } from "bullmq";
-import { MetricsTime, Worker } from "bullmq";
-import { logger } from "./logger";
-import { captureException } from "@novelty/lib/sentry";
-import { redisConfig } from "../config/index";
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
+import type { Job } from "bullmq";
+import { captureException } from "@novelty/lib/sentry";
+import { MetricsTime, Worker } from "bullmq";
+import { redisConfig } from "../config/index";
+import { logger } from "./logger";
 
 export const createWorker = (
   queueName: string,

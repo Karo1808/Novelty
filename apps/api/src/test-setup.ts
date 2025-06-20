@@ -1,27 +1,27 @@
 /* eslint-disable import/no-mutable-exports */
-import path from "node:path";
-import * as schema from "@novelty/db/schemas/index.schema";
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { afterAll, beforeAll, vi } from "vitest";
-import { Pool } from "pg";
-import type { Pool as TPool } from "pg";
 import type { DBClient } from "@novelty/db/lib/types";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Redis } from "ioredis";
-import type { Redis as TRedis } from "ioredis";
-import { createQueue } from "@novelty/message-queue/lib/create-queue";
-import type { ConnectionOptions, Queue } from "bullmq";
-import { createTestWorker } from "@novelty/message-queue/lib/create-test-worker";
 import type { ServiceDependencies } from "@novelty/services/types";
-import { Registry } from "prom-client";
-import { configureLogger } from "@novelty/lib/logger";
-import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import type { ConnectionOptions, Queue } from "bullmq";
+import type { Redis as TRedis } from "ioredis";
+import type { Pool as TPool } from "pg";
 import type { StartedTestContainer } from "testcontainers";
-import { GenericContainer } from "testcontainers";
-import env from "./env";
+import path from "node:path";
+import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import * as schema from "@novelty/db/schemas/index.schema";
+import { configureLogger } from "@novelty/lib/logger";
+import { createQueue } from "@novelty/message-queue/lib/create-queue";
+import { createTestWorker } from "@novelty/message-queue/lib/create-test-worker";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { Redis } from "ioredis";
+import { Pool } from "pg";
+import { Registry } from "prom-client";
 import Redlock from "redlock";
+import { GenericContainer } from "testcontainers";
+import { afterAll, beforeAll, vi } from "vitest";
+import env from "./env";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {
@@ -57,8 +57,10 @@ beforeAll(async () => {
     enableOfflineQueue: true,
   });
 
+  // oxlint-disable-next-line no-console
   originalConsoleError = console.error;
 
+  // oxlint-disable-next-line no-console
   console.error = (...args) => {
     const message = args.join(" ");
     if (message.includes("ECONNREFUSED") || message.includes("ENOTFOUND")) {
@@ -138,7 +140,6 @@ afterAll(async () => {
   await pool.end();
   await redisContainer.stop();
   await dbContainer.stop();
-  // console.error = originalConsoleError;
   await s3Container?.stop();
   vi.clearAllMocks();
 });

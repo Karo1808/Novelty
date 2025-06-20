@@ -1,9 +1,9 @@
+import type { AppBindings, User } from "@/types/index.types";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import * as sessionService from "@novelty/services/session.service";
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { authMiddleware } from "../auth.middleware";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import * as sessionService from "@novelty/services/session.service";
-import type { AppBindings, User } from "@/types/index.types";
 
 describe("authMiddleware", () => {
   let app: Hono<AppBindings>;

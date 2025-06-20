@@ -1,8 +1,8 @@
+import { createWorker } from "@novelty/message-queue/lib/create-worker";
 import {
   processForgotPasswordEmail,
   processVerificationEmail,
 } from "@novelty/message-queue/queues/email.handler";
-import { createWorker } from "@novelty/message-queue/lib/create-worker";
 import env from "./lib/env";
 
 export const jobProcessors: Record<string, (data: any) => Promise<void>> = {

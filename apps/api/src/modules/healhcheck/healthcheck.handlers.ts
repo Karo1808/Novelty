@@ -1,19 +1,19 @@
 import type { AppRouteHandler } from "@/types/index.types";
+import type { HealthcheckRoute } from "./healthcheck.routes";
+import env from "@/env";
+import logger from "@/lib/logger";
+import { prometheusRegistry } from "@/lib/metrics";
+import { db } from "@novelty/db/index";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { s3Client } from "@novelty/lib/s3-client";
+import { emailQueue } from "@novelty/message-queue/queues/email.queue";
+import { redis } from "@novelty/redis";
 import {
   checkDbHealth,
   checkEmailQueueHealth,
   checkR2Health,
   checkRedisHealth,
 } from "@novelty/services/healthcheck.service";
-import env from "@/env";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import type { HealthcheckRoute } from "./healthcheck.routes";
-import logger from "@/lib/logger";
-import { prometheusRegistry } from "@/lib/metrics";
-import { db } from "@novelty/db/index";
-import { redis } from "@novelty/redis";
-import { emailQueue } from "@novelty/message-queue/queues/email.queue";
-import { s3Client } from "@novelty/lib/s3-client";
 
 interface Response {
   dbStatus?: boolean;

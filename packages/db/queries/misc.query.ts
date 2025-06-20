@@ -1,6 +1,6 @@
-import { createDBQuery } from "../lib/create-db-query";
 import type { Dependencies } from "../lib/types";
 import { sql } from "drizzle-orm";
+import { createDBQuery } from "../lib/create-db-query";
 
 export const getStatusQuery = (dependencies: Dependencies) => {
   return createDBQuery({

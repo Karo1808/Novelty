@@ -7,8 +7,8 @@
   "types": "./index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
     "test": "vitest",
     "test:debug": "vitest run --printConsoleTrace=true --silent=false",
     "test:ci": "vitest run",

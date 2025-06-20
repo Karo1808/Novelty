@@ -1,4 +1,5 @@
 import type { RedisKey, RedisValue } from "ioredis";
+import type { Lock } from "redlock";
 import {
   acquireLock,
   addToSet,
@@ -10,7 +11,6 @@ import {
   removeFromSet,
   setWithExpiry,
 } from "queries/index.query";
-import type { Lock } from "redlock";
 import { testClient, testDependencies } from "test-setup";
 import { describe, expect, it } from "vitest";
 

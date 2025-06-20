@@ -3,7 +3,15 @@ import type {
   UpdateUserInfo,
 } from "@novelty/db/schemas/user-info.schema";
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
+import type { UserDraftBodySchema } from "@novelty/lib/validations/user";
+import type { UpdateProfile } from "./lib/utils";
 import type { ErrorResponse, Result, ServiceDependencies } from "./types";
+import { Buffer } from "node:buffer";
+import { QueryExecutionError } from "@novelty/db/lib/errors";
+import {
+  getUserByIdQuery,
+  updateUserByIdQuery,
+} from "@novelty/db/queries/auth.query";
 import {
   getIsUsernameUniqueQuery,
   getPreferencesByUserIdQuery,
@@ -12,22 +20,14 @@ import {
   updateUserPreferencesByIdQuery,
   updateUserProfileByUserIdQuery,
 } from "@novelty/db/queries/user.query";
-import type { UpdateProfile } from "./lib/utils";
-import {
-  getUserByIdQuery,
-  updateUserByIdQuery,
-} from "@novelty/db/queries/auth.query";
-import { QueryExecutionError } from "@novelty/db/lib/errors";
-import { deleteFile, uploadFile } from "./file.service";
-import { Buffer } from "node:buffer";
+import { doesKeyExists } from "@novelty/redis/queries/index.query";
 import { getByKeyJson, setByKeyJson } from "@novelty/redis/queries/json.query";
+import { deleteFile, uploadFile } from "./file.service";
 import {
   MIN_REQUIRED_GENRES,
   PROFILE_PICTURES_PATH_PREFIX,
   USER_INFO_DRAFT_KEY,
 } from "./lib/config";
-import { doesKeyExists } from "@novelty/redis/queries/index.query";
-import type { UserDraftBodySchema } from "@novelty/lib/validations/user";
 
 export type GetProfileError = ErrorResponse<"NOT_FOUND">;
 

@@ -1,9 +1,9 @@
 /* eslint-disable node/prefer-global/buffer */
-import { hash, verify } from "@node-rs/argon2";
 import crypto, { timingSafeEqual } from "node:crypto";
-import "dotenv/config";
-import { encodeHexLowerCase } from "@oslojs/encoding";
+import { hash, verify } from "@node-rs/argon2";
 import { sha256 } from "@oslojs/crypto/sha2";
+import { encodeHexLowerCase } from "@oslojs/encoding";
+import "dotenv/config";
 
 export async function hashString(password: string): Promise<string> {
   return await hash(password, {

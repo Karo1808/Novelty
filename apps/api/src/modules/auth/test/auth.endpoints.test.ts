@@ -1,16 +1,10 @@
-import { insertUserSchema, usersTable } from "@novelty/db/schemas/user.schema";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import env from "@/env";
-import * as email from "@novelty/email/client";
-import createApp from "@/lib/create-app";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import { authRouter } from "../auth.index";
+import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
 import type { InsertUser } from "@novelty/db/schemas/user.schema";
-import createErrorSchema from "@/lib/create-error-schema";
+import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import type { z } from "zod";
-import * as queries from "@novelty/db/queries/auth.query";
-import * as authServices from "@novelty/services/auth.service";
-import { DatabaseConnectionError } from "@novelty/db/lib/errors";
+import env from "@/env";
+import createApp from "@/lib/create-app";
+import createErrorSchema from "@/lib/create-error-schema";
 import {
   testDb,
   testDependencies,
@@ -18,15 +12,21 @@ import {
   testRedis,
   testRedlock,
 } from "@/test-setup";
-import { testClient } from "hono/testing";
-import { eq, sql } from "drizzle-orm";
-import { forgotPasswordBodySchema } from "@novelty/lib/validations/auth";
-import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
-import * as authUtils from "@novelty/lib/auth/cryptography";
-import * as queueUtils from "@novelty/message-queue/lib/add-job-to-queue";
-import * as sessionService from "@novelty/services/session.service";
-import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
+import { DatabaseConnectionError } from "@novelty/db/lib/errors";
+import * as queries from "@novelty/db/queries/auth.query";
 import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
+import { insertUserSchema, usersTable } from "@novelty/db/schemas/user.schema";
+import * as email from "@novelty/email/client";
+import * as authUtils from "@novelty/lib/auth/cryptography";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { forgotPasswordBodySchema } from "@novelty/lib/validations/auth";
+import * as queueUtils from "@novelty/message-queue/lib/add-job-to-queue";
+import * as authServices from "@novelty/services/auth.service";
+import * as sessionService from "@novelty/services/session.service";
+import { eq, sql } from "drizzle-orm";
+import { testClient } from "hono/testing";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { authRouter } from "../auth.index";
 
 vi.mock("@hono/node-server/conninfo", () => ({
   getConnInfo: vi.fn(() => ({
@@ -313,7 +313,7 @@ describe("auth routes", () => {
 
       vi.spyOn(queueUtils, "addJobToQueue").mockImplementation(
         async (...args) => {
-          await new Promise(res => setTimeout(res, delayMs));
+          await new Promise((res) => setTimeout(res, delayMs));
           return originalAddJobToQueue(...args);
         },
       );
@@ -336,22 +336,10 @@ describe("auth routes", () => {
           const response = result.value;
           if (response.status === HttpStatusCodes.OK) {
             successCount++;
-          }
-          else {
-            if (
-              response.status !== HttpStatusCodes.CONFLICT
-              && response.status !== HttpStatusCodes.TOO_MANY_REQUESTS
-              && response.status !== HttpStatusCodes.SERVICE_UNAVAILABLE
-            ) {
-              console.warn(
-                `Unexpected status ${response.status} in concurrency test.`,
-              );
-            }
+          } else {
             conflictOrLockFailureCount++;
           }
-        }
-        else {
-          console.error("Request rejected in concurrency test:", result.reason);
+        } else {
           conflictOrLockFailureCount++;
         }
       }
@@ -729,7 +717,7 @@ describe("auth routes", () => {
 
       vi.spyOn(queueUtils, "addJobToQueue").mockImplementation(
         async (...args) => {
-          await new Promise(res => setTimeout(res, delayMs));
+          await new Promise((res) => setTimeout(res, delayMs));
           return originalAddJobToQueue(...args);
         },
       );
@@ -754,22 +742,10 @@ describe("auth routes", () => {
           const response = result.value;
           if (response.status === HttpStatusCodes.OK) {
             successCount++;
-          }
-          else {
-            if (
-              response.status !== HttpStatusCodes.CONFLICT
-              && response.status !== HttpStatusCodes.TOO_MANY_REQUESTS
-              && response.status !== HttpStatusCodes.SERVICE_UNAVAILABLE
-            ) {
-              console.warn(
-                `Unexpected status ${response.status} in concurrency test.`,
-              );
-            }
+          } else {
             conflictOrLockFailureCount++;
           }
-        }
-        else {
-          console.error("Request rejected in concurrency test:", result.reason);
+        } else {
           conflictOrLockFailureCount++;
         }
       }
@@ -955,7 +931,7 @@ describe("auth routes", () => {
 
       vi.spyOn(queueUtils, "addJobToQueue").mockImplementation(
         async (...args) => {
-          await new Promise(res => setTimeout(res, delayMs));
+          await new Promise((res) => setTimeout(res, delayMs));
           return originalAddJobToQueue(...args);
         },
       );
@@ -981,22 +957,10 @@ describe("auth routes", () => {
           const response = result.value;
           if (response.status === HttpStatusCodes.OK) {
             successCount++;
-          }
-          else {
-            if (
-              response.status !== HttpStatusCodes.CONFLICT
-              && response.status !== HttpStatusCodes.TOO_MANY_REQUESTS
-              && response.status !== HttpStatusCodes.SERVICE_UNAVAILABLE
-            ) {
-              console.warn(
-                `Unexpected status ${response.status} in concurrency test.`,
-              );
-            }
+          } else {
             conflictOrLockFailureCount++;
           }
-        }
-        else {
-          console.error("Request rejected in concurrency test:", result.reason);
+        } else {
           conflictOrLockFailureCount++;
         }
       }

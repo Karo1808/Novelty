@@ -10,6 +10,14 @@ import type {
   SendVerificationEmailRoute,
   VerifyEmailRoute,
 } from "./auth.routes";
+import type { OauthInitParams } from "./auth.validations";
+import env from "@/env";
+import logger from "@/lib/logger";
+import { prometheusRegistry } from "@/lib/metrics";
+import { db } from "@novelty/db";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { emailQueue } from "@novelty/message-queue/queues/email.queue";
+import { redis, redlock } from "@novelty/redis";
 import {
   forgotPassword,
   initOAuth,
@@ -21,18 +29,10 @@ import {
   sendVerificationEmail,
   verifyEmail,
 } from "@novelty/services/auth.service";
-import { db } from "@novelty/db";
-import logger from "@/lib/logger";
-import { prometheusRegistry } from "@/lib/metrics";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import { redis, redlock } from "@novelty/redis";
-import { emailQueue } from "@novelty/message-queue/queues/email.queue";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import env from "@/env";
-import { SESSION_EXPIRATION_TIME } from "@novelty/services/session.service";
-import { providers } from "./auth.providers";
 import { OAUTH_COOKIE_EXPIRATION } from "@novelty/services/lib/config";
-import type { OauthInitParams } from "./auth.validations";
+import { SESSION_EXPIRATION_TIME } from "@novelty/services/session.service";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { providers } from "./auth.providers";
 
 export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   const body = c.req.valid("json");

@@ -1,8 +1,8 @@
 /* eslint-disable node/no-process-env */
-import { Resend } from "resend";
+import path from "node:path";
 
 import dotenv from "dotenv";
-import path from "node:path";
+import { Resend } from "resend";
 
 dotenv.config({
   path: path.resolve(

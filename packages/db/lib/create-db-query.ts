@@ -1,11 +1,11 @@
 import type { Dependencies } from "./types";
+import { captureException } from "@novelty/lib/sentry";
 import { timeoutQuery } from "@novelty/lib/timeout-query";
 import {
   DatabaseConnectionError,
   QueryExecutionError,
   QueryTimeoutError,
 } from "./errors";
-import { captureException } from "@novelty/lib/sentry";
 import { dbQueryDurationHistogram } from "./metrics";
 
 interface CreateDBQueryParams<T> {

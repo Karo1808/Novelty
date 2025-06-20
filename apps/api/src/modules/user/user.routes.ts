@@ -1,6 +1,17 @@
+import createErrorSchema from "@/lib/create-error-schema";
 import { jsonContent } from "@/lib/json-content";
+import {
+  accountNotFoundSchema,
+  cookieSchema,
+  serviceUnavailableSchema,
+  tooManyRequestsSchema,
+  unauthenticatedSchema,
+} from "@/lib/response-schemas";
 import { createRoute } from "@hono/zod-openapi";
+import { updateUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { userDraftBodySchema } from "@novelty/lib/validations/user";
+import { updateProfileSchema } from "@novelty/services/lib/utils";
 import {
   completeOnboardingConflictSchema,
   completeOnboardingMissingFields,
@@ -10,17 +21,6 @@ import {
   getUserDraftSuccessSchema,
   updateProfileConflictSchema,
 } from "./user.validations";
-import {
-  accountNotFoundSchema,
-  cookieSchema,
-  serviceUnavailableSchema,
-  tooManyRequestsSchema,
-  unauthenticatedSchema,
-} from "@/lib/response-schemas";
-import { updateUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
-import createErrorSchema from "@/lib/create-error-schema";
-import { updateProfileSchema } from "@novelty/services/lib/utils";
-import { userDraftBodySchema } from "@novelty/lib/validations/user";
 
 const userTags = ["User"];
 const onboardingTags = ["Onboarding"];

@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/node";
-import "dotenv/config";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
+import "dotenv/config";
 
 Sentry.init({
   dsn: "https://c73f7a4d40453e78fb70eeb7a2580ec7@o4508002054635520.ingest.de.sentry.io/4508375750738000",

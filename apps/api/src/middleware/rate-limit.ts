@@ -1,9 +1,9 @@
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import type { Store } from "hono-rate-limiter";
 import logger from "@/lib/logger";
 import { prometheusRegistry, rateLimitCounter } from "@/lib/metrics";
 import { getConnInfo } from "@hono/node-server/conninfo";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
-import type { Store } from "hono-rate-limiter";
 import { rateLimiter } from "hono-rate-limiter";
 import { RedisStore } from "rate-limit-redis";
 

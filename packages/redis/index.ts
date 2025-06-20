@@ -1,9 +1,9 @@
 /* eslint-disable node/no-process-env */
-import { Redis } from "ioredis";
-import "dotenv/config";
-import { configureLogger } from "@novelty/lib/logger";
 import type { NodeEnvironment } from "@novelty/lib/types";
+import { configureLogger } from "@novelty/lib/logger";
+import { Redis } from "ioredis";
 import Redlock from "redlock";
+import "dotenv/config";
 
 const redisPort = process.env.REDIS_PORT;
 const redisPassword = process.env.REDIS_PASSWORD;

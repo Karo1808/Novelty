@@ -1,13 +1,13 @@
+import { relations } from "drizzle-orm";
 import { jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
-import { nanoid } from "nanoid";
-import { usersTable } from "./user.schema";
 import {
   createInsertSchema,
   createSelectSchema,
   createUpdateSchema,
 } from "drizzle-zod";
+import { nanoid } from "nanoid";
 import { z } from "zod";
-import { relations } from "drizzle-orm";
+import { usersTable } from "./user.schema";
 
 export const userInfoTable = pgTable("user_info", {
   id: varchar({ length: 255 })

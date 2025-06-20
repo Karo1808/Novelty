@@ -1,6 +1,24 @@
-import { createRoute, z } from "@hono/zod-openapi";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import createErrorSchema from "@/lib/create-error-schema";
 import { jsonContent, jsonContentRequired } from "@/lib/json-content";
+import {
+  blacklistedSchema,
+  cookieSchema,
+  csrfErrorSchema,
+  locationSchema,
+  oAuthHeaderSchema,
+  serviceUnavailableSchema,
+  tooManyRequestsSchema,
+  unauthenticatedSchema,
+} from "@/lib/response-schemas";
+import { createRoute, z } from "@hono/zod-openapi";
+
+import { insertAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
+import { insertUserSchema } from "@novelty/db/schemas/user.schema";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import {
+  forgotPasswordBodySchema,
+  verifyEmailBodySchema,
+} from "@novelty/lib/validations/auth";
 import {
   forgotPasswordConflictSchema,
   forgotPasswordSuccessSchema,
@@ -18,24 +36,6 @@ import {
   verifyEmailNotFoundSchema,
   verifyEmailSuccessSchema,
 } from "./auth.validations";
-
-import { insertUserSchema } from "@novelty/db/schemas/user.schema";
-import createErrorSchema from "@/lib/create-error-schema";
-import {
-  forgotPasswordBodySchema,
-  verifyEmailBodySchema,
-} from "@novelty/lib/validations/auth";
-import {
-  blacklistedSchema,
-  cookieSchema,
-  csrfErrorSchema,
-  locationSchema,
-  oAuthHeaderSchema,
-  serviceUnavailableSchema,
-  tooManyRequestsSchema,
-  unauthenticatedSchema,
-} from "@/lib/response-schemas";
-import { insertAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
 
 const tags = ["Auth"];
 

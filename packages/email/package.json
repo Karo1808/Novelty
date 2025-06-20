@@ -7,8 +7,8 @@
   "types": "./index.ts",
   "scripts": {
     "dev": "email dev --dir templates --port 3003",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
     "clean": "rm -rf node_modules .turbo dist "
   },
   "dependencies": {

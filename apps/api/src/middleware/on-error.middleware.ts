@@ -1,11 +1,11 @@
 import type { ErrorHandler } from "hono";
 import type { ContentfulStatusCode, StatusCode } from "hono/utils/http-status";
 
-import { getConnInfo } from "@hono/node-server/conninfo";
-
 import env from "@/env";
-import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+
 import logger from "@/lib/logger";
+import { getConnInfo } from "@hono/node-server/conninfo";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 
 const onError: ErrorHandler = (err, c) => {
   const currentStatus

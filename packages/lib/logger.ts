@@ -1,8 +1,8 @@
 import type { LoggerOptions, TransportMultiOptions } from "pino";
-import { pino } from "pino";
 import type { LokiOptions } from "pino-loki";
 import type { PrettyOptions } from "pino-pretty";
 import type { LogLevel, NodeEnvironment } from "./types";
+import { pino } from "pino";
 
 interface LoggerParams {
   nodeEnvironment: NodeEnvironment;

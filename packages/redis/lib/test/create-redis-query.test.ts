@@ -1,18 +1,11 @@
-import {
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
 import type { Command, Redis as TRedis } from "ioredis";
+import * as Sentry from "@novelty/lib/sentry";
+import { testDependencies } from "test-setup";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRedisQuery } from "../create-redis-query";
 import { RedisConnectionError, RedisQueryError } from "../errors";
-import * as Sentry from "@novelty/lib/sentry";
 import * as metrics from "../metrics";
 import "dotenv/config";
-import { testDependencies } from "test-setup";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {

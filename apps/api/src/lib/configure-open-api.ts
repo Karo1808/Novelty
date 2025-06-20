@@ -1,6 +1,6 @@
 import type { AppOpenAPI } from "@/types/index.types";
 
-import { apiReference } from "@scalar/hono-api-reference";
+import { Scalar } from "@scalar/hono-api-reference";
 
 import { getOpenApiDefinition } from "./get-open-api-doc";
 
@@ -9,15 +9,12 @@ export default function configureOpenAPI(app: AppOpenAPI) {
 
   app.get(
     "/docs",
-    apiReference({
+    Scalar({
       theme: "kepler",
       layout: "classic",
       defaultHttpClient: {
-        targetKey: "javascript",
+        targetKey: "js",
         clientKey: "fetch",
-      },
-      spec: {
-        url: "/spec",
       },
     }),
   );
