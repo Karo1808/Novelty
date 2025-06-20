@@ -1,16 +1,16 @@
+import { and, eq } from "drizzle-orm";
+import { createDBQuery } from "../lib/create-db-query";
 import type { Dependencies } from "../lib/types";
 import type {
   InsertAuthProvider,
   SelectAuthProvider,
 } from "../schemas/auth-provider.schema";
+import { authProvidersTable } from "../schemas/auth-provider.schema";
 import type {
   InsertUser,
   SelectUser,
   UpdateUser,
 } from "../schemas/user.schema";
-import { and, eq } from "drizzle-orm";
-import { createDBQuery } from "../lib/create-db-query";
-import { authProvidersTable } from "../schemas/auth-provider.schema";
 import { usersTable } from "../schemas/user.schema";
 
 type SelectUserWithPassword = SelectUser & { password: string };
@@ -45,8 +45,8 @@ export function getUserByEmailQuery(
       }
 
       if (!withPassword) {
-        const { password, ...userWithoutPassword }
-          = user as SelectUserWithPassword;
+        const { password, ...userWithoutPassword } =
+          user as SelectUserWithPassword;
         return userWithoutPassword as SelectUser;
       }
 
@@ -174,7 +174,10 @@ export const createProvider = (
     dependencies,
     queryName: "createProvider",
     query: async (db) => {
-      return await db.insert(authProvidersTable).values(newProvider);
+      return await db
+        .insert(authProvidersTable)
+        .values(newProvider)
+        .returning();
     },
   });
 };

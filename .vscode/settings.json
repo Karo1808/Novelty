@@ -9,41 +9,36 @@
     "**/routeTree.gen.ts": true
   },
   // Disable the default formatter, use eslint instead
-  "prettier.enable": false,
+  "prettier.enable": true,
   "editor.formatOnSave": true,
   "editor.formatOnSaveMode": "modificationsIfAvailable",
   // Auto fix
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit",
-    "source.organizeImports": "never"
+    "source.organizeImports": "explicit",
+    "source.fixAll.oxc": "always"
   },
   "eslint.options": {
     "flags": ["unstable_ts_config"]
   },
-  "eslint.runtime": "node",
-  // Silent the stylistic rules in you IDE, but still auto fix them
-  // Enable eslint for all supported languages
-  "eslint.validate": [
-    "javascript",
-    "javascriptreact",
-    "typescript",
-    "typescriptreact",
-    "vue",
-    "html",
-    "markdown",
-    "json",
-    "json5",
-    "jsonc",
-    "yaml",
-    "toml",
-    "xml"
-  ],
-  "pair-diff.patterns": [
-    {
-      "source": "./fixtures/output/**/*.*",
-      "target": "./fixtures/input/<base>"
-    }
-  ],
+  // "eslint.runtime": "node",
+  // // Silent the stylistic rules in you IDE, but still auto fix them
+  // // Enable eslint for all supported languages
+  // "eslint.validate": [
+  //   "javascript",
+  //   "javascriptreact",
+  //   "typescript",
+  //   "typescriptreact",
+  //   "vue",
+  //   "html",
+  //   "markdown",
+  //   "json",
+  //   "json5",
+  //   "jsonc",
+  //   "yaml",
+  //   "toml",
+  //   "xml"
+  // ],
   "sqltools.connections": [
     {
       "previewLimit": 50,

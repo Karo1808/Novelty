@@ -1,5 +1,5 @@
 import type { RootContext } from "@/types";
-import type { ReactNode } from "react";
+import appCss from "@novelty/ui/styles/globals.css?url";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
   createRootRouteWithContext,
@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import type { ReactNode } from "react";
 
 export const Route = createRootRouteWithContext<RootContext>()({
   head: () => ({
@@ -23,6 +24,7 @@ export const Route = createRootRouteWithContext<RootContext>()({
         title: "TanStack Start Starter",
       },
     ],
+    links: [{ rel: "stylesheet", href: appCss }],
   }),
   component: RootComponent,
 });
