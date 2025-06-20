@@ -24,7 +24,7 @@
     "@novelty/lib": "workspace:*",
     "dotenv": "^16.5.0",
     "drizzle-orm": "^0.41.0",
-    "drizzle-zod": "^0.7.1",
+    "drizzle-zod": "^0.8.2",
     "nanoid": "^5.1.5",
     "pg": "^8.14.1",
     "prom-client": "^15.1.3",
