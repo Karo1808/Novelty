@@ -1,8 +1,8 @@
-import { getStatusQuery } from "@novelty/db/queries/misc.query";
-import { pingRedisQuery } from "@novelty/redis/queries/index.query";
 import type { MarkKeysAsPartial } from "@novelty/lib/types";
 import type { ServiceDependencies } from "./types";
 import { HeadBucketCommand } from "@aws-sdk/client-s3";
+import { getStatusQuery } from "@novelty/db/queries/misc.query";
+import { pingRedisQuery } from "@novelty/redis/queries/index.query";
 
 export const checkDbHealth = async (
   dependencies: MarkKeysAsPartial<ServiceDependencies, "redisClient">,

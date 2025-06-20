@@ -1,9 +1,9 @@
-import { pgEnum, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
-import { nanoid } from "nanoid";
-import { usersTable } from "./user.schema";
 import { relations } from "drizzle-orm";
-import { z } from "zod";
+import { pgEnum, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { nanoid } from "nanoid";
+import { z } from "zod";
+import { usersTable } from "./user.schema";
 
 export const providerEnum = pgEnum("auth_provider_enum", [
   "email",

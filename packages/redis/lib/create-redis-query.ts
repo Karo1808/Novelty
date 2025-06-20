@@ -1,14 +1,14 @@
+import type { Redis } from "ioredis";
+import type Redlock from "redlock";
 import type { Dependencies } from "./types";
+import { captureException } from "@novelty/lib/sentry";
 import { timeoutQuery } from "@novelty/lib/timeout-query";
 import {
   RedisConnectionError,
   RedisQueryError,
   RedisTimeoutError,
 } from "./errors";
-import { captureException } from "@novelty/lib/sentry";
 import { redisQueryDurationHistogram } from "./metrics";
-import type { Redis } from "ioredis";
-import type Redlock from "redlock";
 
 interface CreateDBQueryParams<T> {
   query: (redis: Redis) => Promise<T>;

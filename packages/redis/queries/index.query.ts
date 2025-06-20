@@ -1,11 +1,11 @@
 /* eslint-disable unused-imports/no-unused-vars */
 import type { RedisKey, RedisValue } from "ioredis";
+import type { Lock } from "redlock";
+import type { Dependencies } from "../lib/types";
 import {
   createRedisQuery,
   createRedlockQuery,
 } from "../lib/create-redis-query";
-import type { Dependencies } from "../lib/types";
-import type { Lock } from "redlock";
 
 export const pingRedisQuery = (dependencies: Dependencies) => {
   return createRedisQuery({

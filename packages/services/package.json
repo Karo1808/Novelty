@@ -6,8 +6,8 @@
   "main": "./index.ts",
   "types": "./index.ts",
   "scripts": {
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
     "test": "vitest",
     "test:debug": "vitest run --printConsoleTrace=true --silent=false",
     "test:ui": "vitest --ui",

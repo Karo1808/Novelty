@@ -1,7 +1,7 @@
 import type { AppOpenAPI } from "@/types/index.types";
 
-import { prometheus } from "@hono/prometheus";
 import { prometheusRegistry } from "@/lib/metrics";
+import { prometheus } from "@hono/prometheus";
 import { emailQueue } from "@novelty/message-queue/queues/email.queue";
 
 export const configurePrometheus = (app: AppOpenAPI) => {

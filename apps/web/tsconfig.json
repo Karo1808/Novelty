@@ -1,0 +1,25 @@
+{
+  "extends": "@novelty/typescript-config/base.json",
+
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strictNullChecks": true,
+    "skipLibCheck": true,
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "types": ["vite/client"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "react-native": ["./node_modules/react-native-web/dist/index"]
+    },
+    "noEmit": true,
+    "resolvePackageJsonExports": true,
+    "inlineSources": true,
+    "sourceMap": true,
+    "sourceRoot": "/"
+  },
+  "include": ["src"],
+  "exclude": ["dist", "node_modules"]
+}

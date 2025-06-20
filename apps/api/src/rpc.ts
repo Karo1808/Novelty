@@ -1,6 +1,5 @@
+import type app from "./app";
 import { hc } from "hono/client";
-
-import type app from "@/app";
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const client = hc<typeof app>("");

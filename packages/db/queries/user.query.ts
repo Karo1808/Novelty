@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
-import { createDBQuery } from "../lib/create-db-query";
 import type { Dependencies } from "../lib/types";
 import type { UpdateUserInfo } from "../schemas/user-info.schema";
-import { userInfoTable } from "../schemas/user-info.schema";
 import type { SelectUser } from "../schemas/user.schema";
+import { eq } from "drizzle-orm";
+import { createDBQuery } from "../lib/create-db-query";
+import { userInfoTable } from "../schemas/user-info.schema";
 import { usersTable } from "../schemas/user.schema";
 
 export const getProfileByUserIdQuery = (

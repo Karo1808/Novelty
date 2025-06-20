@@ -1,3 +1,4 @@
+import type { InsertUserInfo, UpdateUserInfo } from "schemas/user-info.schema";
 import { sql } from "drizzle-orm";
 import {
   getIsUsernameUniqueQuery,
@@ -8,7 +9,6 @@ import {
   updateUserProfileByUserIdQuery,
 } from "queries/user.query";
 import { userInfoTable } from "schemas/user-info.schema";
-import type { InsertUserInfo, UpdateUserInfo } from "schemas/user-info.schema";
 import { usersTable } from "schemas/user.schema";
 import { testDb, testDependencies } from "test-setup";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

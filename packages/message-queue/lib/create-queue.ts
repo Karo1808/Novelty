@@ -1,8 +1,8 @@
 import type { ConnectionOptions } from "bullmq";
+import { captureException } from "@novelty/lib/sentry";
 import { Queue, QueueEvents } from "bullmq";
 import { redisConfig } from "../config/index";
 import { logger } from "./logger";
-import { captureException } from "@novelty/lib/sentry";
 
 export const createQueue = (
   queueName: string,

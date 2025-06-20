@@ -1,18 +1,31 @@
-import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
 import type {
   InsertUserInfo,
   UpdateUserInfo,
 } from "@novelty/db/schemas/user-info.schema";
-import { usersTable } from "@novelty/db/schemas/user.schema";
-import { DrizzleError, eq, sql } from "drizzle-orm";
-import { testDb, testDependencies, testRedis, testS3 } from "../test-setup";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as userDbQueries from "@novelty/db/queries/user.query";
+import type { UpdateProfile } from "lib/utils";
+import { Buffer } from "node:buffer";
+import {
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
+import { DatabaseConnectionError } from "@novelty/db/lib/errors";
 import * as authDbQueries from "@novelty/db/queries/auth.query";
-import * as fileService from "../file.service";
-import * as utils from "../lib/utils";
-import * as redisJsonQueries from "@novelty/redis/queries/json.query";
+import * as userDbQueries from "@novelty/db/queries/user.query";
+import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
+import { usersTable } from "@novelty/db/schemas/user.schema";
 import * as redisQueries from "@novelty/redis/queries/index.query";
+import * as redisJsonQueries from "@novelty/redis/queries/json.query";
+import { DrizzleError, eq, sql } from "drizzle-orm";
+import { Blob } from "fetch-blob";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as fileService from "../file.service";
+import {
+  PROFILE_PICTURES_PATH_PREFIX,
+  USER_INFO_DRAFT_KEY,
+} from "../lib/config";
+import * as utils from "../lib/utils";
+import { testDb, testDependencies, testRedis, testS3 } from "../test-setup";
 import {
   completeOnboarding,
   getPreferences,
@@ -22,19 +35,6 @@ import {
   updateProfile,
   updateUserDraft,
 } from "../user.service";
-import { DatabaseConnectionError } from "@novelty/db/lib/errors";
-import { Buffer } from "node:buffer";
-import type { UpdateProfile } from "lib/utils";
-import { Blob } from "fetch-blob";
-import {
-  DeleteObjectCommand,
-  ListObjectsV2Command,
-  PutObjectCommand,
-} from "@aws-sdk/client-s3";
-import {
-  PROFILE_PICTURES_PATH_PREFIX,
-  USER_INFO_DRAFT_KEY,
-} from "../lib/config";
 
 describe("user service", () => {
   const dummyUser = {

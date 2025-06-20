@@ -1,6 +1,6 @@
 import { emailClient } from "@novelty/email/client";
-import VerifyEmail from "@novelty/email/templates/verify-email.email";
 import ForgotPasswordEmail from "@novelty/email/templates/forgot-passowrd.email";
+import VerifyEmail from "@novelty/email/templates/verify-email.email";
 import React from "react";
 
 export const processVerificationEmail = async (

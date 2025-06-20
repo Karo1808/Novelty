@@ -1,0 +1,23 @@
+{
+  "name": "@novelty/react-query",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
+    "clean": "rm -rf node_modules .turbo dist coverage"
+  },
+  "dependencies": {
+    "@novelty/api": "workspace:*",
+    "@tanstack/react-query": "^5.80.7"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^4.12.0",
+    "@novelty/typescript-config": "workspace:*",
+    "typescript": "5.8.3"
+  }
+}

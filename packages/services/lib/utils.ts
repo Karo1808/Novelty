@@ -1,6 +1,6 @@
+import type { z } from "zod";
 import { updateUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
 import { imageFileSchema } from "@novelty/lib/validations/file";
-import type { z } from "zod";
 
 export const updateProfileSchema = updateUserInfoSchema.shape.profile
   .extend({

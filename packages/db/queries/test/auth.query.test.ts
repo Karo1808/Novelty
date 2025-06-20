@@ -1,4 +1,8 @@
+import type { InsertUser } from "../../schemas/user.schema";
+import { eq } from "drizzle-orm";
+import { testDb, testDependencies } from "test-setup";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { usersTable } from "../../schemas/user.schema";
 import {
   createUserQuery,
   getIsEmailVerifiedQuery,
@@ -7,10 +11,6 @@ import {
   updateUserByIdQuery,
 } from "../auth.query";
 import "dotenv/config";
-import type { InsertUser } from "../../schemas/user.schema";
-import { usersTable } from "../../schemas/user.schema";
-import { eq } from "drizzle-orm";
-import { testDb, testDependencies } from "test-setup";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {

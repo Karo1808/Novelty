@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "target": "ESNext",
+    "baseUrl": "./",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "paths": {
+      "@/*": ["./modules/*"]
+    },
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  }
+}

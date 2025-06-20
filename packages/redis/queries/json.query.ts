@@ -1,7 +1,7 @@
 import type { RedisKey } from "ioredis";
 import type { Dependencies } from "../lib/types";
-import { createRedisQuery } from "../lib/create-redis-query";
 import { DRAFT_EXPIRATION_TIME } from "../lib/config";
+import { createRedisQuery } from "../lib/create-redis-query";
 
 export const getByKeyJson = (
   dependencies: Dependencies,

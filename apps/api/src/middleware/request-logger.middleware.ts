@@ -1,11 +1,11 @@
 import type { MiddlewareHandler } from "hono";
 import type { Logger } from "pino";
 
-import { getConnInfo } from "@hono/node-server/conninfo";
-import { createMiddleware } from "hono/factory";
-
 import logger from "@/lib/logger";
+import { getConnInfo } from "@hono/node-server/conninfo";
+
 import { HttpStatusText } from "@novelty/lib/http-status-codes";
+import { createMiddleware } from "hono/factory";
 
 export const requestLogger = (): MiddlewareHandler => {
   return createMiddleware<{ Variables: { logger: Logger } }>(

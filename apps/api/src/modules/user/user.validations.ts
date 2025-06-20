@@ -1,5 +1,5 @@
-import { selectUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
 import { z } from "@hono/zod-openapi";
+import { selectUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
 
 export const getProfileSuccessSchema = z
   .object({

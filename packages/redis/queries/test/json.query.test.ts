@@ -1,9 +1,9 @@
 import type { RedisKey } from "ioredis";
+import { testClient, testDependencies } from "test-setup";
+
 import { describe, expect, it } from "vitest";
 
 import { doesKeyExistsJson, getByKeyJson, setByKeyJson } from "../json.query";
-
-import { testClient, testDependencies } from "test-setup";
 
 describe("redisClient JSON queries", () => {
   describe("setByKeyJson", () => {

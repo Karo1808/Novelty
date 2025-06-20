@@ -1,7 +1,7 @@
 import { z } from "@hono/zod-openapi";
-import { selectUserSchema } from "@novelty/db/schemas/user.schema";
 import { selectUserWithInfoSchema } from "@novelty/db/lib/types";
 import { selectAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
+import { selectUserSchema } from "@novelty/db/schemas/user.schema";
 
 export const registerCreatedSchema = z
   .object({

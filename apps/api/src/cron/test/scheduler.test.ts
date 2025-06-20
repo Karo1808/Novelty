@@ -1,10 +1,10 @@
 import type { Mock } from "vitest";
-import { describe, expect, it, vi } from "vitest";
-import cron from "node-cron";
-import * as Sentry from "@sentry/node";
+import { callHealthcheck } from "@/cron/jobs/status.job";
 import { startCronJobs } from "@/cron/scheduler";
 import logger from "@/lib/logger";
-import { callHealthcheck } from "@/cron/jobs/status.job";
+import * as Sentry from "@sentry/node";
+import cron from "node-cron";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("node-cron", () => ({
   default: {

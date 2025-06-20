@@ -1,10 +1,10 @@
+import type { HealthcheckOKResponse } from "$/healhcheck/healthcheck.validations";
 import type { Mock } from "vitest";
+import env from "@/env";
+import logger from "@/lib/logger";
+import * as Sentry from "@sentry/node";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { callHealthcheck } from "../status.job";
-import * as Sentry from "@sentry/node";
-import logger from "@/lib/logger";
-import env from "@/env";
-import type { HealthcheckOKResponse } from "$/healhcheck/healthcheck.validations";
 
 vi.mock("@sentry/node", () => ({
   captureCheckIn: vi.fn(),

@@ -1,5 +1,5 @@
-import { Registry } from "prom-client";
 import { createMetric } from "@novelty/lib/factory/create-metric";
+import { Registry } from "prom-client";
 
 export const prometheusRegistry = new Registry();
 

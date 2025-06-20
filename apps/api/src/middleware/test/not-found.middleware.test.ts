@@ -1,9 +1,9 @@
 import type { Context } from "hono";
 
-import { describe, expect, it, vi } from "vitest";
+import notFound from "@/middleware/not-found.middleware";
 
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
-import notFound from "@/middleware/not-found.middleware";
+import { describe, expect, it, vi } from "vitest";
 
 describe("notFound handler", () => {
   it("should return a 404 response with the correct message", () => {

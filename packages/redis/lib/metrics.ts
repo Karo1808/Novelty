@@ -1,5 +1,5 @@
-import { createMetric } from "@novelty/lib/factory/create-metric";
 import type { Registry } from "prom-client";
+import { createMetric } from "@novelty/lib/factory/create-metric";
 
 export const redisQueryDurationHistogram = (registry: Registry) => {
   return createMetric("Histogram", {

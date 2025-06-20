@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import { boolean, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 import {
   createInsertSchema,
@@ -6,9 +7,8 @@ import {
 } from "drizzle-zod";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { userInfoTable } from "./user-info.schema";
-import { relations } from "drizzle-orm";
 import { authProvidersTable } from "./auth-provider.schema";
+import { userInfoTable } from "./user-info.schema";
 
 export const usersTable = pgTable("users", {
   id: varchar({ length: 255 })
