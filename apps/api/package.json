@@ -35,7 +35,7 @@
     "@hono/node-server": "^1.14.1",
     "@hono/prometheus": "^1.0.1",
     "@hono/sentry": "^1.2.1",
-    "@hono/zod-openapi": "^0.19.4",
+    "@hono/zod-openapi": "^0.19.8",
     "@novelty/db": "workspace:*",
     "@novelty/email": "workspace:*",
     "@novelty/lib": "workspace:*",
