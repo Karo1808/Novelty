@@ -32,9 +32,11 @@ export const oAuthHeaderSchema = z.object({
 export const serviceUnavailableSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
+      success: false,
       message:
         "The server is currently unable to handle the request. Please try again later.",
     },

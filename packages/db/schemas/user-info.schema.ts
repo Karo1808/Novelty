@@ -6,7 +6,7 @@ import {
   createUpdateSchema,
 } from "drizzle-zod";
 import { nanoid } from "nanoid";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { usersTable } from "./user.schema";
 
 export const userInfoTable = pgTable("user_info", {
@@ -61,9 +61,9 @@ export const selectUserInfoSchema = z.object({
 export type SelectUserInfo = z.infer<typeof selectUserInfoSchema>;
 
 const baseInsertSchema = createInsertSchema(userInfoTable, {
-  username: schema => schema.min(4).optional(),
-  avatarUrl: schema => schema.url(),
-  bio: schema => schema.max(80),
+  username: (schema) => schema.min(4).optional(),
+  avatarUrl: (schema) => schema.url(),
+  bio: (schema) => schema.max(80),
   preferences: userPreferencesSchema,
 });
 
@@ -83,9 +83,9 @@ export const insertUserInfoSchema = z.object({
 export type InsertUserInfo = z.infer<typeof insertUserInfoSchema>;
 
 const baseUpdateSchema = createUpdateSchema(userInfoTable, {
-  username: schema => schema.min(4),
-  avatarUrl: schema => schema.url(),
-  bio: schema => schema.max(80),
+  username: (schema) => schema.min(4),
+  avatarUrl: (schema) => schema.url(),
+  bio: (schema) => schema.max(80),
   preferences: userPreferencesSchema,
 });
 

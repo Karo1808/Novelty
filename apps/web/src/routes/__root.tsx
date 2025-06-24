@@ -1,5 +1,5 @@
+import appCss from "@/globals.css?url";
 import type { RootContext } from "@/types";
-import appCss from "@novelty/ui/styles/globals.css?url";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
   createRootRouteWithContext,
@@ -43,7 +43,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body className="h-[100vh]">
         {children}
         <TanStackRouterDevtools position="bottom-right" />
         <ReactQueryDevtools buttonPosition="bottom-left" />

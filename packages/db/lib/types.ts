@@ -1,6 +1,6 @@
 import type { Logger } from "@novelty/lib/types";
 import type { Registry } from "prom-client";
-import type { z } from "zod";
+import type { z } from "zod/v4";
 import type { db } from "..";
 import { selectUserInfoSchema } from "../schemas/user-info.schema";
 import { selectUserSchema } from "../schemas/user.schema";

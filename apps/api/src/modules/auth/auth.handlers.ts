@@ -1,19 +1,7 @@
-import type { AppRouteHandler } from "@/types/index.types";
-import type {
-  ForgotPasswordRoute,
-  LoginRoute,
-  LogoutRoute,
-  OAuthCallbackRoute,
-  OAuthInitRoute,
-  RegisterRoute,
-  SendForgotPasswordEmailRoute,
-  SendVerificationEmailRoute,
-  VerifyEmailRoute,
-} from "./auth.routes";
-import type { OauthInitParams } from "./auth.validations";
 import env from "@/env";
 import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
+import type { AppRouteHandler } from "@/types/index.types";
 import { db } from "@novelty/db";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { emailQueue } from "@novelty/message-queue/queues/email.queue";
@@ -33,6 +21,18 @@ import { OAUTH_COOKIE_EXPIRATION } from "@novelty/services/lib/config";
 import { SESSION_EXPIRATION_TIME } from "@novelty/services/session.service";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { providers } from "./auth.providers";
+import type {
+  ForgotPasswordRoute,
+  LoginRoute,
+  LogoutRoute,
+  OAuthCallbackRoute,
+  OAuthInitRoute,
+  RegisterRoute,
+  SendForgotPasswordEmailRoute,
+  SendVerificationEmailRoute,
+  VerifyEmailRoute,
+} from "./auth.routes";
+import type { OauthInitParams } from "./auth.validations";
 
 export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   const body = c.req.valid("json");
@@ -49,13 +49,17 @@ export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
 
   if (result.success === false) {
     const error = result.error;
-    return c.json({ message: error.message }, HttpStatusCodes[error.kind]);
+    return c.json(
+      { message: error.message, success: false },
+      HttpStatusCodes[error.kind],
+    );
   }
 
   const newUser = result.data;
 
   return c.json(
     {
+      success: true,
       message:
         "Registration successful. Please verify your email to activate your account.",
       user: newUser,
@@ -257,11 +261,11 @@ export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
   const cookieCodeVerifier = getCookie(c, "code_verifier");
 
   if (
-    !state
-    || !code
-    || !cookieState
-    || !cookieCodeVerifier
-    || state !== cookieState
+    !state ||
+    !code ||
+    !cookieState ||
+    !cookieCodeVerifier ||
+    state !== cookieState
   ) {
     return c.json(
       {

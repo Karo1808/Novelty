@@ -35,7 +35,7 @@ let pool: TPool;
 let testDb: DBClient;
 let testRedis: TRedis;
 let testDependencies: ServiceDependencies;
-let testDependenciesWithQueue: Required<ServiceDependencies>;
+let testDependenciesWithQueue: Required<Omit<ServiceDependencies, "providers">>;
 let testQueue: Queue;
 let testRedlock: Redlock;
 

@@ -6,7 +6,7 @@ import {
   createUpdateSchema,
 } from "drizzle-zod";
 import { nanoid } from "nanoid";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { authProvidersTable } from "./auth-provider.schema";
 import { userInfoTable } from "./user-info.schema";
 
@@ -34,8 +34,8 @@ export const userRelations = relations(usersTable, ({ one, many }) => ({
 }));
 
 const baseSchema = createInsertSchema(usersTable, {
-  email: schema => schema.email().optional(),
-  password: schema => schema.min(1).optional(),
+  email: (schema) => schema.check(z.email()),
+  password: (schema) => schema.min(1).optional(),
 }).pick({
   email: true,
   password: true,
@@ -50,17 +50,31 @@ export const oauthProviderSchema = z.enum(["google", "amazon"]);
 
 export const insertUserSchema = z.object({
   register: z.object({
-    email: baseSchema.shape.email.unwrap(),
-    password: baseSchema.shape.password.unwrap().unwrap().optional(),
-    isEmailVerified: baseSchema.shape.isEmailVerified.optional(),
+    email: baseSchema.shape.email,
+    password: baseSchema.shape.password,
+    isEmailVerified: baseSchema.shape.isEmailVerified,
   }),
   sendEmail: z.object({
     email: baseSchema.shape.email,
   }),
   login: z.object({
-    email: baseSchema.shape.email.unwrap(),
-    password: baseSchema.shape.password.unwrap().unwrap(),
+    email: baseSchema.shape.email,
+    password: baseSchema.shape.password,
   }),
+  registerFormEmail: z
+    .object({
+      email: baseSchema.shape.email,
+      password: baseSchema.shape.password,
+      confirmPassword: z.string(),
+      terms: z.boolean().refine((val) => val, {
+        message: "You must accept the Terms of Service",
+      }),
+      promotional: z.boolean().optional(),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: "Passwords do not match",
+      path: ["confirmPassword"],
+    }),
 });
 
 export const updateUserSchema = createUpdateSchema(usersTable).omit({
