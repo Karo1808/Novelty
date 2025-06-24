@@ -1,3 +1,4 @@
+import { registerFn } from "@/server/auth.functions";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import {
   insertUserSchema,
@@ -14,14 +15,18 @@ import {
   FormMessage,
 } from "@novelty/ui/components/form";
 import { Input } from "@novelty/ui/components/input";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/(auth)/register")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
+  const navigate = useNavigate({ from: "/register" });
+  const register = useServerFn(registerFn);
   const form = useForm<InsertUser["registerFormEmail"]>({
     resolver: standardSchemaResolver(insertUserSchema.shape.registerFormEmail),
     defaultValues: {
@@ -33,8 +38,22 @@ function RouteComponent() {
     },
   });
 
-  const onSubmit = (values: InsertUser["registerFormEmail"]) => {
-    console.log(values);
+  const onSubmit = async (values: InsertUser["registerFormEmail"]) => {
+    const payload: InsertUser["register"] = {
+      email: values.email,
+      password: values.password,
+    };
+
+    const response = await register({ data: payload });
+
+    if (!response.success) {
+      toast.error(response.message);
+      return;
+    }
+
+    form.reset();
+
+    navigate({ to: "/verify-email" });
   };
 
   return (

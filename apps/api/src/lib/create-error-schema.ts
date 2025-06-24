@@ -10,6 +10,11 @@ const createErrorSchema = <T extends ZodSchema>(schema: T) => {
     success: z.boolean().openapi({
       example: false,
     }),
+    message: z.string().openapi({
+      example: {
+        message: "Something went wrong",
+      },
+    }),
     error: z
       .object({
         issues: z.array(
