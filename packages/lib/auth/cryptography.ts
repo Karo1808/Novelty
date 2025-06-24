@@ -1,9 +1,9 @@
 /* eslint-disable node/prefer-global/buffer */
-import crypto, { timingSafeEqual } from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
 import { sha256 } from "@oslojs/crypto/sha2";
 import { encodeHexLowerCase } from "@oslojs/encoding";
 import "dotenv/config";
+import crypto, { timingSafeEqual } from "node:crypto";
 
 export async function hashString(password: string): Promise<string> {
   return await hash(password, {
@@ -15,10 +15,10 @@ export async function hashString(password: string): Promise<string> {
 }
 
 export async function verifyHash(
-  password: string,
+  password: string | null | undefined,
   hashedPassword: string,
 ): Promise<boolean> {
-  return await verify(hashedPassword, password);
+  return await verify(hashedPassword, password ?? "");
 }
 
 export function encryptString(plainText: string): string {
@@ -82,8 +82,7 @@ export function constantTimeCompare(a: string, b: string): boolean {
     const aBuf = Buffer.from(a, "utf8");
     const bBuf = Buffer.from(b, "utf8");
     return aBuf.length === bBuf.length && timingSafeEqual(aBuf, bBuf);
-  }
-  catch {
+  } catch {
     return false;
   }
 }

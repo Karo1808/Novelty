@@ -11,7 +11,7 @@
     "prefix": ""
   },
   "aliases": {
-    "components": "@/ui/components",
+    "components": "@/components",
     "utils": "@novelty/ui/lib/utils",
     "lib": "@/lib",
     "hooks": "@novelty/ui/hooks"
