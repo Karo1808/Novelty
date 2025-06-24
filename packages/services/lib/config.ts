@@ -1,4 +1,4 @@
-export const VERIFICATION_EMAIL_TOKEN_LENGTH = 5 as const;
+export const VERIFICATION_EMAIL_TOKEN_LENGTH = 6 as const;
 export const VERIFICATION_EMAIL_EXPIRY_TIME = 15 * 60;
 export const LOCK_TTL = 5 * 60;
 
@@ -19,8 +19,8 @@ export const R2_SIGNED_URL_EXPIRATION = 60 * 60 * 24; // 24 hours
 export const MIN_REQUIRED_GENRES = 3;
 
 export const DUMMY_PASSWORD = "dummy_password" as string;
-export const DUMMY_PASSWORD_HASH
-  = "$argon2id$v=19$m=65536,t=3,p=4$YWFhYWFhYWFhYWFhYWFhYQ$幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌" as const;
+export const DUMMY_PASSWORD_HASH =
+  "$argon2id$v=19$m=65536,t=3,p=4$YWFhYWFhYWFhYWFhYWFhYQ$幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌幌" as const;
 
 export const FORGOT_PASSWORD_EMAIL_EXPIRY_TIME = 15 * 60; // 15 minutes
 

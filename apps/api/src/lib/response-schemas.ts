@@ -45,10 +45,12 @@ export const serviceUnavailableSchema = z
 export const tooManyRequestsSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Too many requests, try again later",
+      success: false,
     },
   });
 

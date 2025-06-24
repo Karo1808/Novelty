@@ -1,4 +1,4 @@
-import { registerFn } from "@/server/auth.functions";
+import { registerFn, sendVerificationEmailFn } from "@/server/auth.functions";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import {
   insertUserSchema,
@@ -17,6 +17,7 @@ import {
 import { Input } from "@novelty/ui/components/input";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { serialize } from "cookie";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -27,6 +28,8 @@ export const Route = createFileRoute("/(auth)/register")({
 function RouteComponent() {
   const navigate = useNavigate({ from: "/register" });
   const register = useServerFn(registerFn);
+  const sendVerificationEmail = useServerFn(sendVerificationEmailFn);
+
   const form = useForm<InsertUser["registerFormEmail"]>({
     resolver: standardSchemaResolver(insertUserSchema.shape.registerFormEmail),
     defaultValues: {
@@ -51,8 +54,17 @@ function RouteComponent() {
       return;
     }
 
-    form.reset();
+    document.cookie = serialize("pendingEmail", values.email, {
+      maxAge: 60 * 60 * 24,
+      path: "/",
+      sameSite: "lax",
+      // TODO: update with env trigger
+      // secure: true,            // enable in prod over HTTPS
+    });
 
+    sendVerificationEmail({ data: values.email });
+
+    form.reset();
     navigate({ to: "/verify-email" });
   };
 
@@ -181,7 +193,7 @@ function RouteComponent() {
               className="w-full bg-indigo-600 hover:bg-indigo-500 transition-all duration-200
                       shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30
                       focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500
-                      active:scale-95 active:bg-indigo-700 rounded-sm"
+                      active:scale-95 active:bg-indigo-700 rounded-sm text-slate-200"
             >
               Sign up
             </Button>

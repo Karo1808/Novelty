@@ -26,12 +26,12 @@ function Home() {
               Register
             </Button>
           </Link>
-          <Link to="/">
+          <Link to="/login">
             <Button
               className="bg-indigo-600 hover:bg-indigo-500 transition-all duration-200
                         shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30
                         focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500
-                        active:scale-95 active:bg-indigo-700 px-6 rounded-sm"
+                        active:scale-95 active:bg-indigo-700 px-6 rounded-sm text-slate-200"
             >
               Login
             </Button>
