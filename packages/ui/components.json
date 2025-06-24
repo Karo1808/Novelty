@@ -11,10 +11,9 @@
     "prefix": ""
   },
   "aliases": {
-    "components": "@novelty/ui/components",
+    "components": "@/ui/components",
     "utils": "@novelty/ui/lib/utils",
-    "ui": "@novelty/ui/components",
-    "lib": "@novelty/ui/lib",
+    "lib": "@/lib",
     "hooks": "@novelty/ui/hooks"
   },
   "iconLibrary": "lucide"

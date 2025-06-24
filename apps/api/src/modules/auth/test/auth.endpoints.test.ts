@@ -1,7 +1,3 @@
-import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
-import type { InsertUser } from "@novelty/db/schemas/user.schema";
-import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
-import type { z } from "zod";
 import env from "@/env";
 import createApp from "@/lib/create-app";
 import createErrorSchema from "@/lib/create-error-schema";
@@ -14,11 +10,14 @@ import {
 } from "@/test-setup";
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
 import * as queries from "@novelty/db/queries/auth.query";
+import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
 import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
+import type { InsertUser } from "@novelty/db/schemas/user.schema";
 import { insertUserSchema, usersTable } from "@novelty/db/schemas/user.schema";
 import * as email from "@novelty/email/client";
 import * as authUtils from "@novelty/lib/auth/cryptography";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import { forgotPasswordBodySchema } from "@novelty/lib/validations/auth";
 import * as queueUtils from "@novelty/message-queue/lib/add-job-to-queue";
 import * as authServices from "@novelty/services/auth.service";
@@ -26,6 +25,7 @@ import * as sessionService from "@novelty/services/session.service";
 import { eq, sql } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { z } from "zod/v4";
 import { authRouter } from "../auth.index";
 
 vi.mock("@hono/node-server/conninfo", () => ({

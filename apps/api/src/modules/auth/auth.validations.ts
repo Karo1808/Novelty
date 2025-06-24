@@ -7,11 +7,13 @@ export const registerCreatedSchema = z
   .object({
     message: z.string(),
     user: selectUserSchema,
+    success: z.literal(true),
   })
   .openapi({
     example: {
       message:
         "Registration successful. Please verify your email to activate your account.",
+      success: true,
       user: {
         id: "V1StGXR8_Z5jdHi6B-myT",
         email: "email@mail.com",
@@ -26,9 +28,11 @@ export const registerCreatedSchema = z
 export const registerConflictSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
+      success: false,
       message: "An account with that email already exists.",
     },
   });
@@ -146,7 +150,7 @@ export const loginUnauthorizedSchema = z
 
 export const oauthInitParamsSchema = z.object({
   provider: selectAuthProviderSchema.shape.provider.refine(
-    v => v !== "email",
+    (v) => v !== "email",
     {
       message: "The provider must be oauth",
     },
