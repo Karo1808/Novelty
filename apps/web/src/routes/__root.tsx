@@ -1,4 +1,5 @@
 import appCss from "@/globals.css?url";
+import { ThemeProvider } from "@/providers/theme-provider";
 import type { RootContext } from "@/types";
 import { Toaster } from "@novelty/ui/components/sonner";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
@@ -45,7 +46,9 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <HeadContent />
       </head>
       <body className="h-[100vh]">
-        {children}
+        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+          {children}
+        </ThemeProvider>
         <Toaster richColors position="top-right" />
         <TanStackRouterDevtools position="bottom-right" />
         <ReactQueryDevtools buttonPosition="bottom-left" />

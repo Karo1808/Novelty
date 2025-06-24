@@ -40,30 +40,36 @@ export const registerConflictSchema = z
 export const sendVerificationEmailSuccessSchema = z
   .object({
     message: z.string(),
+    success: z.literal(true),
   })
   .openapi({
     example: {
       message: "Email verification sent successfully",
+      success: true,
     },
   });
 
 export const sendVerificationEmailNotFoundSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "This email does not exist",
+      success: false,
     },
   });
 
 export const sendVerificationEmailConflictSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Another process is already handling this email",
+      success: false,
     },
   });
 
