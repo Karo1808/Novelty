@@ -27,6 +27,7 @@ import {
   logoutSuccessSchema,
   oAuthCallbackQuerySchema,
   oauthInitParamsSchema,
+  oAuthInitSuccessSchema,
   registerConflictSchema,
   registerCreatedSchema,
   sendVerificationEmailConflictSchema,
@@ -211,10 +212,19 @@ export const oAuthInitRoute = createRoute({
     params: oauthInitParamsSchema,
   },
   responses: {
-    [HttpStatusCodes.FOUND]: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        "application/json": {
+          schema: oAuthInitSuccessSchema,
+        },
+      },
       description: "Redirects to the OAuth provider",
       headers: oAuthHeaderSchema,
     },
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(insertAuthProviderSchema.shape.init),
       "Validation error(s)",

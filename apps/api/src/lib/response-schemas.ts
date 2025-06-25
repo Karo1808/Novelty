@@ -87,20 +87,24 @@ export const ImageUnsupportedMediaSchema = z
 export const blacklistedSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Access denied",
+      success: false,
     },
   });
 
 export const csrfErrorSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Invalid or missing CSRF token.",
+      success: false,
     },
     description: "Response returned when CSRF validation fails.",
   });

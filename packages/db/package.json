@@ -6,10 +6,10 @@
   "main": "./index.ts",
   "types": "./index.ts",
   "scripts": {
+    "dev": "drizzle-kit studio",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio",
     "db:check": "drizzle-kit check",
     "db:push": "drizzle-kit push",
     "lint": "oxlint .",

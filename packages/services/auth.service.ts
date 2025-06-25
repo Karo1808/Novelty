@@ -437,7 +437,6 @@ interface InitOAuthSuccess {
   state: string;
   codeVerifier: string;
 }
-type InitOAuthError = ErrorResponse<"BAD_REQUEST">;
 
 export const initOAuth = async (
   dependencies: MarkKeysAsPartial<
@@ -445,7 +444,7 @@ export const initOAuth = async (
     ["messageQueueInstance", "dbInstance"]
   >,
   provider: SelectAuthProvider["provider"],
-): Promise<Result<InitOAuthSuccess, InitOAuthError>> => {
+): Promise<Result<InitOAuthSuccess, null>> => {
   const state = generateState();
   const codeVerifier = generateCodeVerifier();
 
@@ -469,19 +468,11 @@ export const initOAuth = async (
       );
       break;
     default:
-      dependencies.logger.error({
-        message: "Unexpected OAuth provider requested",
-        provider,
-        reqId: dependencies.reqId,
-      });
-      return {
-        success: false,
-        error: { kind: "BAD_REQUEST", message: "Invalid provider specified." },
-      };
+      break;
   }
   return {
     success: true,
-    data: { redirectUrl: authorizationURL.toString(), state, codeVerifier },
+    data: { redirectUrl: authorizationURL!.toString(), state, codeVerifier },
   };
 };
 

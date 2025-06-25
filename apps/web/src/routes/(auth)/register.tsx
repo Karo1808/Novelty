@@ -20,6 +20,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { serialize } from "cookie";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { Providers } from "./-components/providers";
 
 export const Route = createFileRoute("/(auth)/register")({
   component: RouteComponent,
@@ -72,6 +73,19 @@ function RouteComponent() {
     <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-8">
       <div className="max-w-md w-full space-y-6 p-8 bg-slate-800 rounded-lg border border-slate-700 shadow-lg shadow-slate-900/50">
         <h1 className="text-2xl font-bold text-slate-100">Create an account</h1>
+
+        <Providers />
+
+        {/* Divider */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-700" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-slate-800 text-slate-400">or</span>
+          </div>
+        </div>
+
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
@@ -200,7 +214,7 @@ function RouteComponent() {
             <div className="text-sm text-center">
               Already have an account?{" "}
               <Link
-                to="/"
+                to="/login"
                 className="text-indigo-400 hover:text-indigo-300 hover:underline"
               >
                 Log in

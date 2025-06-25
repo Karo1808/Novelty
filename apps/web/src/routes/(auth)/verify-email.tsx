@@ -1,6 +1,7 @@
 import {
   getPendingEmail,
   sendVerificationEmailFn,
+  verifyEmailFn,
 } from "@/server/auth.functions";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import {
@@ -20,7 +21,7 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@novelty/ui/components/input-otp";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { useState } from "react";
@@ -37,8 +38,14 @@ export const Route = createFileRoute("/(auth)/verify-email")({
 
 function RouteComponent() {
   const recipientEmail = Route.useLoaderData();
+  const navigate = useNavigate({ from: "/verify-email" });
+
   const sendVerificationEmail = useServerFn(sendVerificationEmailFn);
+  const verifyEmail = useServerFn(verifyEmailFn);
+
   const [isResendPending, setIsResendPending] = useState<boolean>(false);
+  const [isVerificationPending, setIsVerificationPending] =
+    useState<boolean>(false);
 
   const form = useForm<Omit<VerifyEmailBodySchema, "email">>({
     resolver: standardSchemaResolver(
@@ -51,7 +58,33 @@ function RouteComponent() {
     },
   });
 
-  const onSubmit = (data: Omit<VerifyEmailBodySchema, "email">) => {};
+  const onSubmit = async (data: Omit<VerifyEmailBodySchema, "email">) => {
+    if (isVerificationPending) {
+      return;
+    }
+
+    setIsVerificationPending(true);
+    try {
+      const response = await verifyEmail({
+        data: {
+          email: recipientEmail,
+          verificationCode: data.verificationCode,
+        },
+      });
+
+      if (!response.success) {
+        form.setError("verificationCode", { message: response.message });
+        return;
+      }
+
+      // TODO: Update with onboarding
+      navigate({ to: "/" });
+    } catch (error) {
+      toast.error("Something went wrong, please try again");
+    } finally {
+      setIsVerificationPending(false);
+    }
+  };
 
   const handleResendClick = async () => {
     setIsResendPending(true);
@@ -117,6 +150,7 @@ function RouteComponent() {
                         shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30
                         focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500
                         active:scale-95 active:bg-indigo-700 rounded-sm text-slate-200 font-medium"
+              disabled={isVerificationPending}
             >
               Verify Email
             </Button>

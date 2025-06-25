@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "turbo build",
+    "build:rpc": "turbo build:rpc",
     "dev": "turbo dev",
     "lint": "turbo lint",
     "lint:fix": "turbo lint:fix",
