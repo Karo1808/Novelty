@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from "./routes/index";
 import { Route as legalTermsOfServiceRouteImport } from "./routes/(legal)/terms-of-service";
 import { Route as authVerifyEmailRouteImport } from "./routes/(auth)/verify-email";
 import { Route as authRegisterRouteImport } from "./routes/(auth)/register";
+import { Route as authLoginRouteImport } from "./routes/(auth)/login";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -34,15 +35,22 @@ const authRegisterRoute = authRegisterRouteImport.update({
   path: "/register",
   getParentRoute: () => rootRouteImport,
 } as any);
+const authLoginRoute = authLoginRouteImport.update({
+  id: "/(auth)/login",
+  path: "/login",
+  getParentRoute: () => rootRouteImport,
+} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
+  "/login": typeof authLoginRoute;
   "/register": typeof authRegisterRoute;
   "/verify-email": typeof authVerifyEmailRoute;
   "/terms-of-service": typeof legalTermsOfServiceRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
+  "/login": typeof authLoginRoute;
   "/register": typeof authRegisterRoute;
   "/verify-email": typeof authVerifyEmailRoute;
   "/terms-of-service": typeof legalTermsOfServiceRoute;
@@ -50,18 +58,25 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
+  "/(auth)/login": typeof authLoginRoute;
   "/(auth)/register": typeof authRegisterRoute;
   "/(auth)/verify-email": typeof authVerifyEmailRoute;
   "/(legal)/terms-of-service": typeof legalTermsOfServiceRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/register" | "/verify-email" | "/terms-of-service";
+  fullPaths:
+    | "/"
+    | "/login"
+    | "/register"
+    | "/verify-email"
+    | "/terms-of-service";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/register" | "/verify-email" | "/terms-of-service";
+  to: "/" | "/login" | "/register" | "/verify-email" | "/terms-of-service";
   id:
     | "__root__"
     | "/"
+    | "/(auth)/login"
     | "/(auth)/register"
     | "/(auth)/verify-email"
     | "/(legal)/terms-of-service";
@@ -69,6 +84,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  authLoginRoute: typeof authLoginRoute;
   authRegisterRoute: typeof authRegisterRoute;
   authVerifyEmailRoute: typeof authVerifyEmailRoute;
   legalTermsOfServiceRoute: typeof legalTermsOfServiceRoute;
@@ -104,11 +120,19 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof authRegisterRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/(auth)/login": {
+      id: "/(auth)/login";
+      path: "/login";
+      fullPath: "/login";
+      preLoaderRoute: typeof authLoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  authLoginRoute: authLoginRoute,
   authRegisterRoute: authRegisterRoute,
   authVerifyEmailRoute: authVerifyEmailRoute,
   legalTermsOfServiceRoute: legalTermsOfServiceRoute,

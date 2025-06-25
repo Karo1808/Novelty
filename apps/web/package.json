@@ -14,9 +14,11 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
+    "@iconify-icons/simple-icons": "^1.2.74",
+    "@iconify/react": "^6.0.0",
     "@novelty/db": "workspace:*",
-    "@novelty/react-query": "workspace:*",
     "@novelty/lib": "workspace:*",
+    "@novelty/react-query": "workspace:*",
     "@novelty/ui": "workspace:*",
     "@radix-ui/react-checkbox": "^1.3.2",
     "@radix-ui/react-label": "^2.1.7",

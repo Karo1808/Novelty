@@ -216,10 +216,11 @@ export const handleOAuthInit: AppRouteHandler<OAuthInitRoute> = async (c) => {
   if (res.success === false) {
     return c.json(
       {
-        message: res.error.message,
+        message:
+          "The server is currently unable to handle the request. Please try again later.",
         success: false,
       },
-      HttpStatusCodes[res.error.kind],
+      HttpStatusCodes["SERVICE_UNAVAILABLE"],
     );
   }
 
@@ -245,9 +246,13 @@ export const handleOAuthInit: AppRouteHandler<OAuthInitRoute> = async (c) => {
     });
   }
 
-  logger.info(res.data.redirectUrl);
-
-  return c.redirect(res.data.redirectUrl);
+  return c.json(
+    {
+      url: res.data.redirectUrl,
+      success: true,
+    },
+    HttpStatusCodes["OK"],
+  );
 };
 
 export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
@@ -432,6 +437,7 @@ export const handleForgotPasswordRoute: AppRouteHandler<
       {
         message: "Password successfully reset",
         user,
+        success: true,
       },
       HttpStatusCodes.OK,
     );
@@ -441,6 +447,7 @@ export const handleForgotPasswordRoute: AppRouteHandler<
     {
       message:
         "Password successfully reset, please login with the new password",
+      success: true,
     },
     HttpStatusCodes.OK,
   );

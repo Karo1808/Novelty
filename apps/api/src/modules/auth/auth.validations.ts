@@ -76,40 +76,48 @@ export const sendVerificationEmailConflictSchema = z
 export const verifyEmailSuccessSchema = z
   .object({
     message: z.string(),
+    success: z.literal(true),
   })
   .openapi({
     example: {
       message: "Email verified",
+      success: true,
     },
   });
 
 export const verifyEmailNotFoundSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "This user does not exist",
+      success: false,
     },
   });
 
 export const verifyEmailBadRequestSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "The code is incorrect or it has already expired",
+      success: false,
     },
   });
 
 export const verifyEmailConflictSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "This email has already been verified",
+      success: false,
     },
   });
 
@@ -117,10 +125,12 @@ export const loginSuccessSchema = z
   .object({
     message: z.string(),
     user: selectUserWithInfoSchema,
+    success: z.literal(true),
   })
   .openapi({
     example: {
       message: "Login successful",
+      success: true,
       user: {
         id: "V1StGXR8_Z5jdHi6B-myT",
         email: "email@mail.com",
@@ -147,10 +157,12 @@ export const loginSuccessSchema = z
 export const loginUnauthorizedSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Invalid credentials",
+      success: false,
     },
   });
 
@@ -185,20 +197,24 @@ export const logoutSuccessSchema = z
 export const forgotPasswordConflictSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Another process is already handling this email",
+      success: false,
     },
   });
 
 export const forgotPasswordSuccessSchema = z
   .object({
     message: z.string(),
+    success: z.literal(true),
   })
   .openapi({
     example: {
       message: "Password successfully reset",
+      success: true,
     },
   });
 
@@ -230,5 +246,17 @@ export const forgotPasswordSchema = z
           },
         },
       },
+    },
+  });
+
+export const oAuthInitSuccessSchema = z
+  .object({
+    url: z.url(),
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      url: "https://accounts.google.com/o/oauth2/v2/auth",
+      success: true,
     },
   });
