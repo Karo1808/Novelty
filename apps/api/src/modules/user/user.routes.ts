@@ -19,11 +19,43 @@ import {
   getProfileSuccessSchema,
   getUserDraftConflictSchema,
   getUserDraftSuccessSchema,
+  getUserSuccessSchema,
   updateProfileConflictSchema,
 } from "./user.validations";
 
 const userTags = ["User"];
 const onboardingTags = ["Onboarding"];
+
+export const getUserRoute = createRoute({
+  tags: userTags,
+  method: "get",
+  path: "/user",
+  description: "Returns the user",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(getUserSuccessSchema, "User"),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Service unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type GetUserRoute = typeof getUserRoute;
 
 export const getProfileRoute = createRoute({
   tags: userTags,
