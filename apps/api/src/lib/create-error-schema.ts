@@ -7,7 +7,7 @@ const createErrorSchema = <T extends ZodSchema>(schema: T) => {
     schema._def.typeName === z.ZodArray ? [] : {},
   );
   return z.object({
-    success: z.boolean().openapi({
+    success: z.literal(false).openapi({
       example: false,
     }),
     message: z.string().openapi({

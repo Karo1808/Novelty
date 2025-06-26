@@ -22,9 +22,11 @@ import {
 import {
   forgotPasswordConflictSchema,
   forgotPasswordSuccessSchema,
+  getAuthMeSuccessSchema,
   loginSuccessSchema,
   loginUnauthorizedSchema,
   logoutSuccessSchema,
+  oAuthCallbackBadRequestSchema,
   oAuthCallbackQuerySchema,
   oauthInitParamsSchema,
   oAuthInitSuccessSchema,
@@ -39,6 +41,33 @@ import {
 } from "./auth.validations";
 
 const tags = ["Auth"];
+
+export const authMeRoute = createRoute({
+  tags,
+  method: "get",
+  path: "/auth/me",
+  description: "Validates the session and returns userId",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(getAuthMeSuccessSchema, "Valid session"),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "Invalid session",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Service unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type AuthMeRoute = typeof authMeRoute;
 
 export const registerRoute = createRoute({
   tags,
@@ -249,13 +278,23 @@ export const oAuthCallbackRoute = createRoute({
     query: oAuthCallbackQuerySchema,
   },
   responses: {
-    [HttpStatusCodes.FOUND]: {
-      description: "Redirects to the application",
+    [HttpStatusCodes.OK]: {
+      content: {
+        "application/json": {
+          schema: loginSuccessSchema,
+        },
+      },
+      description:
+        "Authenticates a user and creates a session and returns user data",
       headers: z.object({
         cookie: cookieSchema.shape.cookie,
         location: locationSchema.shape.Location,
       }),
     },
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      oAuthCallbackBadRequestSchema,
+      "Missing request data",
+    ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
       loginUnauthorizedSchema,
       "Invalid credentials",

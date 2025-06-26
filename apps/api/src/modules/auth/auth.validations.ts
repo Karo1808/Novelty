@@ -3,6 +3,18 @@ import { selectUserWithInfoSchema } from "@novelty/db/lib/types";
 import { selectAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
 import { selectUserSchema } from "@novelty/db/schemas/user.schema";
 
+export const getAuthMeSuccessSchema = z
+  .object({
+    userId: z.string(),
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      userId: "V1StGXR8_Z5jdHi6B-myT",
+      success: true,
+    },
+  });
+
 export const registerCreatedSchema = z
   .object({
     message: z.string(),
@@ -183,6 +195,18 @@ export const oAuthCallbackQuerySchema = z.object({
 });
 
 export type OAuthCallbackQuery = z.infer<typeof oAuthCallbackQuerySchema>;
+
+export const oAuthCallbackBadRequestSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "Invalid request",
+      success: false,
+    },
+  });
 
 export const logoutSuccessSchema = z
   .object({
