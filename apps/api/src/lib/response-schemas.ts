@@ -56,10 +56,12 @@ export const tooManyRequestsSchema = z
 
 export const unauthenticatedSchema = z
   .object({
+    success: z.literal(false),
     message: z.string(),
   })
   .openapi({
     example: {
+      success: false,
       message: "User must be authenticated",
     },
   });
@@ -67,10 +69,12 @@ export const unauthenticatedSchema = z
 export const accountNotFoundSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "This account does not exist",
+      success: false,
     },
   });
 

@@ -1,7 +1,6 @@
-import type { User } from "@/types/index.types";
-import type { MiddlewareHandler } from "hono";
 import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
+import type { User } from "@/types/index.types";
 import { db } from "@novelty/db";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
@@ -9,6 +8,7 @@ import {
   SESSION_EXPIRATION_TIME,
   validateSessionToken,
 } from "@novelty/services/session.service";
+import type { MiddlewareHandler } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 

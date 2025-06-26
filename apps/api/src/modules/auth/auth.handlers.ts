@@ -22,6 +22,7 @@ import { SESSION_EXPIRATION_TIME } from "@novelty/services/session.service";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { providers } from "./auth.providers";
 import type {
+  AuthMeRoute,
   ForgotPasswordRoute,
   LoginRoute,
   LogoutRoute,
@@ -33,6 +34,28 @@ import type {
   VerifyEmailRoute,
 } from "./auth.routes";
 import type { OauthInitParams } from "./auth.validations";
+
+export const handleAuthMe: AppRouteHandler<AuthMeRoute> = async (c) => {
+  const { userId } = c.var.user;
+
+  if (!userId) {
+    return c.json(
+      {
+        message: "Unauthorized",
+        success: false,
+      },
+      HttpStatusCodes.UNAUTHORIZED,
+    );
+  }
+
+  return c.json(
+    {
+      userId,
+      success: true,
+    },
+    HttpStatusCodes.OK,
+  );
+};
 
 export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   const body = c.req.valid("json");
@@ -309,6 +332,9 @@ export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
 
   if (res.data) {
     const { token, expiresAt } = res.data;
+
+    deleteCookie(c, "state");
+    deleteCookie(c, "code_verifier");
 
     setCookie(c, "session", token, {
       httpOnly: true,
