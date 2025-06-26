@@ -62,7 +62,7 @@ export type SelectUserInfo = z.infer<typeof selectUserInfoSchema>;
 
 const baseInsertSchema = createInsertSchema(userInfoTable, {
   username: (schema) => schema.min(4).optional(),
-  avatarUrl: (schema) => schema.url(),
+  avatarUrl: (schema) => schema.check(z.url()),
   bio: (schema) => schema.max(80),
   preferences: userPreferencesSchema,
 });

@@ -32,6 +32,7 @@ export const Route = createFileRoute("/(auth)/verify-email")({
   component: RouteComponent,
   loader: async () => {
     const data = await getPendingEmail();
+    console.log(data);
     return data;
   },
 });

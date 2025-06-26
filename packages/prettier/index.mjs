@@ -6,10 +6,8 @@
 const config = {
   plugins: [
     "@ianvs/prettier-plugin-sort-imports",
-    // TODO: UPDATE when adding tailwind
-    // "prettier-plugin-tailwindcss",
+    "prettier-plugin-tailwindcss",
   ],
-  // tailwindConfig: "../../tooling/tailwind",
   importOrder: [
     "^(react/(.*)$)|^(react$)|^(react-native(.*)$)",
     "^(next/(.*)$)|^(next$)",

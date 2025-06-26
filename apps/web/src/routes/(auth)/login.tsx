@@ -1,6 +1,7 @@
 import { loginFn } from "@/server/auth.functions";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { InsertUser, insertUserSchema } from "@novelty/db/schemas/user.schema";
+import { userQuery } from "@novelty/react-query/modules/user/user.query";
 import { Button } from "@novelty/ui/components/button";
 import {
   Form,
@@ -26,6 +27,7 @@ function RouteComponent() {
   const navigate = useNavigate({ from: "/login" });
   const login = useServerFn(loginFn);
   const [isPending, setIsPending] = useState<boolean>(false);
+  const { queryClient } = Route.useRouteContext();
 
   const form = useForm<InsertUser["login"]>({
     resolver: standardSchemaResolver(insertUserSchema.shape.login),
@@ -51,6 +53,8 @@ function RouteComponent() {
         form.setError("password", { message: response.message });
         return;
       }
+
+      queryClient.setQueryData(userQuery.userKey, response);
 
       form.reset();
       navigate({ to: "/" });

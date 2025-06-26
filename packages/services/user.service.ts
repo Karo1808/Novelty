@@ -1,13 +1,5 @@
-import type {
-  SelectUserInfo,
-  UpdateUserInfo,
-} from "@novelty/db/schemas/user-info.schema";
-import type { MarkKeysAsPartial } from "@novelty/lib/types";
-import type { UserDraftBodySchema } from "@novelty/lib/validations/user";
-import type { UpdateProfile } from "./lib/utils";
-import type { ErrorResponse, Result, ServiceDependencies } from "./types";
-import { Buffer } from "node:buffer";
 import { QueryExecutionError } from "@novelty/db/lib/errors";
+import { SelectUserWithInfo } from "@novelty/db/lib/types";
 import {
   getUserByIdQuery,
   updateUserByIdQuery,
@@ -20,14 +12,66 @@ import {
   updateUserPreferencesByIdQuery,
   updateUserProfileByUserIdQuery,
 } from "@novelty/db/queries/user.query";
+import type {
+  SelectUserInfo,
+  UpdateUserInfo,
+} from "@novelty/db/schemas/user-info.schema";
+import type { MarkKeysAsPartial } from "@novelty/lib/types";
+import type { UserDraftBodySchema } from "@novelty/lib/validations/user";
 import { doesKeyExists } from "@novelty/redis/queries/index.query";
 import { getByKeyJson, setByKeyJson } from "@novelty/redis/queries/json.query";
+import { Buffer } from "node:buffer";
 import { deleteFile, uploadFile } from "./file.service";
 import {
   MIN_REQUIRED_GENRES,
   PROFILE_PICTURES_PATH_PREFIX,
   USER_INFO_DRAFT_KEY,
 } from "./lib/config";
+import type { UpdateProfile } from "./lib/utils";
+import type { ErrorResponse, Result, ServiceDependencies } from "./types";
+
+export type GetUserError = ErrorResponse<"NOT_FOUND">;
+
+export const getUser = async (
+  dependencies: MarkKeysAsPartial<
+    ServiceDependencies,
+    ["redisClient", "messageQueueInstance"]
+  >,
+  userId: string,
+): Promise<Result<SelectUserWithInfo, GetUserError>> => {
+  const userData = await getUserInfoQuery(dependencies, "id", userId);
+
+  if (!userData || !userData.userInfo) {
+    return {
+      success: false,
+      error: {
+        kind: "NOT_FOUND",
+        message: "User not found",
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      id: userId,
+      email: userData.email,
+      isEmailVerified: userData.isEmailVerified,
+      isOnboarded: userData.isOnboarded,
+      createdAt: userData.createdAt,
+      updatedAt: userData.updatedAt,
+      userInfo: {
+        profile: {
+          avatarUrl: userData.userInfo.avatarUrl,
+          bio: userData.userInfo.bio,
+          username: userData.userInfo.username,
+        },
+        // @ts-expect-error: 'preferences is json'
+        preferences: userData.userInfo.preferences,
+      },
+    },
+  };
+};
 
 export type GetProfileError = ErrorResponse<"NOT_FOUND">;
 
@@ -148,8 +192,7 @@ export const updateProfile = async (
       },
       userId,
     );
-  }
-  catch (error: unknown) {
+  } catch (error: unknown) {
     if (newAvatarUrl) {
       await deleteFile({
         url: newAvatarUrl,
@@ -229,8 +272,7 @@ export const updatePreferences = async (
 
   try {
     await updateUserPreferencesByIdQuery(dependencies, payload, userId);
-  }
-  catch (error: unknown) {
+  } catch (error: unknown) {
     throw new QueryExecutionError(
       "Failed to update user preferences",
       error as Error,
@@ -282,10 +324,10 @@ export const completeOnboarding = async (
     ?.preferences as SelectUserInfo["preferences"];
 
   if (
-    !user.isEmailVerified
-    || !user.userInfo?.username
-    || !preferences.genres
-    || preferences.genres?.length < MIN_REQUIRED_GENRES
+    !user.isEmailVerified ||
+    !user.userInfo?.username ||
+    !preferences.genres ||
+    preferences.genres?.length < MIN_REQUIRED_GENRES
   ) {
     return {
       success: false,

@@ -1,15 +1,20 @@
+import { getAuthHeaders } from "@/lib/utils";
 import { insertAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
 import { insertUserSchema } from "@novelty/db/schemas/user.schema";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { getCookieValue } from "@novelty/lib/misc/index";
 import { verifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import { apiClient } from "@novelty/react-query/lib/api-client";
 import { redirect } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import {
   appendResponseHeader,
-  getWebRequest,
+  deleteCookie,
+  getCookie,
+  setCookie,
   setResponseStatus,
 } from "@tanstack/react-start/server";
-import { parse } from "cookie";
+import { authenticationMiddleware } from "./middleware";
 
 // TODO: Update with middleware
 
@@ -25,21 +30,41 @@ export const loginFn = createServerFn({ method: "POST" })
   .validator(insertUserSchema.shape.login)
   .handler(async ({ data }) => {
     const response = await apiClient.auth.login.$post({ json: data });
+
+    const session =
+      getCookieValue(response.headers.getSetCookie(), "session") ?? "";
+
+    setCookie("session", session, {
+      httpOnly: true,
+      sameSite: "lax",
+      // TODO: Update with env
+      // secure: env.NODE_ENV === "production",
+      path: "/",
+      // TODO; update with age
+    });
+
+    return await response.json();
+  });
+
+export const logoutFn = createServerFn({ method: "POST" })
+  .middleware([authenticationMiddleware])
+  .handler(async () => {
+    const { cookies } = getAuthHeaders();
+
+    const response = await apiClient.auth.logout.$post({
+      header: cookies,
+    });
+
+    if (response.status === HttpStatusCodes.OK) {
+      deleteCookie("session");
+    }
+
     return await response.json();
   });
 
 export const getPendingEmail = createServerFn({ method: "GET" }).handler(
   async () => {
-    const request = getWebRequest();
-
-    const raw =
-      typeof document === "undefined"
-        ? request.headers.get("cookie") || ""
-        : document.cookie;
-
-    const cookies = parse(raw);
-
-    const email = cookies.pendingEmail;
+    const email = getCookie("pending-email");
 
     if (!email) {
       throw redirect({ to: "/register" });
@@ -54,6 +79,14 @@ export const sendVerificationEmailFn = createServerFn({
 })
   .validator(insertUserSchema.shape.registerFormEmail.shape.email)
   .handler(async ({ data }) => {
+    setCookie("pending-email", data, {
+      maxAge: 60 * 60 * 24,
+      path: "/",
+      sameSite: "lax",
+      // TODO: update with env trigger
+      // secure: true,            // enable in prod over HTTPS
+    });
+
     const response = await apiClient.auth["send-verification-email"].$post({
       json: {
         email: data,
