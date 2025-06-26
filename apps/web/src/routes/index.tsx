@@ -1,12 +1,45 @@
+import { logoutFn } from "@/server/auth.functions";
+import { getUserFn } from "@/server/user.functions";
+import { userQuery } from "@novelty/react-query/modules/user/user.query";
 import { Button } from "@novelty/ui/components/button";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { BookOpen } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Home,
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData({
+      queryKey: userQuery.userKey,
+      queryFn: getUserFn,
+    }),
 });
 
 function Home() {
+  const logout = useServerFn(logoutFn);
+  const { queryClient } = Route.useRouteContext();
+  const logoutMutation = useMutation({
+    mutationFn: logout,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: userQuery.userKey });
+    },
+  });
+
+  const { data: user } = useSuspenseQuery({
+    queryKey: userQuery.userKey,
+    queryFn: getUserFn,
+    select: (data) => (data.success ? data.user : null),
+  });
+
+  const handleLogout = async () => {
+    if (logoutMutation.isPending) {
+      return;
+    }
+
+    logoutMutation.mutate({});
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
       {/* Navbar */}
@@ -16,26 +49,41 @@ function Home() {
           <span className="font-semibold">BookStore</span>
         </div>
         <div className="flex gap-2">
-          <Link to="/register">
+          {user?.id ? (
             <Button
+              disabled={logoutMutation.isPending}
+              onClick={handleLogout}
               variant="outline"
               className="transition-all duration-200 hover:bg-slate-700 hover:text-white
-                        focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500
-                        active:scale-95 active:bg-slate-600 border-slate-600 px-6 rounded-sm"
+              focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500
+              active:scale-95 active:bg-slate-600 border-slate-600 px-6 rounded-sm"
             >
-              Register
+              Logout
             </Button>
-          </Link>
-          <Link to="/login">
-            <Button
-              className="bg-indigo-600 hover:bg-indigo-500 transition-all duration-200
-                        shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30
-                        focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500
-                        active:scale-95 active:bg-indigo-700 px-6 rounded-sm text-slate-200"
-            >
-              Login
-            </Button>
-          </Link>
+          ) : (
+            <>
+              <Link to="/register">
+                <Button
+                  variant="outline"
+                  className="transition-all duration-200 hover:bg-slate-700 hover:text-white
+              focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500
+              active:scale-95 active:bg-slate-600 border-slate-600 px-6 rounded-sm"
+                >
+                  Register
+                </Button>
+              </Link>
+              <Link to="/login">
+                <Button
+                  className="bg-indigo-600 hover:bg-indigo-500 transition-all duration-200
+              shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30
+              focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500
+              active:scale-95 active:bg-indigo-700 px-6 rounded-sm text-slate-200"
+                >
+                  Login
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </nav>
 

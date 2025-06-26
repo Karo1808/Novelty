@@ -17,7 +17,6 @@ import {
 import { Input } from "@novelty/ui/components/input";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { serialize } from "cookie";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Providers } from "./-components/providers";
@@ -54,14 +53,6 @@ function RouteComponent() {
       toast.error(response.message);
       return;
     }
-
-    document.cookie = serialize("pendingEmail", values.email, {
-      maxAge: 60 * 60 * 24,
-      path: "/",
-      sameSite: "lax",
-      // TODO: update with env trigger
-      // secure: true,            // enable in prod over HTTPS
-    });
 
     sendVerificationEmail({ data: values.email });
 
