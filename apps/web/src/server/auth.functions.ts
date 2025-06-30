@@ -113,6 +113,7 @@ export const oAuthFn = createServerFn({
   response: "raw",
 })
   .validator(insertAuthProviderSchema.shape.init)
+  // @ts-ignore
   .handler(async ({ data }) => {
     const apiRes = await apiClient.auth.oauth[":provider"].$get({
       param: data,

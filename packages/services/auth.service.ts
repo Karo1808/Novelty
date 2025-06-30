@@ -77,8 +77,13 @@ export const registerUser = async (
   body: InsertUser["register"],
 ): Promise<Result<SelectUser, RegisterUserError>> => {
   const existingUser = await getUserByEmailQuery(dependencies, body.email);
+  const emailProvider = await getProvidersByProviderUserId(
+    dependencies,
+    existingUser?.id ?? "",
+    "email",
+  );
 
-  if (existingUser) {
+  if (existingUser && emailProvider?.id) {
     return {
       success: false,
       error: {
@@ -90,8 +95,22 @@ export const registerUser = async (
 
   const hashedPassword = await hashString(body.password as string);
 
+  let newUser: SelectUser | null;
+
   try {
-    const newUser = await createUserQuery(
+    const allProviders = await getProvidersByProviderUserId(
+      dependencies,
+      existingUser?.id ?? "",
+    );
+
+    if (allProviders && existingUser) {
+      return {
+        success: true,
+        data: existingUser,
+      };
+    }
+
+    newUser = await createUserQuery(
       dependencies,
       {
         email: body.email,
@@ -106,14 +125,10 @@ export const registerUser = async (
 
     return {
       success: true,
-
       data: newUser,
     };
   } catch (err: any) {
-    if (
-      err?.message &&
-      err.message.includes("duplicate key value violates unique constraint")
-    ) {
+    if (err?.message && err.message.includes('insert into "users"')) {
       return {
         success: false,
         error: {
@@ -486,8 +501,8 @@ export const authenticateOAuthUser = async (
 ): Promise<AuthenticatedSessionResponseData> => {
   const existingProvider = await getProvidersByProviderUserId(
     dependencies,
-    provider,
     claims.sub,
+    provider,
   );
 
   let userId = existingProvider?.userId;
@@ -497,28 +512,28 @@ export const authenticateOAuthUser = async (
   if (!userId) {
     existingUser = await getUserByEmailQuery(dependencies, claims.email);
     userId = existingUser?.id;
-  }
-  if (!existingUser) {
-    const newUser = await createUserQuery(
-      dependencies,
-      {
-        email: claims.email,
-      },
-      provider,
-    );
-    userId = newUser?.id;
+    if (!existingUser) {
+      const newUser = await createUserQuery(
+        dependencies,
+        {
+          email: claims.email,
+        },
+        provider,
+      );
+      userId = newUser?.id;
 
-    await updateUserByIdQuery(
-      dependencies,
-      { isEmailVerified: claims.email_verified },
-      userId!,
-    );
+      await updateUserByIdQuery(
+        dependencies,
+        { isEmailVerified: claims.email_verified },
+        userId!,
+      );
 
-    await updateUserProfileByUserIdQuery(
-      dependencies,
-      { username: claims.name, avatarUrl: claims.picture },
-      userId!,
-    );
+      await updateUserProfileByUserIdQuery(
+        dependencies,
+        { username: claims.name, avatarUrl: claims.picture },
+        userId!,
+      );
+    }
   }
 
   if (!existingProvider) {

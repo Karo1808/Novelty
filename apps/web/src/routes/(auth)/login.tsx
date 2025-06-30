@@ -120,6 +120,8 @@ function RouteComponent() {
                       className="bg-slate-800 border-slate-700 text-slate-100 px-4 py-2 rounded-md
                                 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500
                                 hover:border-slate-600 transition-colors"
+                      // @ts-ignore
+                      value={field.value ?? ""}
                       {...field}
                     />
                   </FormControl>

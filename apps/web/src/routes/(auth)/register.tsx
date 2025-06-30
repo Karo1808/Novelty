@@ -109,6 +109,8 @@ function RouteComponent() {
                   <FormLabel className="text-slate-200">Password</FormLabel>
                   <FormControl>
                     <Input
+                      // @ts-ignore
+                      value={field.value ?? ""}
                       type="password"
                       className="bg-slate-800 border-slate-700 text-slate-100 px-4 py-2 rounded-md
                                 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500
