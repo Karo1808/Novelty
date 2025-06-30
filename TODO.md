@@ -1,5 +1,6 @@
-[ ] fix the callback url in google
+[x] fix the callback url in google
 [ ] support multiple providers as planned before (update login and register accordingly)
+[ ] work on forgot password email endpoint and handling of that 
 [ ] fix all errors so CI passes
 [ ] add error and not found components
 [ ] improve suspense usage

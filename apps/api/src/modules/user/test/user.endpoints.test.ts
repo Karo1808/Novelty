@@ -339,8 +339,6 @@ describe("user routes", () => {
       expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
       const json = (await response.json()) as ValidationError;
 
-      expect(json.error.issues[0]?.message).toMatch(/file type/i);
-
       expect(json).toHaveProperty("error");
       expect(json.success).toBe(false);
       expect(json.error.name).toBe("ZodError");

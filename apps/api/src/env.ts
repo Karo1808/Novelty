@@ -24,6 +24,7 @@ const EnvSchema = z.object({
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   BASE_URL: z.string().default("http://localhost"),
+  BASE_CLIENT_URL: z.string().default("http://localhost"),
   SENTRY_DSN: z.string().default(""),
   IS_OPEN_API_GENERATE: z.coerce.number().default(0),
   DATABASE_URL: z.string().optional(),

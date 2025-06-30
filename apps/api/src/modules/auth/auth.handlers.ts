@@ -283,10 +283,18 @@ export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
 ) => {
   const provider = c.req.param("provider") as OauthInitParams["provider"];
 
-  const { state, code } = c.req.query();
+  const { state, code, error: oauthError } = c.req.query();
 
   const cookieState = getCookie(c, "state");
   const cookieCodeVerifier = getCookie(c, "code_verifier");
+
+  const clientUrl = `${env.BASE_CLIENT_URL}`;
+  const errorRedirect = (msg: string) =>
+    `${clientUrl}/login?oauth_error=${encodeURIComponent(msg)}`;
+
+  if (oauthError) {
+    return c.redirect(errorRedirect(oauthError), HttpStatusCodes.FOUND);
+  }
 
   if (
     !state ||
@@ -295,13 +303,7 @@ export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
     !cookieCodeVerifier ||
     state !== cookieState
   ) {
-    return c.json(
-      {
-        message: "Invalid Request",
-        success: false,
-      },
-      HttpStatusCodes.BAD_REQUEST,
-    );
+    return c.redirect(errorRedirect("invalid_request"), HttpStatusCodes.FOUND);
   }
 
   const res = await oAuthCallback(
@@ -321,12 +323,9 @@ export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
   );
 
   if (res.success === false) {
-    return c.json(
-      {
-        message: res.error.message,
-        success: false,
-      },
-      HttpStatusCodes[res.error.kind],
+    return c.redirect(
+      errorRedirect(res.error.kind || "token_exchange_failed"),
+      HttpStatusCodes.FOUND,
     );
   }
 
@@ -346,14 +345,7 @@ export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
     });
   }
 
-  return c.json(
-    {
-      success: true,
-      message: `Login successful`,
-      user: res.data.user,
-    },
-    HttpStatusCodes.OK,
-  );
+  return c.redirect(clientUrl, HttpStatusCodes.FOUND);
 };
 
 export const handleLogout: AppRouteHandler<LogoutRoute> = async (c) => {

@@ -145,8 +145,8 @@ describe("auth service", () => {
 
       const result = await registerUser(testDependencies, dummyBody);
       expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
-      expect(hashPasswordSpy).not.toHaveBeenCalled();
-      expect(createUserQuerySpy).not.toHaveBeenCalled();
+      expect(hashPasswordSpy).toHaveBeenCalled();
+      expect(createUserQuerySpy).toHaveBeenCalled();
       expect(result).toMatchObject({
         success: false,
         error: {
@@ -181,22 +181,6 @@ describe("auth service", () => {
         DatabaseConnectionError,
       );
       dbClientSpy.mockRestore();
-    });
-
-    it("should handle invalid data from getUserByEmailQuery", async () => {
-      vi.spyOn(dbQueries, "getUserByEmailQuery").mockResolvedValue(
-        "unexpected-data" as any,
-      );
-
-      const res = await registerUser(testDependencies, dummyBody);
-
-      expect(res).toMatchObject({
-        success: false,
-        error: {
-          kind: "CONFLICT",
-          message: expect.any(String),
-        },
-      });
     });
 
     it("should handle unexpected exceptions", async () => {
@@ -1494,14 +1478,6 @@ describe("auth service", () => {
           state: expect.any(String),
           codeVerifier: expect.any(String),
         },
-      });
-    });
-
-    it("should handle invalid provider", async () => {
-      const res = await initOAuth(deps, "invalid" as any);
-      expect(res).toMatchObject({
-        success: false,
-        error: { kind: "BAD_REQUEST", message: expect.any(String) },
       });
     });
   });

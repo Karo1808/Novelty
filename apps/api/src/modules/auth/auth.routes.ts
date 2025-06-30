@@ -278,12 +278,7 @@ export const oAuthCallbackRoute = createRoute({
     query: oAuthCallbackQuerySchema,
   },
   responses: {
-    [HttpStatusCodes.OK]: {
-      content: {
-        "application/json": {
-          schema: loginSuccessSchema,
-        },
-      },
+    [HttpStatusCodes.FOUND]: {
       description:
         "Authenticates a user and creates a session and returns user data",
       headers: z.object({

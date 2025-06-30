@@ -52,6 +52,7 @@
   },
   "devDependencies": {
     "@novelty/typescript-config": "workspace:*",
+    "@types/node": "^22.14.1",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "tw-animate-css": "^1.3.4",

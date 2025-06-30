@@ -9,7 +9,7 @@
     "strictNullChecks": true,
     "skipLibCheck": true,
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "paths": {
       "@/*": ["./src/*"],
       "react-native": ["./node_modules/react-native-web/dist/index"]
