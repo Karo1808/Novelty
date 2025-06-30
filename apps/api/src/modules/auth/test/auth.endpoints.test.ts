@@ -1,7 +1,3 @@
-import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
-import type { InsertUser } from "@novelty/db/schemas/user.schema";
-import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
-import type { z } from "zod";
 import env from "@/env";
 import createApp from "@/lib/create-app";
 import createErrorSchema from "@/lib/create-error-schema";
@@ -14,11 +10,14 @@ import {
 } from "@/test-setup";
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
 import * as queries from "@novelty/db/queries/auth.query";
+import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
 import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
+import type { InsertUser } from "@novelty/db/schemas/user.schema";
 import { insertUserSchema, usersTable } from "@novelty/db/schemas/user.schema";
 import * as email from "@novelty/email/client";
 import * as authUtils from "@novelty/lib/auth/cryptography";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
 import { forgotPasswordBodySchema } from "@novelty/lib/validations/auth";
 import * as queueUtils from "@novelty/message-queue/lib/add-job-to-queue";
 import * as authServices from "@novelty/services/auth.service";
@@ -26,6 +25,7 @@ import * as sessionService from "@novelty/services/session.service";
 import { eq, sql } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { z } from "zod/v4";
 import { authRouter } from "../auth.index";
 
 vi.mock("@hono/node-server/conninfo", () => ({
@@ -59,6 +59,7 @@ vi.mock("@novelty/message-queue/queues/email.queue", () => ({
 
 vi.mock("@/middleware/rate-limit.ts", () => ({
   emailVerificationLimiter: vi.fn((c, next) => next()),
+  mainLimiter: vi.fn((c, next) => next()),
 }));
 
 if (env.NODE_ENV !== "test") {
@@ -358,7 +359,7 @@ describe("auth routes", () => {
     };
 
     const dummyKey = `verify-email:${dummyUser.email}`;
-    const dummyToken = "12345";
+    const dummyToken = "123456";
 
     const dummyBody: VerifyEmailBodySchema = {
       email: dummyUser.email,
@@ -1079,8 +1080,7 @@ describe("auth routes", () => {
         param: { provider: "google" },
       });
 
-      expect(response.status).toBe(HttpStatusCodes.FOUND);
-      expect(response.headers.get("location")).toBe(dummyData.redirectUrl);
+      expect(response.status).toBe(HttpStatusCodes.OK);
       const cookie = response.headers.get("set-cookie") ?? "";
       expect(cookie).toContain("state=");
     });
@@ -1129,13 +1129,13 @@ describe("auth routes", () => {
         header: { cookie: "state=s; code_verifier=v" },
       });
 
-      expect(response.status).toBe(HttpStatusCodes.OK);
+      expect(response.status).toBe(HttpStatusCodes.FOUND);
       const location = response.headers.get("location") ?? "";
       expect(location).toBeDefined();
       expect(response.headers.has("set-cookie")).toBe(true);
     });
 
-    it("returns unauthorized when provider rejects code", async () => {
+    it("redirects when provider rejects code", async () => {
       vi.spyOn(authServices, "oAuthCallback").mockResolvedValueOnce({
         success: false,
         error: { kind: "UNAUTHORIZED", message: "invalid" },
@@ -1148,9 +1148,7 @@ describe("auth routes", () => {
         header: { cookie: "state=s; code_verifier=v" },
       });
 
-      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
-      const json = await response.json();
-      expect(json).toHaveProperty("message");
+      expect(response.status).toBe(HttpStatusCodes.FOUND);
     });
 
     it("returns unprocessable entity for invalid provider", async () => {

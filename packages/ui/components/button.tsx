@@ -1,5 +1,4 @@
 import { Slot } from "@radix-ui/react-slot";
-// oxlint-disable-next-line consistent-type-specifier-style
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 

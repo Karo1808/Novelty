@@ -4,6 +4,7 @@ import * as handlers from "./auth.handlers";
 import * as routes from "./auth.routes";
 
 export const authRouter = createRouter()
+  .openapi(routes.authMeRoute, handlers.handleAuthMe)
   .openapi(routes.registerRoute, handlers.handleRegister)
   .openapi(
     routes.sendVerificationEmailRoute,

@@ -1,19 +1,7 @@
-import type { AppRouteHandler } from "@/types/index.types";
-import type {
-  ForgotPasswordRoute,
-  LoginRoute,
-  LogoutRoute,
-  OAuthCallbackRoute,
-  OAuthInitRoute,
-  RegisterRoute,
-  SendForgotPasswordEmailRoute,
-  SendVerificationEmailRoute,
-  VerifyEmailRoute,
-} from "./auth.routes";
-import type { OauthInitParams } from "./auth.validations";
 import env from "@/env";
 import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
+import type { AppRouteHandler } from "@/types/index.types";
 import { db } from "@novelty/db";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { emailQueue } from "@novelty/message-queue/queues/email.queue";
@@ -33,6 +21,41 @@ import { OAUTH_COOKIE_EXPIRATION } from "@novelty/services/lib/config";
 import { SESSION_EXPIRATION_TIME } from "@novelty/services/session.service";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { providers } from "./auth.providers";
+import type {
+  AuthMeRoute,
+  ForgotPasswordRoute,
+  LoginRoute,
+  LogoutRoute,
+  OAuthCallbackRoute,
+  OAuthInitRoute,
+  RegisterRoute,
+  SendForgotPasswordEmailRoute,
+  SendVerificationEmailRoute,
+  VerifyEmailRoute,
+} from "./auth.routes";
+import type { OauthInitParams } from "./auth.validations";
+
+export const handleAuthMe: AppRouteHandler<AuthMeRoute> = async (c) => {
+  const { userId } = c.var.user;
+
+  if (!userId) {
+    return c.json(
+      {
+        message: "Unauthorized",
+        success: false,
+      },
+      HttpStatusCodes.UNAUTHORIZED,
+    );
+  }
+
+  return c.json(
+    {
+      userId,
+      success: true,
+    },
+    HttpStatusCodes.OK,
+  );
+};
 
 export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
   const body = c.req.valid("json");
@@ -49,13 +72,17 @@ export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
 
   if (result.success === false) {
     const error = result.error;
-    return c.json({ message: error.message }, HttpStatusCodes[error.kind]);
+    return c.json(
+      { message: error.message, success: false },
+      HttpStatusCodes[error.kind],
+    );
   }
 
   const newUser = result.data;
 
   return c.json(
     {
+      success: true,
       message:
         "Registration successful. Please verify your email to activate your account.",
       user: newUser,
@@ -212,10 +239,11 @@ export const handleOAuthInit: AppRouteHandler<OAuthInitRoute> = async (c) => {
   if (res.success === false) {
     return c.json(
       {
-        message: res.error.message,
+        message:
+          "The server is currently unable to handle the request. Please try again later.",
         success: false,
       },
-      HttpStatusCodes[res.error.kind],
+      HttpStatusCodes["SERVICE_UNAVAILABLE"],
     );
   }
 
@@ -241,9 +269,13 @@ export const handleOAuthInit: AppRouteHandler<OAuthInitRoute> = async (c) => {
     });
   }
 
-  logger.info(res.data.redirectUrl);
-
-  return c.redirect(res.data.redirectUrl);
+  return c.json(
+    {
+      url: res.data.redirectUrl,
+      success: true,
+    },
+    HttpStatusCodes["OK"],
+  );
 };
 
 export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
@@ -251,25 +283,27 @@ export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
 ) => {
   const provider = c.req.param("provider") as OauthInitParams["provider"];
 
-  const { state, code } = c.req.query();
+  const { state, code, error: oauthError } = c.req.query();
 
   const cookieState = getCookie(c, "state");
   const cookieCodeVerifier = getCookie(c, "code_verifier");
 
+  const clientUrl = `${env.BASE_CLIENT_URL}`;
+  const errorRedirect = (msg: string) =>
+    `${clientUrl}/login?oauth_error=${encodeURIComponent(msg)}`;
+
+  if (oauthError) {
+    return c.redirect(errorRedirect(oauthError), HttpStatusCodes.FOUND);
+  }
+
   if (
-    !state
-    || !code
-    || !cookieState
-    || !cookieCodeVerifier
-    || state !== cookieState
+    !state ||
+    !code ||
+    !cookieState ||
+    !cookieCodeVerifier ||
+    state !== cookieState
   ) {
-    return c.json(
-      {
-        message: "Invalid Request",
-        success: false,
-      },
-      HttpStatusCodes.BAD_REQUEST,
-    );
+    return c.redirect(errorRedirect("invalid_request"), HttpStatusCodes.FOUND);
   }
 
   const res = await oAuthCallback(
@@ -289,17 +323,17 @@ export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
   );
 
   if (res.success === false) {
-    return c.json(
-      {
-        message: res.error.message,
-        success: false,
-      },
-      HttpStatusCodes[res.error.kind],
+    return c.redirect(
+      errorRedirect(res.error.kind || "token_exchange_failed"),
+      HttpStatusCodes.FOUND,
     );
   }
 
   if (res.data) {
     const { token, expiresAt } = res.data;
+
+    deleteCookie(c, "state");
+    deleteCookie(c, "code_verifier");
 
     setCookie(c, "session", token, {
       httpOnly: true,
@@ -311,14 +345,7 @@ export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
     });
   }
 
-  return c.json(
-    {
-      success: true,
-      message: `Login successful`,
-      user: res.data.user,
-    },
-    HttpStatusCodes.OK,
-  );
+  return c.redirect(clientUrl, HttpStatusCodes.FOUND);
 };
 
 export const handleLogout: AppRouteHandler<LogoutRoute> = async (c) => {
@@ -428,6 +455,7 @@ export const handleForgotPasswordRoute: AppRouteHandler<
       {
         message: "Password successfully reset",
         user,
+        success: true,
       },
       HttpStatusCodes.OK,
     );
@@ -437,6 +465,7 @@ export const handleForgotPasswordRoute: AppRouteHandler<
     {
       message:
         "Password successfully reset, please login with the new password",
+      success: true,
     },
     HttpStatusCodes.OK,
   );

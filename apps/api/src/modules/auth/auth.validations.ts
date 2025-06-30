@@ -3,15 +3,29 @@ import { selectUserWithInfoSchema } from "@novelty/db/lib/types";
 import { selectAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
 import { selectUserSchema } from "@novelty/db/schemas/user.schema";
 
+export const getAuthMeSuccessSchema = z
+  .object({
+    userId: z.string(),
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      userId: "V1StGXR8_Z5jdHi6B-myT",
+      success: true,
+    },
+  });
+
 export const registerCreatedSchema = z
   .object({
     message: z.string(),
     user: selectUserSchema,
+    success: z.literal(true),
   })
   .openapi({
     example: {
       message:
         "Registration successful. Please verify your email to activate your account.",
+      success: true,
       user: {
         id: "V1StGXR8_Z5jdHi6B-myT",
         email: "email@mail.com",
@@ -26,9 +40,11 @@ export const registerCreatedSchema = z
 export const registerConflictSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
+      success: false,
       message: "An account with that email already exists.",
     },
   });
@@ -36,70 +52,84 @@ export const registerConflictSchema = z
 export const sendVerificationEmailSuccessSchema = z
   .object({
     message: z.string(),
+    success: z.literal(true),
   })
   .openapi({
     example: {
       message: "Email verification sent successfully",
+      success: true,
     },
   });
 
 export const sendVerificationEmailNotFoundSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "This email does not exist",
+      success: false,
     },
   });
 
 export const sendVerificationEmailConflictSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Another process is already handling this email",
+      success: false,
     },
   });
 
 export const verifyEmailSuccessSchema = z
   .object({
     message: z.string(),
+    success: z.literal(true),
   })
   .openapi({
     example: {
       message: "Email verified",
+      success: true,
     },
   });
 
 export const verifyEmailNotFoundSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "This user does not exist",
+      success: false,
     },
   });
 
 export const verifyEmailBadRequestSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "The code is incorrect or it has already expired",
+      success: false,
     },
   });
 
 export const verifyEmailConflictSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "This email has already been verified",
+      success: false,
     },
   });
 
@@ -107,10 +137,12 @@ export const loginSuccessSchema = z
   .object({
     message: z.string(),
     user: selectUserWithInfoSchema,
+    success: z.literal(true),
   })
   .openapi({
     example: {
       message: "Login successful",
+      success: true,
       user: {
         id: "V1StGXR8_Z5jdHi6B-myT",
         email: "email@mail.com",
@@ -137,16 +169,18 @@ export const loginSuccessSchema = z
 export const loginUnauthorizedSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Invalid credentials",
+      success: false,
     },
   });
 
 export const oauthInitParamsSchema = z.object({
   provider: selectAuthProviderSchema.shape.provider.refine(
-    v => v !== "email",
+    (v) => v !== "email",
     {
       message: "The provider must be oauth",
     },
@@ -162,6 +196,18 @@ export const oAuthCallbackQuerySchema = z.object({
 
 export type OAuthCallbackQuery = z.infer<typeof oAuthCallbackQuerySchema>;
 
+export const oAuthCallbackBadRequestSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "Invalid request",
+      success: false,
+    },
+  });
+
 export const logoutSuccessSchema = z
   .object({
     message: z.string(),
@@ -175,20 +221,24 @@ export const logoutSuccessSchema = z
 export const forgotPasswordConflictSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Another process is already handling this email",
+      success: false,
     },
   });
 
 export const forgotPasswordSuccessSchema = z
   .object({
     message: z.string(),
+    success: z.literal(true),
   })
   .openapi({
     example: {
       message: "Password successfully reset",
+      success: true,
     },
   });
 
@@ -220,5 +270,17 @@ export const forgotPasswordSchema = z
           },
         },
       },
+    },
+  });
+
+export const oAuthInitSuccessSchema = z
+  .object({
+    url: z.url(),
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      url: "https://accounts.google.com/o/oauth2/v2/auth",
+      success: true,
     },
   });

@@ -149,18 +149,24 @@ export const updateUserByIdQuery = (
 
 export const getProvidersByProviderUserId = (
   dependencies: Dependencies,
-  provider: SelectAuthProvider["provider"],
   providerUserId: SelectAuthProvider["providerUserId"],
+  provider?: SelectAuthProvider["provider"],
 ) => {
   return createDBQuery({
     dependencies,
     queryName: "getProvidersByProviderUserId",
     query: async (db) => {
+      if (provider) {
+        return await db.query.authProvidersTable.findFirst({
+          where: and(
+            eq(authProvidersTable.provider, provider),
+            eq(authProvidersTable.userId, providerUserId!),
+          ),
+        });
+      }
+
       return await db.query.authProvidersTable.findFirst({
-        where: and(
-          (eq(authProvidersTable.provider, provider),
-          eq(authProvidersTable.providerUserId, providerUserId!)),
-        ),
+        where: eq(authProvidersTable.userId, providerUserId!),
       });
     },
   });

@@ -1,5 +1,7 @@
+import appCss from "@/globals.css?url";
+import { ThemeProvider } from "@/providers/theme-provider";
 import type { RootContext } from "@/types";
-import appCss from "@novelty/ui/styles/globals.css?url";
+import { Toaster } from "@novelty/ui/components/sonner";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
   createRootRouteWithContext,
@@ -43,8 +45,11 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       <head>
         <HeadContent />
       </head>
-      <body>
-        {children}
+      <body className="h-[100vh]">
+        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+          {children}
+        </ThemeProvider>
+        <Toaster richColors position="top-right" />
         <TanStackRouterDevtools position="bottom-right" />
         <ReactQueryDevtools buttonPosition="bottom-left" />
         <Scripts />

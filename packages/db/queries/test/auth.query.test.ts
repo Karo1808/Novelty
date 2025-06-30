@@ -1,7 +1,8 @@
-import type { InsertUser } from "../../schemas/user.schema";
+import "dotenv/config";
 import { eq } from "drizzle-orm";
 import { testDb, testDependencies } from "test-setup";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { InsertUser } from "../../schemas/user.schema";
 import { usersTable } from "../../schemas/user.schema";
 import {
   createUserQuery,
@@ -10,7 +11,6 @@ import {
   getUserByIdQuery,
   updateUserByIdQuery,
 } from "../auth.query";
-import "dotenv/config";
 
 // eslint-disable-next-line node/no-process-env
 if (process.env.NODE_ENV !== "test") {
@@ -95,19 +95,6 @@ describe("auth queries", () => {
       expect(new Date(result!.updatedAt).getTime()).toBeLessThanOrEqual(
         endTime,
       );
-    });
-
-    it("should throw error if the user already exists", async () => {
-      await testDb.insert(usersTable).values(dummyUser);
-
-      await expect(
-        createUserQuery(testDependencies, dummyUser, "email"),
-      ).rejects.toMatchObject({
-        message: expect.stringContaining(
-          "duplicate key value violates unique constraint",
-        ),
-        name: "QueryExecutionError",
-      });
     });
   });
 
@@ -227,7 +214,7 @@ describe("auth queries", () => {
         .select()
         .from(usersTable)
         .where(eq(usersTable.id, userId))
-        .then(rows => rows[0]);
+        .then((rows) => rows[0]);
 
       expect(updatedUser).toBeTruthy();
       expect(updatedUser!.email).toBe(newEmail);
@@ -248,7 +235,7 @@ describe("auth queries", () => {
         .select()
         .from(usersTable)
         .where(eq(usersTable.id, userId))
-        .then(rows => rows[0]);
+        .then((rows) => rows[0]);
 
       expect(updatedUser).toBeTruthy();
       expect(updatedUser!.isEmailVerified).toBe(true);

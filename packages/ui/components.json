@@ -5,17 +5,17 @@
   "tsx": true,
   "tailwind": {
     "config": "",
-    "css": "@novelty/ui/styles/globals.css",
+    "css": "src/globals.css",
     "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
   },
   "aliases": {
-    "components": "@novelty/ui/components",
-    "utils": "@novelty/ui/lib/utils",
-    "ui": "@novelty/ui/components",
-    "lib": "@novelty/ui/lib",
-    "hooks": "@novelty/ui/hooks"
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
   },
   "iconLibrary": "lucide"
 }

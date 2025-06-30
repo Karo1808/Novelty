@@ -1,11 +1,13 @@
-import type { Store } from "hono-rate-limiter";
 import logger from "@/lib/logger";
 import { prometheusRegistry, rateLimitCounter } from "@/lib/metrics";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { redis } from "@novelty/redis";
+import type { Store } from "hono-rate-limiter";
 import { rateLimiter } from "hono-rate-limiter";
 import { RedisStore } from "rate-limit-redis";
+
+// TODO: Improve rate limiting
 
 const redisStore = new RedisStore({
   // @ts-expect-error - Known issue: the `call` function is not present in @types/ioredis
@@ -71,7 +73,7 @@ export const mainLimiter = rateLimiter({
 
 const emailVerificationConfig = {
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: 100,
 };
 
 export const emailVerificationLimiter = rateLimiter({
