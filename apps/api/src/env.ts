@@ -1,8 +1,8 @@
 /* eslint-disable node/no-process-env */
-import path from "node:path";
 import { config } from "dotenv";
 import { expand } from "dotenv-expand";
-import { z } from "zod";
+import path from "node:path";
+import { z } from "zod/v4";
 
 expand(
   config({
@@ -24,6 +24,7 @@ const EnvSchema = z.object({
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   BASE_URL: z.string().default("http://localhost"),
+  BASE_CLIENT_URL: z.string().default("http://localhost"),
   SENTRY_DSN: z.string().default(""),
   IS_OPEN_API_GENERATE: z.coerce.number().default(0),
   DATABASE_URL: z.string().optional(),

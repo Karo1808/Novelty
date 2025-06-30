@@ -1,9 +1,3 @@
-import type {
-  InsertUserInfo,
-  UpdateUserInfo,
-} from "@novelty/db/schemas/user-info.schema";
-import type { UpdateProfile } from "lib/utils";
-import { Buffer } from "node:buffer";
 import {
   DeleteObjectCommand,
   ListObjectsV2Command,
@@ -12,12 +6,18 @@ import {
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
 import * as authDbQueries from "@novelty/db/queries/auth.query";
 import * as userDbQueries from "@novelty/db/queries/user.query";
+import type {
+  InsertUserInfo,
+  UpdateUserInfo,
+} from "@novelty/db/schemas/user-info.schema";
 import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
 import { usersTable } from "@novelty/db/schemas/user.schema";
 import * as redisQueries from "@novelty/redis/queries/index.query";
 import * as redisJsonQueries from "@novelty/redis/queries/json.query";
 import { DrizzleError, eq, sql } from "drizzle-orm";
 import { Blob } from "fetch-blob";
+import type { UpdateProfile } from "lib/utils";
+import { Buffer } from "node:buffer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as fileService from "../file.service";
 import {
@@ -774,8 +774,8 @@ describe("user service", () => {
         where: eq(userInfoTable.userId, dummyBody.userId),
       });
 
-      const preferences
-        = updatedDb?.preferences as UpdateUserInfo["preferences"];
+      const preferences =
+        updatedDb?.preferences as UpdateUserInfo["preferences"];
 
       expect(preferences.authors).toEqual(dummyPayload.authors);
 

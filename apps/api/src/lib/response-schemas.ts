@@ -32,9 +32,11 @@ export const oAuthHeaderSchema = z.object({
 export const serviceUnavailableSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
+      success: false,
       message:
         "The server is currently unable to handle the request. Please try again later.",
     },
@@ -43,19 +45,23 @@ export const serviceUnavailableSchema = z
 export const tooManyRequestsSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Too many requests, try again later",
+      success: false,
     },
   });
 
 export const unauthenticatedSchema = z
   .object({
+    success: z.literal(false),
     message: z.string(),
   })
   .openapi({
     example: {
+      success: false,
       message: "User must be authenticated",
     },
   });
@@ -63,10 +69,12 @@ export const unauthenticatedSchema = z
 export const accountNotFoundSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "This account does not exist",
+      success: false,
     },
   });
 
@@ -83,20 +91,24 @@ export const ImageUnsupportedMediaSchema = z
 export const blacklistedSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Access denied",
+      success: false,
     },
   });
 
 export const csrfErrorSchema = z
   .object({
     message: z.string(),
+    success: z.literal(false),
   })
   .openapi({
     example: {
       message: "Invalid or missing CSRF token.",
+      success: false,
     },
     description: "Response returned when CSRF validation fails.",
   });

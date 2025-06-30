@@ -1,16 +1,7 @@
-import type { AppRouteHandler } from "@/types/index.types";
-import type {
-  CompleteOnboardingRoute,
-  GetPreferencesRoute,
-  GetProfileRoute,
-  GetUserDraftRoute,
-  UpdatePreferencesRoute,
-  UpdateProfileRoute,
-  UpdateUserDraftRoute,
-} from "./user.routes";
 import env from "@/env";
 import logger from "@/lib/logger";
 import { prometheusRegistry } from "@/lib/metrics";
+import type { AppRouteHandler } from "@/types/index.types";
 import { db } from "@novelty/db";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { s3Client } from "@novelty/lib/s3-client";
@@ -19,11 +10,54 @@ import {
   completeOnboarding,
   getPreferences,
   getProfile,
+  getUser,
   getUserDraft,
   updatePreferences,
   updateProfile,
   updateUserDraft,
 } from "@novelty/services/user.service";
+import type {
+  CompleteOnboardingRoute,
+  GetPreferencesRoute,
+  GetProfileRoute,
+  GetUserDraftRoute,
+  GetUserRoute,
+  UpdatePreferencesRoute,
+  UpdateProfileRoute,
+  UpdateUserDraftRoute,
+} from "./user.routes";
+
+export const handleGetUser: AppRouteHandler<GetUserRoute> = async (c) => {
+  const { userId } = c.var.user;
+
+  const res = await getUser(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    userId,
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        success: false,
+        message: res.error.message,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.json(
+    {
+      success: true,
+      user: res.data,
+    },
+    HttpStatusCodes.OK,
+  );
+};
 
 export const handleGetProfile: AppRouteHandler<GetProfileRoute> = async (c) => {
   const { userId } = c.var.user;
@@ -229,6 +263,7 @@ export const handleGetUserDraft: AppRouteHandler<GetUserDraftRoute> = async (
   return c.json(
     {
       userInfo: res.data,
+      success: true,
     },
     HttpStatusCodes.OK,
   );

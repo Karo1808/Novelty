@@ -22,11 +22,14 @@ import {
 import {
   forgotPasswordConflictSchema,
   forgotPasswordSuccessSchema,
+  getAuthMeSuccessSchema,
   loginSuccessSchema,
   loginUnauthorizedSchema,
   logoutSuccessSchema,
+  oAuthCallbackBadRequestSchema,
   oAuthCallbackQuerySchema,
   oauthInitParamsSchema,
+  oAuthInitSuccessSchema,
   registerConflictSchema,
   registerCreatedSchema,
   sendVerificationEmailConflictSchema,
@@ -38,6 +41,33 @@ import {
 } from "./auth.validations";
 
 const tags = ["Auth"];
+
+export const authMeRoute = createRoute({
+  tags,
+  method: "get",
+  path: "/auth/me",
+  description: "Validates the session and returns userId",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(getAuthMeSuccessSchema, "Valid session"),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "Invalid session",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Service unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type AuthMeRoute = typeof authMeRoute;
 
 export const registerRoute = createRoute({
   tags,
@@ -211,10 +241,19 @@ export const oAuthInitRoute = createRoute({
     params: oauthInitParamsSchema,
   },
   responses: {
-    [HttpStatusCodes.FOUND]: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        "application/json": {
+          schema: oAuthInitSuccessSchema,
+        },
+      },
       description: "Redirects to the OAuth provider",
       headers: oAuthHeaderSchema,
     },
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
     [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
       createErrorSchema(insertAuthProviderSchema.shape.init),
       "Validation error(s)",
@@ -240,12 +279,17 @@ export const oAuthCallbackRoute = createRoute({
   },
   responses: {
     [HttpStatusCodes.FOUND]: {
-      description: "Redirects to the application",
+      description:
+        "Authenticates a user and creates a session and returns user data",
       headers: z.object({
         cookie: cookieSchema.shape.cookie,
         location: locationSchema.shape.Location,
       }),
     },
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      oAuthCallbackBadRequestSchema,
+      "Missing request data",
+    ),
     [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
       loginUnauthorizedSchema,
       "Invalid credentials",

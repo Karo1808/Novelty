@@ -1,12 +1,12 @@
 import type { S3Client } from "@aws-sdk/client-s3";
-import type { Logger } from "@novelty/lib/types";
-import type { Buffer } from "node:buffer";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { Logger } from "@novelty/lib/types";
+import type { Buffer } from "node:buffer";
 import { R2_SIGNED_URL_EXPIRATION } from "./lib/config";
 import { getOldKey } from "./lib/utils";
 
@@ -42,6 +42,7 @@ export const uploadFile = async ({
     );
 
     const presignedUrl = await getSignedUrl(
+      // @ts-ignore
       dependencies.client,
       new GetObjectCommand({
         Bucket: dependencies.bucketName,
@@ -51,8 +52,7 @@ export const uploadFile = async ({
     );
 
     return presignedUrl;
-  }
-  catch (error: unknown) {
+  } catch (error: unknown) {
     dependencies.logger.error({
       message: "Failed to upload file to R2",
       source: `uploadFile, ${filename}`,
@@ -88,8 +88,7 @@ export const deleteFile = async ({ url, dependencies }: DeleteFileParams) => {
         Key: oldKey!,
       }),
     );
-  }
-  catch (error: unknown) {
+  } catch (error: unknown) {
     dependencies.logger.error({
       message: "Failed to delete file from R2",
       source: `deleteFile, ${url}`,

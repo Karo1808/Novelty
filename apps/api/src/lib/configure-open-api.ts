@@ -10,6 +10,7 @@ export default function configureOpenAPI(app: AppOpenAPI) {
   app.get(
     "/docs",
     Scalar({
+      url: "/spec",
       theme: "kepler",
       layout: "classic",
       defaultHttpClient: {

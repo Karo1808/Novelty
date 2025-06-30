@@ -6,7 +6,7 @@ import { authMiddleware } from "@/middleware/auth.middleware";
 import notFound from "@/middleware/not-found.middleware";
 import onError from "@/middleware/on-error.middleware";
 
-import { emailVerificationLimiter } from "@/middleware/rate-limit";
+import { emailVerificationLimiter, mainLimiter } from "@/middleware/rate-limit";
 
 import { requestLogger } from "@/middleware/request-logger.middleware";
 import { sentryConfigureScope } from "@/middleware/sentry-configure-scope.middleware";
@@ -58,6 +58,7 @@ export default function createApp() {
   app.use("/auth/verify-email", emailVerificationLimiter);
   app.use("/auth/logout", authMiddleware());
   app.use("/auth/send-forgot-password-email", emailVerificationLimiter);
+  app.use("/auth/me", authMiddleware(), mainLimiter);
 
   // USER
   app.use("/user/*", authMiddleware());
