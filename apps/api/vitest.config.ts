@@ -8,6 +8,7 @@ export default defineConfig({
       "src/modules/**/*.test.ts",
       "src/middleware/**/*.test.ts",
       "src/cron/**/*.test.ts",
+      "src/lib/**/*.test.ts",
     ],
     pool: "vmForks",
     environment: "node",
