@@ -49,7 +49,6 @@ function RouteComponent() {
 
       if (!response.success) {
         form.reset();
-        form.setError("email", { message: response.message });
         form.setError("password", { message: response.message });
         return;
       }

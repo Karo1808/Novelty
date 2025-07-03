@@ -1,3 +1,5 @@
+import { ErrorBoundary } from "@/components/error-boundary";
+import { NotFound } from "@/components/not-found";
 import appCss from "@/globals.css?url";
 import { ThemeProvider } from "@/providers/theme-provider";
 import type { RootContext } from "@/types";
@@ -29,6 +31,14 @@ export const Route = createRootRouteWithContext<RootContext>()({
     links: [{ rel: "stylesheet", href: appCss }],
   }),
   component: RootComponent,
+  errorComponent: (props) => {
+    return (
+      <RootDocument>
+        <ErrorBoundary {...props} />
+      </RootDocument>
+    );
+  },
+  notFoundComponent: () => <NotFound />,
 });
 
 function RootComponent() {

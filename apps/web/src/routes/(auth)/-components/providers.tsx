@@ -3,13 +3,16 @@ import amazon from "@iconify-icons/simple-icons/amazon";
 import google from "@iconify-icons/simple-icons/google";
 import { Icon } from "@iconify/react";
 import { InsertAuthProvider } from "@novelty/db/schemas/auth-provider.schema";
+import { useDelayedSpinner } from "@novelty/lib/hooks/use-delayed-spinner";
 import { Button } from "@novelty/ui/components/button";
 import { useServerFn } from "@tanstack/react-start";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export const Providers = () => {
   const [isOAuthPending, setIsOAuthPending] = useState<boolean>(false);
+  const showSpinner = useDelayedSpinner(isOAuthPending);
   const oAuth = useServerFn(oAuthFn);
 
   const handleOAuth = async (
@@ -51,7 +54,11 @@ export const Providers = () => {
                       active:scale-95 active:bg-slate-500 rounded-sm flex items-center justify-center gap-2
                       border border-slate-700"
       >
-        <Icon icon={google} />
+        {showSpinner ? (
+          <Loader2 className="animate-spin" />
+        ) : (
+          <Icon icon={google} />
+        )}
         Continue with Google
       </Button>
       <Button
@@ -65,7 +72,11 @@ export const Providers = () => {
                       active:scale-95 active:bg-slate-500 rounded-sm flex items-center justify-center gap-2
                       border border-slate-700"
       >
-        <Icon icon={amazon} />
+        {showSpinner ? (
+          <Loader2 className="animate-spin" />
+        ) : (
+          <Icon icon={amazon} />
+        )}
         Continue with Amazon
       </Button>
     </div>

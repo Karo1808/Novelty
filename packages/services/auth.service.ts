@@ -365,9 +365,12 @@ export const loginUser = async (
 ): Promise<Result<AuthenticatedSessionResponseData, LoginUserError>> => {
   const { email, password } = body;
 
-  // TODO: update to include provider check
-
   const user = await getUserByEmailQuery(dependencies, email, true);
+  const isEmailProvider = await getProvidersByProviderUserId(
+    dependencies,
+    user?.id ?? "",
+    "email",
+  )!!;
 
   const isBlacklisted = await hexistsQuery(
     dependencies,
@@ -394,7 +397,7 @@ export const loginUser = async (
 
   let passwordMatch = false;
 
-  if (user) {
+  if (user && isEmailProvider) {
     passwordMatch = await verifyHash(password, user.password);
   } else {
     try {
