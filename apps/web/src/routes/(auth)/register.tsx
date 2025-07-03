@@ -4,6 +4,7 @@ import {
   insertUserSchema,
   type InsertUser,
 } from "@novelty/db/schemas/user.schema";
+import { useDelayedSpinner } from "@novelty/lib/hooks/use-delayed-spinner";
 import { Button } from "@novelty/ui/components/button";
 import { Checkbox } from "@novelty/ui/components/checkbox";
 import {
@@ -17,6 +18,7 @@ import {
 import { Input } from "@novelty/ui/components/input";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Providers } from "./-components/providers";
@@ -28,8 +30,6 @@ export const Route = createFileRoute("/(auth)/register")({
 function RouteComponent() {
   const navigate = useNavigate({ from: "/register" });
   const register = useServerFn(registerFn);
-  const sendVerificationEmail = useServerFn(sendVerificationEmailFn);
-
   const form = useForm<InsertUser["registerFormEmail"]>({
     resolver: standardSchemaResolver(insertUserSchema.shape.registerFormEmail),
     defaultValues: {
@@ -40,6 +40,8 @@ function RouteComponent() {
       promotional: false,
     },
   });
+  const showSpinner = useDelayedSpinner(form.formState.isSubmitting);
+  const sendVerificationEmail = useServerFn(sendVerificationEmailFn);
 
   const onSubmit = async (values: InsertUser["registerFormEmail"]) => {
     const payload: InsertUser["register"] = {
@@ -202,6 +204,7 @@ function RouteComponent() {
                       focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500
                       active:scale-95 active:bg-indigo-700 rounded-sm text-slate-200"
             >
+              {showSpinner && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
               Sign up
             </Button>
             <div className="text-sm text-center">
