@@ -115,4 +115,38 @@ describe("callHealthcheck", () => {
     });
     expect(logger.error).toHaveBeenCalled();
   });
+
+  it("should mark job as failed when healthcheck status is unexpected", async () => {
+    // eslint-disable-next-line ts/ban-ts-comment
+    // @ts-expect-error
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "unhealthy",
+            environment: "test",
+            readiness: {
+              database: "disconnected",
+              redis: "connected",
+              emailQueue: "connected",
+              r2: "connected",
+            },
+          }),
+      }),
+    );
+
+    await callHealthcheck();
+
+    expect(Sentry.captureCheckIn).toHaveBeenCalledWith({
+      monitorSlug: mockMonitorSlug,
+      status: "in_progress",
+    });
+    expect(Sentry.captureCheckIn).toHaveBeenCalledWith({
+      checkInId: mockCheckInId,
+      monitorSlug: mockMonitorSlug,
+      status: "error",
+    });
+    expect(logger.error).toHaveBeenCalled();
+  });
 });

@@ -1,6 +1,7 @@
 import type { Mock } from "vitest";
 import { callHealthcheck } from "@/cron/jobs/status.job";
 import { startCronJobs } from "@/cron/scheduler";
+import env from "@/env";
 import logger from "@/lib/logger";
 import * as Sentry from "@sentry/node";
 import cron from "node-cron";
@@ -13,7 +14,7 @@ vi.mock("node-cron", () => ({
 }));
 vi.mock("@sentry/node", () => ({
   cron: {
-    instrumentNodeCron: vi.fn(cronInstance => cronInstance),
+    instrumentNodeCron: vi.fn((cronInstance) => cronInstance),
   },
   captureCheckIn: vi.fn(),
 }));
@@ -49,5 +50,18 @@ describe("startCronJobs", () => {
       message: "Executing Hourly Healhtcheck Cron Job...",
     });
     expect(callHealthcheck).toHaveBeenCalled();
+  });
+
+  it("should not schedule jobs when open api generation is enabled", () => {
+    env.IS_OPEN_API_GENERATE = 1;
+
+    startCronJobs();
+
+    expect(logger.info).toHaveBeenCalledWith(
+      "Cron jobs are disabled in this environment.",
+    );
+    expect(cron.schedule).not.toHaveBeenCalled();
+
+    env.IS_OPEN_API_GENERATE = 0;
   });
 });
