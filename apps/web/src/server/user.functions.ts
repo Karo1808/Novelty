@@ -1,5 +1,3 @@
-// TODO: Update with middleware
-
 import { getAuthHeaders } from "@/lib/utils";
 import { apiClient } from "@novelty/react-query/lib/api-client";
 import { createServerFn } from "@tanstack/react-start";

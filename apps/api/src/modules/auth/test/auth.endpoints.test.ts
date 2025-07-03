@@ -10,6 +10,7 @@ import {
 } from "@/test-setup";
 import { DatabaseConnectionError } from "@novelty/db/lib/errors";
 import * as queries from "@novelty/db/queries/auth.query";
+import { authProvidersTable } from "@novelty/db/schemas/auth-provider.schema";
 import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
 import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
 import type { InsertUser } from "@novelty/db/schemas/user.schema";
@@ -507,6 +508,10 @@ describe("auth routes", () => {
         bio: dummyUserInfo.profile.bio,
         username: dummyUserInfo.profile.username,
         preferences: dummyUserInfo.preferences,
+      });
+      await testDb.insert(authProvidersTable).values({
+        provider: "email",
+        userId: dummyUser.id,
       });
     });
 

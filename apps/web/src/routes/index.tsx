@@ -1,11 +1,12 @@
 import { logoutFn } from "@/server/auth.functions";
 import { getUserFn } from "@/server/user.functions";
+import { useDelayedSpinner } from "@novelty/lib/hooks/use-delayed-spinner";
 import { userQuery } from "@novelty/react-query/modules/user/user.query";
 import { Button } from "@novelty/ui/components/button";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -25,6 +26,7 @@ function Home() {
       queryClient.invalidateQueries({ queryKey: userQuery.userKey });
     },
   });
+  const showSpinner = useDelayedSpinner(logoutMutation.isPending);
 
   const { data: user } = useSuspenseQuery({
     queryKey: userQuery.userKey,
@@ -58,6 +60,7 @@ function Home() {
               focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500
               active:scale-95 active:bg-slate-600 border-slate-600 px-6 rounded-sm"
             >
+              {showSpinner && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
               Logout
             </Button>
           ) : (
