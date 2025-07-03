@@ -1,3 +1,4 @@
+import env from "@/env";
 import { getAuthHeaders } from "@/lib/utils";
 import { insertAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
 import { insertUserSchema } from "@novelty/db/schemas/user.schema";
@@ -15,8 +16,6 @@ import {
   setResponseStatus,
 } from "@tanstack/react-start/server";
 import { authenticationMiddleware } from "./middleware";
-
-// TODO: Update with middleware
 
 export const registerFn = createServerFn({ method: "POST" })
   .validator(insertUserSchema.shape.register)
@@ -37,8 +36,7 @@ export const loginFn = createServerFn({ method: "POST" })
     setCookie("session", session, {
       httpOnly: true,
       sameSite: "lax",
-      // TODO: Update with env
-      // secure: env.NODE_ENV === "production",
+      secure: env.NODE_ENV === "production",
       path: "/",
       // TODO; update with age
     });
@@ -84,7 +82,7 @@ export const sendVerificationEmailFn = createServerFn({
       path: "/",
       sameSite: "lax",
       // TODO: update with env trigger
-      // secure: true,            // enable in prod over HTTPS
+      secure: env.NODE_ENV === "production",
     });
 
     const response = await apiClient.auth["send-verification-email"].$post({

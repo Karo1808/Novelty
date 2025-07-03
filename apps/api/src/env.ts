@@ -56,7 +56,7 @@ if (error) {
   // oxlint-disable-next-line no-console
   console.error("❌ Invalid env:");
   // oxlint-disable-next-line no-console
-  console.error(JSON.stringify(error.flatten().fieldErrors, null, 2));
+  console.error(JSON.stringify(z.treeifyError(error).errors, null, 2));
   process.exit(1);
 }
 
