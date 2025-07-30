@@ -104,6 +104,18 @@ export const registerUser = async (
     );
 
     if (allProviders && existingUser) {
+      await createProvider(dependencies, {
+        provider: "email",
+        userId: existingUser.id,
+        providerUserId: null,
+      });
+
+      await updateUserByIdQuery(
+        dependencies,
+        { isEmailVerified: false, password: hashedPassword },
+        existingUser.id,
+      );
+
       return {
         success: true,
         data: existingUser,
@@ -122,6 +134,12 @@ export const registerUser = async (
     if (!newUser || typeof newUser !== "object") {
       throw new QueryExecutionError("Failed to create user.");
     }
+
+    await createProvider(dependencies, {
+      provider: "email",
+      userId: newUser.id,
+      providerUserId: null,
+    });
 
     return {
       success: true,
@@ -514,7 +532,7 @@ export const authenticateOAuthUser = async (
 
   if (!userId) {
     existingUser = await getUserByEmailQuery(dependencies, claims.email);
-    userId = existingUser?.id;
+    userId = existingUser?.id ?? "";
     if (!existingUser) {
       const newUser = await createUserQuery(
         dependencies,
@@ -523,7 +541,7 @@ export const authenticateOAuthUser = async (
         },
         provider,
       );
-      userId = newUser?.id;
+      userId = newUser?.id ?? "";
 
       await updateUserByIdQuery(
         dependencies,

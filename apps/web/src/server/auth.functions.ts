@@ -22,6 +22,11 @@ export const registerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const response = await apiClient.auth.register.$post({ json: data });
 
+    // @ts-expect-error
+    if (response.status === 500) {
+      return { success: false, message: "Something went wrong" };
+    }
+
     return await response.json();
   });
 
@@ -40,6 +45,11 @@ export const loginFn = createServerFn({ method: "POST" })
       path: "/",
       // TODO; update with age
     });
+
+    // @ts-expect-error
+    if (response.status === 500) {
+      return { success: false, message: "Something went wrong" };
+    }
 
     return await response.json();
   });
@@ -102,6 +112,11 @@ export const verifyEmailFn = createServerFn({
     const response = await apiClient.auth["verify-email"].$post({
       json: data,
     });
+
+    // @ts-expect-error
+    if (response.status === 500) {
+      return { success: false, message: "Something went wrong" };
+    }
 
     return await response.json();
   });

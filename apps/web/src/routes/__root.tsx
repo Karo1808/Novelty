@@ -1,9 +1,10 @@
-import { ErrorBoundary } from "@/components/error-boundary";
 import { NotFound } from "@/components/not-found";
+import { SentryErrorBoundary } from "@/components/sentry-error-boundary";
 import appCss from "@/globals.css?url";
 import { ThemeProvider } from "@/providers/theme-provider";
 import type { RootContext } from "@/types";
 import { Toaster } from "@novelty/ui/components/sonner";
+import { wrapCreateRootRouteWithSentry } from "@sentry/tanstackstart-react";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
   createRootRouteWithContext,
@@ -12,9 +13,11 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
 
-export const Route = createRootRouteWithContext<RootContext>()({
+export const Route = wrapCreateRootRouteWithSentry(
+  createRootRouteWithContext<RootContext>(),
+)({
   head: () => ({
     meta: [
       {
@@ -34,7 +37,7 @@ export const Route = createRootRouteWithContext<RootContext>()({
   errorComponent: (props) => {
     return (
       <RootDocument>
-        <ErrorBoundary {...props} />
+        <SentryErrorBoundary {...props} />
       </RootDocument>
     );
   },
