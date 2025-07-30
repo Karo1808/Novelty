@@ -87,6 +87,17 @@ function Home() {
               </Link>
             </>
           )}
+          <Button
+            onClick={() => {
+              throw new Error("Test error thrown from button");
+            }}
+            variant="outline"
+            className="transition-all duration-200 hover:bg-red-700 hover:text-white
+              focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500
+              active:scale-95 active:bg-red-600 border-red-600 px-6 rounded-sm"
+          >
+            Throw Error
+          </Button>
         </div>
       </nav>
 
