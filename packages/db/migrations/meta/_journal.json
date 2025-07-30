@@ -29,6 +29,13 @@
       "when": 1750070193890,
       "tag": "0003_lean_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1753869094103,
+      "tag": "0004_fix-user-info-trigger",
+      "breakpoints": true
     }
   ]
 }
