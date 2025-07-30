@@ -147,30 +147,42 @@ export const updateUserByIdQuery = (
   });
 };
 
-export const getProvidersByProviderUserId = (
-  dependencies: Dependencies,
-  providerUserId: SelectAuthProvider["providerUserId"],
+export function getProvidersByProviderUserId(
+  deps: Dependencies,
+  providerUserId: string,
+  provider: SelectAuthProvider["provider"],
+): Promise<SelectAuthProvider>;
+
+export function getProvidersByProviderUserId(
+  deps: Dependencies,
+  providerUserId: string,
+): Promise<SelectAuthProvider[]>;
+
+export function getProvidersByProviderUserId(
+  deps: Dependencies,
+  providerUserId: string,
   provider?: SelectAuthProvider["provider"],
-) => {
-  return createDBQuery({
-    dependencies,
+) {
+  return createDBQuery<SelectAuthProvider | SelectAuthProvider[]>({
+    dependencies: deps,
     queryName: "getProvidersByProviderUserId",
+    // @ts-ignore
     query: async (db) => {
       if (provider) {
         return await db.query.authProvidersTable.findFirst({
           where: and(
             eq(authProvidersTable.provider, provider),
-            eq(authProvidersTable.userId, providerUserId!),
+            eq(authProvidersTable.userId, providerUserId),
           ),
         });
       }
 
-      return await db.query.authProvidersTable.findFirst({
-        where: eq(authProvidersTable.userId, providerUserId!),
+      return await db.query.authProvidersTable.findMany({
+        where: eq(authProvidersTable.userId, providerUserId),
       });
     },
   });
-};
+}
 
 export const createProvider = (
   dependencies: Dependencies,
