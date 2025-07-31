@@ -4,7 +4,7 @@
 [x] fix all errors so CI passes
 [x] add error and not found components
 [x] improve suspense usage
-[ ] improve error handling
+[x] improve error handling
 [x] create env configuration for web
 [ ] update tests
 [ ] add rest of the auth routes to the prototype
