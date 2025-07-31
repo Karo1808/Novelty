@@ -5,6 +5,7 @@ import {
 } from "@novelty/db/lib/errors";
 import * as dbQueries from "@novelty/db/queries/auth.query";
 import * as userDbQueries from "@novelty/db/queries/user.query";
+import { authProvidersTable } from "@novelty/db/schemas/auth-provider.schema";
 import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
 import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
 import type { InsertUser } from "@novelty/db/schemas/user.schema";
@@ -86,6 +87,7 @@ describe("auth service", () => {
     afterEach(async () => {
       vi.restoreAllMocks();
       await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table auth_providers CASCADE`);
       await testRedis.flushall();
     });
 
@@ -159,6 +161,69 @@ describe("auth service", () => {
         where: eq(usersTable.email, dummyBody.email as string),
       });
       expect(users).toHaveLength(1);
+    });
+
+    it("should handle oauth user already existing", async () => {
+      const dummyId = "123";
+      await testDb.insert(usersTable).values({
+        email: "email@mail.com",
+        id: dummyId,
+        isEmailVerified: true,
+      });
+      await testDb.insert(authProvidersTable).values({
+        provider: "google",
+        userId: dummyId,
+        providerUserId: "provider-123",
+      });
+
+      const getUserByEmailQuerySpy = vi.spyOn(dbQueries, "getUserByEmailQuery");
+      const hashPasswordSpy = vi.spyOn(authUtils, "hashString");
+      const getProvidersByProviderUserIdSpy = vi.spyOn(
+        dbQueries,
+        "getProvidersByProviderUserId",
+      );
+      const createProviderSpy = vi.spyOn(dbQueries, "createProvider");
+      const updateUserByIdQuerySpy = vi.spyOn(dbQueries, "updateUserByIdQuery");
+
+      const result = await registerUser(testDependencies, dummyBody);
+      expect(getUserByEmailQuerySpy).toHaveBeenCalledOnce();
+      expect(getUserByEmailQuerySpy).toHaveBeenCalled();
+      expect(hashPasswordSpy).toHaveBeenCalledOnce();
+      expect(hashPasswordSpy).toHaveBeenCalledWith(dummyBody.password);
+      expect(getProvidersByProviderUserIdSpy).toHaveBeenCalled();
+      expect(createProviderSpy).toHaveBeenCalled();
+      expect(updateUserByIdQuerySpy).toHaveBeenCalled();
+      expect(result).toMatchObject({
+        success: true,
+        data: {
+          id: dummyId,
+          email: expect.stringMatching(dummyBody.email as string),
+          isEmailVerified: false,
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        },
+      });
+
+      const user = await testDb.query.usersTable.findFirst({
+        where: eq(usersTable.email, dummyBody.email as string),
+      });
+      expect(new Date(user!.createdAt).getTime()).toBeLessThanOrEqual(
+        Date.now(),
+      );
+      expect(new Date(user!.updatedAt).getTime()).toBeLessThanOrEqual(
+        Date.now(),
+      );
+      expect(user).toMatchObject({
+        id: dummyId,
+        email: expect.stringMatching(dummyBody.email as string),
+        isEmailVerified: false,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
+
+      expect(await verify(user!.password!, dummyBody.password as string)).toBe(
+        true,
+      );
     });
 
     it("should handle no user returned upon creation", async () => {
@@ -691,6 +756,10 @@ describe("auth service", () => {
 
     beforeEach(async () => {
       await testDb.insert(usersTable).values(dummyUser);
+      await testDb.insert(authProvidersTable).values({
+        provider: "email",
+        userId: dummyUser.id,
+      });
 
       await testDb.insert(userInfoTable).values({
         userId: dummyUser.id,
