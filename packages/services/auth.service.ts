@@ -77,21 +77,21 @@ export const registerUser = async (
   body: InsertUser["register"],
 ): Promise<Result<SelectUser, RegisterUserError>> => {
   const existingUser = await getUserByEmailQuery(dependencies, body.email);
-  const emailProvider = await getProvidersByProviderUserId(
-    dependencies,
-    existingUser?.id ?? "",
-    "email",
-  );
+  // const emailProvider = await getProvidersByProviderUserId(
+  //   dependencies,
+  //   existingUser?.id ?? "",
+  //   "email"
+  // );
 
-  if (existingUser && emailProvider?.id) {
-    return {
-      success: false,
-      error: {
-        kind: "CONFLICT",
-        message: "An account with that email already exists.",
-      },
-    };
-  }
+  // if (existingUser && emailProvider?.id) {
+  //   return {
+  //     success: false,
+  //     error: {
+  //       kind: "CONFLICT",
+  //       message: "An account with that email already exists.",
+  //     },
+  //   };
+  // }
 
   const hashedPassword = await hashString(body.password as string);
 
@@ -103,22 +103,28 @@ export const registerUser = async (
       existingUser?.id ?? "",
     );
 
-    if (allProviders && existingUser) {
+    const oAuthProviders = allProviders.filter(
+      (provider) => provider.provider !== "email",
+    );
+
+    if (oAuthProviders.length && existingUser) {
       await createProvider(dependencies, {
         provider: "email",
         userId: existingUser.id,
         providerUserId: null,
       });
 
-      await updateUserByIdQuery(
+      const updatedUser = await updateUserByIdQuery(
         dependencies,
         { isEmailVerified: false, password: hashedPassword },
         existingUser.id,
       );
 
+      const { password, ...data } = updatedUser[0]!;
+
       return {
         success: true,
-        data: existingUser,
+        data,
       };
     }
 
