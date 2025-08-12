@@ -49,7 +49,7 @@
     "vinxi": "0.5.1",
     "vite": "^6.3.5",
     "vite-plugin-oxlint": "^1.3.3",
-    "zod": "^3.25.67"
+    "zod": "^4.0.17"
   },
   "devDependencies": {
     "@novelty/typescript-config": "workspace:*",
