@@ -23,7 +23,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Providers } from "./-components/providers";
 
-export const Route = createFileRoute("/(auth)/register")({
+export const Route = createFileRoute("/_auth/register")({
   component: RouteComponent,
 });
 

@@ -19,11 +19,11 @@
     "resend": "^4.2.0"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^4.12.0",
+    "@antfu/eslint-config": "^5.2.1",
     "@novelty/typescript-config": "workspace:*",
-    "@types/react": "^19.1.2",
-    "@types/react-dom": "^19.1.2",
-    "react-email": "^4.0.7",
-    "typescript": "5.8.3"
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "react-email": "^4.2.8",
+    "typescript": "5.9.2"
   }
 }

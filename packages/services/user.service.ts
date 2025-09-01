@@ -73,6 +73,131 @@ export const getUser = async (
   };
 };
 
+export type UpdateUserError =
+  | ErrorResponse<"NOT_FOUND">
+  | ErrorResponse<"CONFLICT">;
+
+export const updateUser = async (
+  dependencies: MarkKeysAsPartial<ServiceDependencies, "messageQueueInstance">,
+  body: {
+    userId: string;
+    payload: UpdateUserInfo;
+  },
+): Promise<Result<void, UpdateUserError>> => {
+  const { userId, payload } = body;
+  const { username, bio, profileImage } = payload.profile;
+  const user = await getUserByIdQuery(dependencies, userId);
+
+  if (!user) {
+    return {
+      success: false,
+      error: {
+        kind: "NOT_FOUND",
+        message: "Account does not exist",
+      },
+    };
+  }
+
+  if (username) {
+    const isUnique = await getIsUsernameUniqueQuery(
+      dependencies,
+      username,
+      userId,
+    );
+
+    if (!isUnique) {
+      return {
+        success: false,
+        error: {
+          kind: "CONFLICT",
+          message: "Username already exists",
+        },
+      };
+    }
+  }
+
+  let newAvatarUrl = null;
+
+  if (profileImage) {
+    const userProfile = await getProfileByUserIdQuery(dependencies, userId);
+
+    if (userProfile?.avatarUrl) {
+      await deleteFile({
+        url: userProfile.avatarUrl,
+        dependencies: {
+          client: dependencies.s3Client!,
+          reqId: dependencies.reqId,
+          logger: dependencies.logger,
+          bucketName: dependencies.bucketName!,
+        },
+      });
+    }
+
+    const fileBuffer = Buffer.from(await profileImage.arrayBuffer());
+    const fileType = profileImage.type;
+    const fileExtension = fileType.split("/")[1] || "jpg";
+    const uniqueFilename = `${PROFILE_PICTURES_PATH_PREFIX}${userId}-${Date.now()}.${fileExtension}`;
+
+    newAvatarUrl = await uploadFile({
+      filename: uniqueFilename,
+      fileBuffer,
+      fileType,
+      dependencies: {
+        client: dependencies.s3Client!,
+        reqId: dependencies.reqId,
+        logger: dependencies.logger,
+        bucketName: dependencies.bucketName!,
+      },
+    });
+  }
+
+  try {
+    await updateUserProfileByUserIdQuery(
+      dependencies,
+      {
+        ...(username !== undefined && { username }),
+        ...(newAvatarUrl !== null && { avatarUrl: newAvatarUrl }),
+        ...(bio !== undefined && { bio }),
+      },
+      userId,
+    );
+  } catch (error: unknown) {
+    if (newAvatarUrl) {
+      await deleteFile({
+        url: newAvatarUrl,
+        dependencies: {
+          client: dependencies.s3Client!,
+          reqId: dependencies.reqId,
+          logger: dependencies.logger,
+          bucketName: dependencies.bucketName!,
+        },
+      });
+    }
+    throw new QueryExecutionError(
+      "Failed to update user profile",
+      error as Error,
+    );
+  }
+
+  try {
+    await updateUserPreferencesByIdQuery(
+      dependencies,
+      payload.preferences,
+      userId,
+    );
+  } catch (error: unknown) {
+    throw new QueryExecutionError(
+      "Failed to update user preferences",
+      error as Error,
+    );
+  }
+
+  return {
+    success: true,
+    data: undefined,
+  };
+};
+
 export type GetProfileError = ErrorResponse<"NOT_FOUND">;
 
 export const getProfile = async (

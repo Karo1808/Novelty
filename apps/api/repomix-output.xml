@@ -1,0 +1,6806 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+docker/
+  docker-compose.dev.yml
+  docker-compose.prod.yml
+  docker-compose.yml
+src/
+  cron/
+    jobs/
+      test/
+        status.job.test.ts
+      status.job.ts
+    test/
+      scheduler.test.ts
+    scheduler.ts
+  lib/
+    configure-open-api.ts
+    configure-prometheus.ts
+    create-app.ts
+    create-error-schema.ts
+    errors.ts
+    generate-open-api-spec.ts
+    get-open-api-doc.ts
+    json-content.ts
+    logger.ts
+    metrics.ts
+    read-array.ts
+    response-schemas.ts
+    service-unavailable-schema.ts
+    too-many-requests-schema.ts
+  middleware/
+    test/
+      auth.middleware.test.ts
+      not-found.middleware.test.ts
+    auth.middleware.ts
+    not-found.middleware.ts
+    on-error.middleware.ts
+    rate-limit.ts
+    request-logger.middleware.ts
+    sentry-configure-scope.middleware.ts
+    sentry-transaction.middleware.ts
+  modules/
+    auth/
+      test/
+        auth.endpoints.test.ts
+      auth.handlers.ts
+      auth.index.ts
+      auth.providers.ts
+      auth.routes.ts
+      auth.validations.ts
+    healhcheck/
+      test/
+        healthcheck.endpoint.test.ts
+      healthcheck.handlers.ts
+      healthcheck.index.ts
+      healthcheck.routes.ts
+      healthcheck.validations.ts
+    user/
+      test/
+        user.endpoints.test.ts
+      user.handlers.ts
+      user.index.ts
+      user.routes.ts
+      user.validations.ts
+  types/
+    index.types.ts
+  app.ts
+  env.ts
+  index.ts
+  rpc.ts
+  test-setup.ts
+.env.example
+.env.local
+.env.test
+.sentryclirc
+instrument.js
+open-api-spec.yaml
+package.json
+tsconfig.json
+tsconfig.rpc.json
+vitest.config.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="docker/docker-compose.dev.yml">
+services:
+  node_exporter:
+    network_mode: "bridge"
+    ports:
+      - "${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}"
+</file>
+
+<file path="docker/docker-compose.prod.yml">
+services:
+  node_exporter:
+    network_mode: "bridge"
+    ports:
+      - "${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}"
+    command:
+      - '--collector.systemd'
+      - '--collector.processes'
+</file>
+
+<file path="docker/docker-compose.yml">
+services:
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: novelty-node-exporter 
+    restart: always
+    command:
+      - '--collector.systemd'
+      - '--collector.processes'
+</file>
+
+<file path="src/cron/jobs/test/status.job.test.ts">
+import type { HealthcheckOKResponse } from "$/healhcheck/healthcheck.validations";
+import type { Mock } from "vitest";
+import env from "@/env";
+import logger from "@/lib/logger";
+import * as Sentry from "@sentry/node";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { callHealthcheck } from "../status.job";
+
+vi.mock("@sentry/node", () => ({
+  captureCheckIn: vi.fn(),
+}));
+vi.mock("node-fetch", () => ({
+  default: vi.fn(),
+}));
+vi.mock("@/lib/logger", () => ({
+  default: {
+    info: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+let dbClient: any;
+
+vi.mock("@novelty/db/index", () => ({
+  get db() {
+    return dbClient;
+  },
+}));
+
+if (env.NODE_ENV !== "test") {
+  throw new Error("NODE_ENV must be 'test'");
+}
+
+describe("callHealthcheck", () => {
+  const mockMonitorSlug = "healthcheck-cron";
+  const mockCheckInId = "mock-checkin-id";
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    (Sentry.captureCheckIn as Mock).mockReturnValue(mockCheckInId);
+  });
+
+  afterEach(async () => {
+    vi.clearAllMocks();
+  });
+
+  it("should call the healthcheck endpoint and mark it as successful", async () => {
+    // eslint-disable-next-line ts/ban-ts-comment
+    // @ts-expect-error
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve<HealthcheckOKResponse>({
+            status: "healthy",
+            environment: "test",
+            readiness: {
+              database: "connected",
+              redis: "connected",
+              emailQueue: "connected",
+              r2: "connected",
+            },
+          }),
+      }),
+    );
+
+    await callHealthcheck();
+
+    expect(Sentry.captureCheckIn).toHaveBeenCalledWith({
+      monitorSlug: mockMonitorSlug,
+      status: "in_progress",
+    });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(Sentry.captureCheckIn).toHaveBeenCalledWith({
+      checkInId: mockCheckInId,
+      monitorSlug: mockMonitorSlug,
+      status: "ok",
+    });
+    expect(logger.info).toHaveBeenCalled();
+  });
+
+  it("should log an error and mark it as failed when the healthcheck fails", async () => {
+    (fetch as Mock).mockResolvedValueOnce({
+      ok: false,
+      statusText: "Internal Server Error",
+    });
+
+    await callHealthcheck();
+
+    expect(Sentry.captureCheckIn).toHaveBeenCalledWith({
+      monitorSlug: mockMonitorSlug,
+      status: "in_progress",
+    });
+    expect(Sentry.captureCheckIn).toHaveBeenCalledWith({
+      checkInId: mockCheckInId,
+      monitorSlug: mockMonitorSlug,
+      status: "error",
+    });
+    expect(logger.error).toHaveBeenCalled();
+  });
+
+  it("should log an error and mark it as failed when an exception occurs", async () => {
+    (fetch as Mock).mockRejectedValueOnce(new Error("Network Error"));
+
+    await callHealthcheck();
+
+    expect(Sentry.captureCheckIn).toHaveBeenCalledWith({
+      monitorSlug: mockMonitorSlug,
+      status: "in_progress",
+    });
+    expect(Sentry.captureCheckIn).toHaveBeenCalledWith({
+      checkInId: mockCheckInId,
+      monitorSlug: mockMonitorSlug,
+      status: "error",
+    });
+    expect(logger.error).toHaveBeenCalled();
+  });
+});
+</file>
+
+<file path="src/cron/jobs/status.job.ts">
+import { healthcheckOkSchema } from "$/healhcheck/healthcheck.validations";
+import env from "@/env";
+import logger from "@/lib/logger";
+import { cronJobOutcomeHistogram, prometheusRegistry } from "@/lib/metrics";
+import * as Sentry from "@sentry/node";
+
+export const callHealthcheck = async () => {
+  const monitorSlug = "healthcheck-cron";
+  const path = `${env.BASE_URL}:${env.PORT}/healthcheck`;
+
+  const checkInId = Sentry.captureCheckIn({
+    monitorSlug,
+    status: "in_progress",
+  });
+
+  const endTimer = cronJobOutcomeHistogram(prometheusRegistry).startTimer({
+    job_name: monitorSlug,
+  });
+
+  try {
+    const res = await fetch(path);
+
+    if (!res.ok) {
+      throw new Error(`Cron job failed with status: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    const parsedData = healthcheckOkSchema.parse(data);
+
+    if (!parsedData.status || parsedData.status !== "healthy") {
+      throw new Error(`Unexpected healthcheck status: ${parsedData.status}`);
+    }
+
+    logger.info({
+      message: "Healthcheck cron job executed successfully",
+      source: "callHealthcheck",
+      job: "cron",
+      parsedData,
+    });
+
+    Sentry.captureCheckIn({
+      checkInId,
+      monitorSlug,
+      status: "ok",
+    });
+
+    endTimer({ outcome: "success" });
+  }
+  catch (error) {
+    logger.error({
+      message: "Healthcheck cron job failed to execute",
+      source: "callHealthcheck",
+      job: "cron",
+      error: (error as Error).message,
+      stackTrace: (error as Error)?.stack,
+    });
+
+    Sentry.captureCheckIn({
+      checkInId,
+      monitorSlug,
+      status: "error",
+    });
+
+    endTimer({ outcome: "failure" });
+  }
+};
+</file>
+
+<file path="src/cron/test/scheduler.test.ts">
+import type { Mock } from "vitest";
+import { callHealthcheck } from "@/cron/jobs/status.job";
+import { startCronJobs } from "@/cron/scheduler";
+import logger from "@/lib/logger";
+import * as Sentry from "@sentry/node";
+import cron from "node-cron";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("node-cron", () => ({
+  default: {
+    schedule: vi.fn(),
+  },
+}));
+vi.mock("@sentry/node", () => ({
+  cron: {
+    instrumentNodeCron: vi.fn(cronInstance => cronInstance),
+  },
+  captureCheckIn: vi.fn(),
+}));
+vi.mock("@/lib/logger", () => ({
+  default: {
+    info: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+vi.mock("../jobs/status.job", () => ({
+  callHealthcheck: vi.fn(),
+}));
+
+describe("startCronJobs", () => {
+  it("should schedule the healthcheck job with the correct configuration", () => {
+    startCronJobs();
+
+    expect(Sentry.cron.instrumentNodeCron).toHaveBeenCalledWith(cron);
+    expect(logger.info).toHaveBeenCalledWith("Cron jobs started!");
+    expect(cron.schedule).toHaveBeenCalledWith(
+      "0 * * * *",
+      expect.any(Function),
+      { name: "healthcheck-cron", timezone: "UTC" },
+    );
+  });
+
+  it("should execute the healthcheck job on schedule", async () => {
+    const scheduledFunction = (cron.schedule as Mock).mock.calls?.[0]?.[1];
+
+    await scheduledFunction();
+
+    expect(logger.info).toHaveBeenCalledWith({
+      message: "Executing Hourly Healhtcheck Cron Job...",
+    });
+    expect(callHealthcheck).toHaveBeenCalled();
+  });
+});
+</file>
+
+<file path="src/cron/scheduler.ts">
+import env from "@/env";
+import logger from "@/lib/logger";
+import * as Sentry from "@sentry/node";
+import cron from "node-cron";
+import { callHealthcheck } from "./jobs/status.job";
+
+const cronWithCheckIn = Sentry.cron.instrumentNodeCron(cron);
+
+export const startCronJobs = () => {
+  // Disable cron job for open api generation to work
+  if (env.IS_OPEN_API_GENERATE) {
+    logger.info("Cron jobs are disabled in this environment.");
+    return;
+  }
+
+  logger.info("Cron jobs started!");
+
+  cronWithCheckIn.schedule(
+    "0 * * * *",
+    async () => {
+      logger.info({ message: "Executing Hourly Healhtcheck Cron Job..." });
+      await callHealthcheck();
+    },
+    {
+      name: "healthcheck-cron",
+      timezone: "UTC",
+    },
+  );
+};
+</file>
+
+<file path="src/lib/configure-open-api.ts">
+import type { AppOpenAPI } from "@/types/index.types";
+
+import { Scalar } from "@scalar/hono-api-reference";
+
+import { getOpenApiDefinition } from "./get-open-api-doc";
+
+export default function configureOpenAPI(app: AppOpenAPI) {
+  app.doc("/spec", getOpenApiDefinition());
+
+  app.get(
+    "/docs",
+    Scalar({
+      url: "/spec",
+      theme: "kepler",
+      layout: "classic",
+      defaultHttpClient: {
+        targetKey: "js",
+        clientKey: "fetch",
+      },
+    }),
+  );
+}
+</file>
+
+<file path="src/lib/configure-prometheus.ts">
+import type { AppOpenAPI } from "@/types/index.types";
+
+import { prometheusRegistry } from "@/lib/metrics";
+import { prometheus } from "@hono/prometheus";
+import { emailQueue } from "@novelty/message-queue/queues/email.queue";
+
+export const configurePrometheus = (app: AppOpenAPI) => {
+  const { registerMetrics } = prometheus({
+    registry: prometheusRegistry,
+  });
+
+  app.use("*", registerMetrics);
+  app.get("/metrics", async () => {
+    try {
+      const bullMetrics = await emailQueue.exportPrometheusMetrics();
+      const customMetrics = await prometheusRegistry.metrics();
+
+      return new Response(`${bullMetrics}\n${customMetrics}`, {
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+    catch (error) {
+      return new Response(
+        `Error fetching metrics: ${(error as Error).message}`,
+        {
+          status: 500,
+        },
+      );
+    }
+  });
+};
+</file>
+
+<file path="src/lib/create-app.ts">
+import type { AppBindings, AppOpenAPI } from "@/types/index.types";
+import type { Hook } from "@hono/zod-openapi";
+
+import env from "@/env";
+import { authMiddleware } from "@/middleware/auth.middleware";
+import notFound from "@/middleware/not-found.middleware";
+import onError from "@/middleware/on-error.middleware";
+
+import { emailVerificationLimiter, mainLimiter } from "@/middleware/rate-limit";
+
+import { requestLogger } from "@/middleware/request-logger.middleware";
+import { sentryConfigureScope } from "@/middleware/sentry-configure-scope.middleware";
+import { sentryTransactionMiddleware } from "@/middleware/sentry-transaction.middleware";
+
+import { sentry } from "@hono/sentry";
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { compress } from "hono/compress";
+import { cors } from "hono/cors";
+import { requestId } from "hono/request-id";
+import { secureHeaders } from "hono/secure-headers";
+
+const defaultHook: Hook<any, any, any, any> = (result, c) => {
+  if (!result.success) {
+    return c.json(
+      {
+        success: result.success,
+        error: result.error,
+      },
+      HttpStatusCodes.UNPROCESSABLE_ENTITY,
+    );
+  }
+};
+
+export function createRouter() {
+  return new OpenAPIHono<AppBindings>({
+    strict: false,
+    defaultHook,
+  });
+}
+
+export default function createApp() {
+  const app = createRouter();
+
+  app.use(compress());
+  app.use(cors());
+  app.use(secureHeaders());
+  app.use("*", requestId());
+  app.use("*", sentryTransactionMiddleware());
+  if (env.NODE_ENV !== "test") {
+    app.use("*", sentry({ dsn: env.SENTRY_DSN }));
+    app.use("*", sentryConfigureScope());
+  }
+  app.use(requestLogger());
+
+  // AUTH
+  app.use("/auth/send-verification-email", emailVerificationLimiter);
+  app.use("/auth/verify-email", emailVerificationLimiter);
+  app.use("/auth/logout", authMiddleware());
+  app.use("/auth/send-forgot-password-email", emailVerificationLimiter);
+  app.use("/auth/me", authMiddleware(), mainLimiter);
+
+  // USER
+  app.use("/user/*", authMiddleware());
+
+  app.onError(onError);
+  app.notFound(notFound);
+
+  return app;
+}
+
+export function createTestApp<R extends AppOpenAPI>(router: R) {
+  return createApp().route("/", router);
+}
+</file>
+
+<file path="src/lib/create-error-schema.ts">
+import type { ZodSchema } from "@/types/index.types";
+
+import { z } from "@hono/zod-openapi";
+
+const createErrorSchema = <T extends ZodSchema>(schema: T) => {
+  const { error } = schema.safeParse(
+    schema._def.typeName === z.ZodArray ? [] : {},
+  );
+  return z.object({
+    success: z.literal(false).openapi({
+      example: false,
+    }),
+    message: z.string().openapi({
+      example: {
+        message: "Something went wrong",
+      },
+    }),
+    error: z
+      .object({
+        issues: z.array(
+          z.object({
+            code: z.string(),
+            path: z.array(z.union([z.string(), z.number()])),
+            message: z.string().optional(),
+          }),
+        ),
+        name: z.string(),
+      })
+      .openapi({
+        example: error,
+      }),
+  });
+};
+
+export default createErrorSchema;
+</file>
+
+<file path="src/lib/errors.ts">
+export class DatabaseConnectionError extends Error {
+  constructor(
+    message: string,
+    public originalError: Error,
+  ) {
+    super(message);
+    this.name = "DatabaseConnectionError";
+  }
+}
+</file>
+
+<file path="src/lib/generate-open-api-spec.ts">
+import { writeFileSync } from "node:fs";
+import app from "@/app";
+import { OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
+
+import * as yaml from "js-yaml";
+
+import { getOpenApiDefinition } from "./get-open-api-doc";
+
+function removeRequiredFields(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(removeRequiredFields);
+  }
+  else if (obj && typeof obj === "object") {
+    const { required, ...rest } = obj;
+    return Object.fromEntries(
+      Object.entries(rest)
+        // Filter out functions
+        .filter(([_, value]) => typeof value !== "function")
+        .map(([key, value]) => [key, removeRequiredFields(value)]),
+    );
+  }
+  return obj;
+}
+
+const generator = new OpenApiGeneratorV3(app.openAPIRegistry.definitions);
+const doc = generator.generateDocument(getOpenApiDefinition());
+
+// Remove all `required` properties due to issue with spectral throwing any error on that rule
+const sanitizedDoc = removeRequiredFields(doc);
+
+const openApiYaml = yaml.dump(sanitizedDoc);
+
+writeFileSync("open-api-spec.yaml", openApiYaml);
+</file>
+
+<file path="src/lib/get-open-api-doc.ts">
+import type { OpenAPIObjectConfig } from "@asteasolutions/zod-to-openapi/dist/v3.0/openapi-generator";
+
+import packageJSON from "../../package.json" with { type: "json" };
+
+export const getOpenApiDefinition = (): OpenAPIObjectConfig => {
+  return {
+    openapi: "3.0.0",
+    info: {
+      description: "Novelty API",
+      version: packageJSON.version,
+      title: "Novelty API",
+    },
+    tags: [
+      {
+        name: "Healthcheck",
+      },
+    ],
+  };
+};
+</file>
+
+<file path="src/lib/json-content.ts">
+import type { ZodSchema } from "@/types/index.types";
+
+export function jsonContent<T extends ZodSchema>(
+  schema: T,
+  description: string,
+  isRequired = false,
+  headers?: T,
+) {
+  return {
+    content: {
+      "application/json": {
+        schema,
+      },
+    },
+    description,
+    required: isRequired,
+    headers,
+  };
+}
+
+export const jsonContentRequired = <T extends ZodSchema>(
+  schema: T,
+  description: string,
+) => {
+  return {
+    ...jsonContent(schema, description),
+    required: true,
+  };
+};
+</file>
+
+<file path="src/lib/logger.ts">
+import env from "@/env";
+import { configureLogger } from "@novelty/lib/logger";
+
+const logger = configureLogger({
+  nodeEnvironment: env.NODE_ENV ?? "development",
+  hostUrl: `${env.BASE_URL}:${env.LOKI_PORT}`,
+  labels: {
+    source: "api",
+    environment: env.NODE_ENV,
+  },
+  logLevel: env.LOG_LEVEL ?? "info",
+});
+
+export default logger;
+</file>
+
+<file path="src/lib/metrics.ts">
+import { createMetric } from "@novelty/lib/factory/create-metric";
+import { Registry } from "prom-client";
+
+export const prometheusRegistry = new Registry();
+
+export const cronJobOutcomeHistogram = (registry: Registry) => {
+  return createMetric("Histogram", {
+    name: "cron_job_outcome_duration_seconds",
+    help: "Histogram for the duration and outcomes of cron jobs",
+    labelNames: ["job_name", "outcome"],
+    buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
+    registry,
+  });
+};
+
+export const rateLimitCounter = (registry: Registry) => {
+  return createMetric("Counter", {
+    name: "rate_limit_exceeded_total",
+    help: "Total number of rate-limited requests",
+    labelNames: ["path", "method"],
+    registry,
+  });
+};
+</file>
+
+<file path="src/lib/read-array.ts">
+export const readArray = (...keys: string[]) => {
+  // prefer repeated fields
+  let vals = keys.flatMap((k) => form.getAll(k));
+
+  // if nothing under those keys, return []
+  if (vals.length === 0) {
+    return [] as string[];
+  }
+
+  // if exactly one string and it looks like JSON array, parse it
+  if (vals.length === 1 && typeof vals[0] === "string") {
+    const s = (vals[0] as string).trim();
+    if (s.startsWith("[") && s.endsWith("]")) {
+      try {
+        const j = JSON.parse(s);
+        if (Array.isArray(j)) {
+          return j.map(String);
+        }
+      } catch {
+        /* fall through to normal handling */
+      }
+    }
+  }
+
+  // normal case: repeated fields
+  return vals
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.trim())
+    .filter(Boolean);
+};
+</file>
+
+<file path="src/lib/response-schemas.ts">
+import { z } from "@hono/zod-openapi";
+
+// Headers
+
+export const cookieSchema = z.object({
+  cookie: z.string().openapi({
+    example:
+      "sessionId=abc123; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800",
+  }),
+});
+
+export const locationSchema = z.object({
+  Location: z.string().url().openapi({
+    example: "http://localhost:3000/auth/redirect",
+  }),
+});
+
+export const oAuthHeaderSchema = z.object({
+  Location: z.string().url().openapi({
+    example: "http://localhost:3000/auth/redirect",
+  }),
+  state: z.string().openapi({
+    example: "generated-state",
+  }),
+  code_verifier: z.string().openapi({
+    example: "generated-code-verifier",
+  }),
+});
+
+// Responses
+
+export const serviceUnavailableSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      success: false,
+      message:
+        "The server is currently unable to handle the request. Please try again later.",
+    },
+  });
+
+export const tooManyRequestsSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "Too many requests, try again later",
+      success: false,
+    },
+  });
+
+export const unauthenticatedSchema = z
+  .object({
+    success: z.literal(false),
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      success: false,
+      message: "User must be authenticated",
+    },
+  });
+
+export const accountNotFoundSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "This account does not exist",
+      success: false,
+    },
+  });
+
+export const ImageUnsupportedMediaSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Only JPEG, PNG, and WEBP images are allowed",
+    },
+  });
+
+export const blacklistedSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "Access denied",
+      success: false,
+    },
+  });
+
+export const csrfErrorSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "Invalid or missing CSRF token.",
+      success: false,
+    },
+    description: "Response returned when CSRF validation fails.",
+  });
+</file>
+
+<file path="src/lib/service-unavailable-schema.ts">
+import { z } from "@hono/zod-openapi";
+
+export const serviceUnavailableSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message:
+        "The server is currently unable to handle the request. Please try again later.",
+    },
+  });
+</file>
+
+<file path="src/lib/too-many-requests-schema.ts">
+import { z } from "@hono/zod-openapi";
+
+export const tooManyRequestsSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Too many requests, try again later",
+    },
+  });
+</file>
+
+<file path="src/middleware/test/auth.middleware.test.ts">
+import type { AppBindings, User } from "@/types/index.types";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import * as sessionService from "@novelty/services/session.service";
+import { Hono } from "hono";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { authMiddleware } from "../auth.middleware";
+
+describe("authMiddleware", () => {
+  let app: Hono<AppBindings>;
+
+  beforeEach(() => {
+    app = new Hono<AppBindings>();
+
+    app.use("/protected/*", authMiddleware());
+
+    app.get("/protected/test", (c) => {
+      const user = c.var.user;
+      return c.json({ message: "Authorized", user });
+    });
+  });
+
+  it("should return 401 Unauthorized if no session cookie is provided", async () => {
+    const req = new Request("http://localhost/protected/test");
+    const res = await app.request(req);
+    expect(res.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+    const body = (await res.json()) as { message: string };
+    expect(body.message).toBe("Unauthorized");
+  });
+
+  it("should return 401 Unauthorized if session is invalid", async () => {
+    const validateSpy = vi
+      .spyOn(sessionService, "validateSessionToken")
+      .mockResolvedValue(null);
+
+    const req = new Request("http://localhost/protected/test");
+    req.headers.set("Cookie", "session=invalid-token");
+    const res = await app.request(req);
+    expect(res.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+    const body = (await res.json()) as { message: string };
+    expect(body.message).toBe("Unauthorized");
+    validateSpy.mockRestore();
+  });
+
+  it("should call next and set user if session is valid", async () => {
+    const fakeSession: sessionService.Session = {
+      id: "session-id",
+      userId: "user-id",
+      expiresAt: new Date(Date.now() + 10000),
+    };
+
+    const validateSpy = vi
+      .spyOn(sessionService, "validateSessionToken")
+      .mockResolvedValue(fakeSession);
+
+    const req = new Request("http://localhost/protected/test");
+    req.headers.set("Cookie", "session=valid-token");
+    const res = await app.request(req);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      message: string;
+      user: User;
+    };
+    expect(body.message).toBe("Authorized");
+    expect(body.user).toEqual({
+      userId: fakeSession.userId,
+      sessionId: fakeSession.id,
+    });
+    validateSpy.mockRestore();
+  });
+});
+</file>
+
+<file path="src/middleware/test/not-found.middleware.test.ts">
+import type { Context } from "hono";
+
+import notFound from "@/middleware/not-found.middleware";
+
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { describe, expect, it, vi } from "vitest";
+
+describe("notFound handler", () => {
+  it("should return a 404 response with the correct message", () => {
+    const c = {
+      json: vi.fn().mockReturnValue("mockResponse"),
+      req: { path: "/non-existent-route" },
+    } as unknown as Context;
+
+    const response = notFound(c);
+
+    expect(c.json).toHaveBeenCalledWith(
+      { message: "Not found - /non-existent-route" },
+      HttpStatusCodes.NOT_FOUND,
+    );
+
+    expect(response).toBe("mockResponse");
+  });
+});
+</file>
+
+<file path="src/middleware/auth.middleware.ts">
+import logger from "@/lib/logger";
+import { prometheusRegistry } from "@/lib/metrics";
+import type { User } from "@/types/index.types";
+import { db } from "@novelty/db";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { redis } from "@novelty/redis";
+import {
+  SESSION_EXPIRATION_TIME,
+  validateSessionToken,
+} from "@novelty/services/session.service";
+import type { MiddlewareHandler } from "hono";
+import { getCookie, setCookie } from "hono/cookie";
+import { createMiddleware } from "hono/factory";
+
+export const authMiddleware = (): MiddlewareHandler => {
+  return createMiddleware<{ Variables: { user: User } }>(async (c, next) => {
+    const sessionToken = getCookie(c, "session");
+    if (!sessionToken?.trim()) {
+      logger.warn("Auth failed: Missing session token", {
+        requestId: c.var.requestId,
+      });
+
+      return c.json(
+        { message: "Unauthorized", status: HttpStatusCodes.UNAUTHORIZED },
+        HttpStatusCodes.UNAUTHORIZED,
+      );
+    }
+
+    const session = await validateSessionToken(
+      {
+        logger,
+        prometheusRegistry,
+        redisClient: redis,
+        dbInstance: db,
+        reqId: c.var.requestId,
+      },
+      sessionToken,
+    );
+
+    if (!session) {
+      logger.warn("Auth failed: Invalid session token", {
+        requestId: c.var.requestId,
+      });
+
+      return c.json(
+        { message: "Unauthorized", status: HttpStatusCodes.UNAUTHORIZED },
+        HttpStatusCodes.UNAUTHORIZED,
+      );
+    }
+
+    c.set("user", { userId: session.userId, sessionId: session.id });
+
+    if (session.token) {
+      setCookie(c, "session", session.token, {
+        maxAge: SESSION_EXPIRATION_TIME / 1000,
+        expires: session.expiresAt,
+      });
+    }
+
+    await next();
+  });
+};
+</file>
+
+<file path="src/middleware/not-found.middleware.ts">
+import type { NotFoundHandler } from "hono";
+
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+
+const notFound: NotFoundHandler = (c) => {
+  return c.json(
+    {
+      message: `${"Not found"} - ${c.req.path}`,
+    },
+    HttpStatusCodes.NOT_FOUND,
+  );
+};
+
+export default notFound;
+</file>
+
+<file path="src/middleware/on-error.middleware.ts">
+import type { ErrorHandler } from "hono";
+import type { ContentfulStatusCode, StatusCode } from "hono/utils/http-status";
+
+import env from "@/env";
+
+import logger from "@/lib/logger";
+import { getConnInfo } from "@hono/node-server/conninfo";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+
+const onError: ErrorHandler = (err, c) => {
+  const currentStatus
+    = "status" in err ? err.status : c.newResponse(null).status;
+  const statusCode: StatusCode
+    = currentStatus !== HttpStatusCodes.OK
+      ? (currentStatus as StatusCode)
+      : HttpStatusCodes.INTERNAL_SERVER_ERROR;
+
+  const validStatusCode: ContentfulStatusCode = [204, 205, 304].includes(
+    statusCode,
+  )
+    ? HttpStatusCodes.INTERNAL_SERVER_ERROR // fallback to a default
+    : (statusCode as ContentfulStatusCode);
+
+  const nodeEnv = env.NODE_ENV ?? "development";
+
+  const ipAddress = getConnInfo(c).remote.address;
+
+  logger.error(
+    {
+      message: err.message,
+      stack: nodeEnv === "production" ? undefined : err.stack,
+      statusCode,
+      method: c.req.method,
+      url: c.req.url,
+      query: c.req.query(),
+      headers: c.req.header(),
+      ipAddress,
+    },
+    "Error occurred during request processing",
+  );
+
+  return c.json(
+    {
+      message: err.message,
+      stack: nodeEnv === "production" ? undefined : err.stack,
+    },
+    validStatusCode,
+  );
+};
+
+export default onError;
+</file>
+
+<file path="src/middleware/rate-limit.ts">
+import logger from "@/lib/logger";
+import { prometheusRegistry, rateLimitCounter } from "@/lib/metrics";
+import { getConnInfo } from "@hono/node-server/conninfo";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { redis } from "@novelty/redis";
+import type { Store } from "hono-rate-limiter";
+import { rateLimiter } from "hono-rate-limiter";
+import { RedisStore } from "rate-limit-redis";
+
+// TODO: Improve rate limiting
+
+const redisStore = new RedisStore({
+  // @ts-expect-error - Known issue: the `call` function is not present in @types/ioredis
+  sendCommand: (...args: string[]) => redis.call(...args),
+}) as unknown as Store;
+
+const mainConfig = {
+  windowMs: 1 * 60 * 1000,
+  limit: 100,
+};
+
+export const mainLimiter = rateLimiter({
+  windowMs: mainConfig.windowMs,
+  limit: mainConfig.limit,
+  standardHeaders: "draft-6",
+  keyGenerator: (c) => {
+    const info = getConnInfo(c);
+    return `rate-limit:${info.remote.address}`;
+  },
+  handler: (c) => {
+    const info = getConnInfo(c);
+
+    rateLimitCounter(prometheusRegistry).inc({
+      path: c.req.path,
+      method: c.req.method,
+    });
+
+    logger.warn({
+      event: "rate-limit-exceeded",
+      path: c.req.path,
+      method: c.req.method,
+      url: c.req.url,
+      userAgent: c.req.header()["user-agent"],
+      query: c.req.query(),
+      ip: info.remote.address,
+      reqId: c.var.requestId,
+    });
+
+    c.var.sentry.captureEvent({
+      message: "Rate limit exceeded",
+      level: "warning",
+      tags: {
+        path: c.req.path,
+        method: c.req.method,
+      },
+      extra: {
+        ip: info.remote.address,
+        userAgent: c.req.header()["user-agent"],
+        query: c.req.query(),
+        requestId: c.var.requestId,
+      },
+    });
+
+    return c.json(
+      {
+        message: "Too many requests, try again later",
+      },
+      HttpStatusCodes.TOO_MANY_REQUESTS,
+    );
+  },
+  store: redisStore,
+});
+
+const emailVerificationConfig = {
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+};
+
+export const emailVerificationLimiter = rateLimiter({
+  windowMs: emailVerificationConfig.windowMs,
+  limit: emailVerificationConfig.limit,
+  standardHeaders: "draft-6",
+  keyGenerator: (c) => {
+    const info = getConnInfo(c);
+    return `rate-limit:${info.remote.address}`;
+  },
+  handler: (c) => {
+    const info = getConnInfo(c);
+
+    rateLimitCounter(prometheusRegistry).inc({
+      path: c.req.path,
+      method: c.req.method,
+    });
+
+    logger.warn({
+      event: "rate-limit-exceeded",
+      path: c.req.path,
+      method: c.req.method,
+      url: c.req.url,
+      userAgent: c.req.header()["user-agent"],
+      query: c.req.query(),
+      ip: info.remote.address,
+      reqId: c.var.requestId,
+    });
+
+    c.var.sentry.captureEvent({
+      message: "Rate limit exceeded",
+      level: "warning",
+      tags: {
+        path: c.req.path,
+        method: c.req.method,
+      },
+      extra: {
+        ip: info.remote.address,
+        userAgent: c.req.header()["user-agent"],
+        query: c.req.query(),
+        requestId: c.var.requestId,
+      },
+    });
+
+    return c.json(
+      {
+        message: "Too many requests, try again later",
+      },
+      HttpStatusCodes.TOO_MANY_REQUESTS,
+    );
+  },
+  store: redisStore,
+});
+</file>
+
+<file path="src/middleware/request-logger.middleware.ts">
+import type { MiddlewareHandler } from "hono";
+import type { Logger } from "pino";
+
+import logger from "@/lib/logger";
+import { getConnInfo } from "@hono/node-server/conninfo";
+
+import { HttpStatusText } from "@novelty/lib/http-status-codes";
+import { createMiddleware } from "hono/factory";
+
+export const requestLogger = (): MiddlewareHandler => {
+  return createMiddleware<{ Variables: { logger: Logger } }>(
+    async (c, next) => {
+      if (c.req.path === "/metrics") {
+        await next();
+        return;
+      }
+
+      const startTime = Date.now();
+
+      c.set("logger", logger);
+
+      const info = getConnInfo(c);
+
+      logger.info(
+        {
+          method: c.req.method,
+          path: c.req.path,
+          url: c.req.url,
+          headers: c.req.header(),
+          query: c.req.query(),
+          ip: info.remote.address,
+          reqId: c.var.requestId,
+        },
+        "Incoming request",
+      );
+
+      await next();
+
+      const duration = Date.now() - startTime;
+      logger.info(
+        {
+          method: c.req.method,
+          url: c.req.url,
+          status: c.res.status,
+          statusText: HttpStatusText[c.res.status],
+          duration: `${duration}ms`,
+          reqId: c.var.requestId,
+        },
+        "Request processed",
+      );
+    },
+  );
+};
+</file>
+
+<file path="src/middleware/sentry-configure-scope.middleware.ts">
+import env from "@/env";
+import { getConnInfo } from "@hono/node-server/conninfo";
+import type { MiddlewareHandler } from "hono";
+
+export const sentryConfigureScope = (): MiddlewareHandler => {
+  return async (c, next) => {
+    const sentry = c.get("sentry");
+
+    if (sentry) {
+      sentry.setTag("serverEnvironment", env.NODE_ENV ?? "development");
+      sentry.setTag("requestId", c.var.requestId);
+
+      const userId = c.req.header("x-user-id");
+      const userEmail = c.req.header("x-user-email");
+
+      if (userId) {
+        sentry.setUser({
+          id: userId,
+          email: userEmail,
+        });
+      }
+
+      sentry.addBreadcrumb({
+        category: "request",
+        message: `User ${userId ?? "unknown"} accessed ${c.req.url}`,
+        level: "info",
+      });
+
+      const info = getConnInfo(c);
+
+      sentry.setContext("request", {
+        method: c.req.method,
+        url: c.req.url,
+        headers: c.req.header(),
+        ip: info.remote.address,
+      });
+
+      await next();
+    }
+  };
+};
+</file>
+
+<file path="src/middleware/sentry-transaction.middleware.ts">
+import type { Span } from "@sentry/core";
+import type { MiddlewareHandler } from "hono";
+import * as Sentry from "@sentry/node";
+import { createMiddleware } from "hono/factory";
+
+export const sentryTransactionMiddleware = (): MiddlewareHandler => {
+  return createMiddleware<{ Variables: { sentrySpan: Span } }>(
+    async (c, next) => {
+      Sentry.startSpan(
+        {
+          name: `${c.req.method} ${c.req.url}`,
+          op: "http.server",
+        },
+        async (rootSpan) => {
+          try {
+            c.set("sentrySpan", rootSpan);
+          }
+          catch (error) {
+            rootSpan.setStatus({
+              code: 2,
+            });
+            rootSpan.setAttribute("error.message", (error as Error).message);
+            Sentry.captureException(error);
+            throw error;
+          }
+          finally {
+            rootSpan.end();
+          }
+        },
+      );
+      await next();
+    },
+  );
+};
+</file>
+
+<file path="src/modules/auth/test/auth.endpoints.test.ts">
+import env from "@/env";
+import createApp from "@/lib/create-app";
+import createErrorSchema from "@/lib/create-error-schema";
+import {
+  testDb,
+  testDependencies,
+  testQueue,
+  testRedis,
+  testRedlock,
+} from "@/test-setup";
+import { DatabaseConnectionError } from "@novelty/db/lib/errors";
+import * as queries from "@novelty/db/queries/auth.query";
+import { authProvidersTable } from "@novelty/db/schemas/auth-provider.schema";
+import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
+import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
+import type { InsertUser } from "@novelty/db/schemas/user.schema";
+import { insertUserSchema, usersTable } from "@novelty/db/schemas/user.schema";
+import * as email from "@novelty/email/client";
+import * as authUtils from "@novelty/lib/auth/cryptography";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import type { VerifyEmailBodySchema } from "@novelty/lib/validations/auth";
+import { forgotPasswordBodySchema } from "@novelty/lib/validations/auth";
+import * as queueUtils from "@novelty/message-queue/lib/add-job-to-queue";
+import * as authServices from "@novelty/services/auth.service";
+import * as sessionService from "@novelty/services/session.service";
+import { eq, sql } from "drizzle-orm";
+import { testClient } from "hono/testing";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { z } from "zod/v4";
+import { authRouter } from "../auth.index";
+
+vi.mock("@hono/node-server/conninfo", () => ({
+  getConnInfo: vi.fn(() => ({
+    remote: {
+      address: "127.0.0.1",
+    },
+  })),
+}));
+
+vi.mock("@novelty/db/index", () => ({
+  get db() {
+    return testDb;
+  },
+}));
+
+vi.mock("@novelty/redis/index", () => ({
+  get redis() {
+    return testRedis;
+  },
+  get redlock() {
+    return testRedlock;
+  },
+}));
+
+vi.mock("@novelty/message-queue/queues/email.queue", () => ({
+  get emailQueue() {
+    return testQueue;
+  },
+}));
+
+vi.mock("@/middleware/rate-limit.ts", () => ({
+  emailVerificationLimiter: vi.fn((c, next) => next()),
+  mainLimiter: vi.fn((c, next) => next()),
+}));
+
+if (env.NODE_ENV !== "test") {
+  throw new Error("NODE_ENV must be 'test'");
+}
+
+const client = testClient(createApp().route("/", authRouter));
+
+describe("auth routes", () => {
+  describe("post /register", () => {
+    const dummyBody: InsertUser["register"] = {
+      email: "email@mail.com",
+      password: "password123",
+    };
+
+    afterEach(async () => {
+      await testDb
+        .delete(usersTable)
+        .where(eq(usersTable.email, dummyBody.email));
+      vi.clearAllMocks();
+    });
+
+    afterEach(async () => {
+      vi.restoreAllMocks();
+      await testQueue.obliterate();
+    });
+
+    it("handles success", async () => {
+      const response = await client.auth.register.$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.CREATED);
+
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/registration success/i),
+        user: {
+          id: expect.stringMatching(/^[\w-]{21}$/),
+          email: expect.stringMatching(dummyBody.email),
+          isEmailVerified: false,
+          createdAt: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+          ),
+          updatedAt: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+          ),
+        },
+      });
+    });
+
+    it("returns conflict if email already exists", async () => {
+      await testDb.insert(usersTable).values({
+        email: dummyBody.email,
+        password: "somehashedpassword",
+      });
+
+      const response = await client.auth.register.$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.CONFLICT);
+      const json = await response.json();
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/already exists/i),
+      });
+    });
+
+    it("returns bad request if request body is invalid", async () => {
+      const invalidBody = { email: "newuser", password: "password" };
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(insertUserSchema.shape.register);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.auth.register.$post({
+        json: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("returns service unavailable if database connection fails", async () => {
+      vi.spyOn(queries, "getUserByEmailQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.auth.register.$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("returns internal server error on unexpected error", async () => {
+      vi.spyOn(authServices, "registerUser").mockImplementationOnce(() => {
+        throw new Error("Unexpected error");
+      });
+
+      const response = await client.auth.register.$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+  });
+
+  describe("post /send-verification-email", () => {
+    const dummyBody: InsertUser["sendEmail"] = {
+      email: "email@mail.com",
+    };
+
+    const dummyUser: InsertUser["register"] = {
+      email: "email@mail.com",
+      password: "password",
+    };
+
+    const dummyId = "resend-response-id";
+
+    beforeEach(async () => {
+      await testDb
+        .delete(usersTable)
+        .where(eq(usersTable.email, dummyBody.email!));
+      await testDb.insert(usersTable).values(dummyUser);
+      vi.clearAllMocks();
+    });
+
+    afterEach(async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+    });
+
+    it("handles success", async () => {
+      vi.spyOn(email.emailClient.emails, "send").mockResolvedValue({
+        data: {
+          id: dummyId,
+        },
+        error: null,
+      });
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/email sent/i),
+        success: true,
+      });
+    });
+
+    it("returns ok if email does not exist", async () => {
+      await testDb
+        .delete(usersTable)
+        .where(eq(usersTable.email, dummyBody.email!));
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+      const json = await response.json();
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/email sent/i),
+        success: true,
+      });
+    });
+
+    it("returns ok if email is already verified", async () => {
+      await testDb
+        .update(usersTable)
+        .set({ isEmailVerified: true, ...dummyBody });
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/email sent/i),
+        success: true,
+      });
+    });
+
+    it("returns unprocessable entity if request body is invalid", async () => {
+      const invalidBody = { email: "newuser" };
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(insertUserSchema.shape.sendEmail);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("returns service unavailable if database connection fails", async () => {
+      vi.spyOn(queries, "getUserByEmailQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("returns internal server error on unexpected error", async () => {
+      vi.spyOn(authServices, "sendVerificationEmail").mockImplementationOnce(
+        () => {
+          throw new Error("Unexpected error");
+        },
+      );
+
+      const response = await client.auth["send-verification-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("handles concurrent requests correctly", async () => {
+      const concurrencyLevel = 3;
+      const delayMs = 3000;
+      const requests: Promise<Response>[] = [];
+
+      const originalAddJobToQueue = queueUtils.addJobToQueue;
+
+      vi.spyOn(queueUtils, "addJobToQueue").mockImplementation(
+        async (...args) => {
+          await new Promise((res) => setTimeout(res, delayMs));
+          return originalAddJobToQueue(...args);
+        },
+      );
+
+      for (let i = 0; i < concurrencyLevel; i++) {
+        requests.push(
+          client.auth["send-verification-email"].$post({
+            json: dummyBody,
+          }),
+        );
+      }
+
+      const results = await Promise.allSettled(requests);
+
+      let successCount = 0;
+      let conflictOrLockFailureCount = 0;
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          const response = result.value;
+          if (response.status === HttpStatusCodes.OK) {
+            successCount++;
+          } else {
+            conflictOrLockFailureCount++;
+          }
+        } else {
+          conflictOrLockFailureCount++;
+        }
+      }
+
+      expect(successCount).toBe(1);
+
+      expect(conflictOrLockFailureCount).toBe(concurrencyLevel - 1);
+    });
+  });
+
+  describe("post /verify-email", () => {
+    const dummyUser = {
+      id: "dummy-id",
+      email: "email@mail.com",
+      password: "password123",
+    };
+
+    const dummyKey = `verify-email:${dummyUser.email}`;
+    const dummyToken = "123456";
+
+    const dummyBody: VerifyEmailBodySchema = {
+      email: dummyUser.email,
+      verificationCode: dummyToken,
+    };
+
+    beforeEach(async () => {
+      vi.spyOn(authUtils, "decryptString").mockReturnValue(dummyUser.id);
+      await testDb.insert(usersTable).values(dummyUser);
+      await testRedis.set(dummyKey, dummyToken);
+    });
+
+    afterEach(async () => {
+      await testRedis.flushall();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      vi.clearAllMocks();
+    });
+
+    it("handles success", async () => {
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/email verified/i),
+        success: true,
+      });
+    });
+
+    it("returns not found if user does not exist", async () => {
+      await testDb.delete(usersTable).where(eq(usersTable.id, dummyUser.id));
+
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+      const json = await response.json();
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/not exist/i),
+        success: false,
+      });
+    });
+
+    it("returns bad request if the code is invalid", async () => {
+      await testRedis.del(dummyKey);
+
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/\b(?:code|invalid|expire)\b/g),
+        success: false,
+      });
+    });
+
+    it("returns conflict if email is already verified", async () => {
+      await testDb
+        .update(usersTable)
+        .set({ isEmailVerified: true, ...dummyBody });
+
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.CONFLICT);
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        success: false,
+        message: expect.stringMatching(/already verified/i),
+      });
+    });
+
+    it("returns unprocessable entity if request body is invalid", async () => {
+      const invalidBody = { verificationCode: 123, encryptedUserId: "test" };
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(insertUserSchema.shape.sendEmail);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.auth["verify-email"].$post({
+        // @ts-expect-error simulating incorrect body required in this case
+        json: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("returns service unavailable if database connection fails", async () => {
+      vi.spyOn(queries, "getUserByEmailQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.auth["verify-email"].$post({
+        json: dummyBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+  });
+
+  describe("post /login", async () => {
+    const dummyUserInfo: InsertUserInfo = {
+      preferences: {
+        genres: ["genre1", "genre2", "genre3"],
+        authors: ["author"],
+        series: ["series"],
+      },
+      profile: {
+        avatarUrl: "",
+        bio: "bio",
+        username: "username",
+      },
+    };
+    let dummyPassword: string = "password";
+
+    dummyPassword = await authUtils.hashString(dummyPassword);
+
+    const dummyUser = {
+      id: "dummy-id",
+      email: "email@mail.com",
+      password: dummyPassword,
+    };
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+      await testDb.insert(userInfoTable).values({
+        userId: dummyUser.id,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+      await testDb.insert(authProvidersTable).values({
+        provider: "email",
+        userId: dummyUser.id,
+      });
+    });
+
+    afterEach(async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testRedis.flushall();
+      vi.restoreAllMocks();
+    });
+
+    it("handles success", async () => {
+      const response = await client.auth.login.$post({
+        json: {
+          email: dummyUser.email,
+          password: "password",
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+      expect(response.headers.has("set-cookie")).toBe(true);
+    });
+
+    it("handles invalid email (validation error)", async () => {
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(insertUserSchema.shape.login);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.auth.login.$post({
+        json: {
+          email: "invalid-email",
+          password: "password123",
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("handles invalid password", async () => {
+      const response = await client.auth.login.$post({
+        json: {
+          email: "test@example.com",
+          password: "wrongPassword",
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("handles user not found", async () => {
+      const response = await client.auth.login.$post({
+        json: {
+          email: "nonexistent@example.com",
+          password: "password123",
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("handles user blacklisted", async () => {
+      const blacklistKey = `blacklist`;
+      await testRedis.hset(blacklistKey, dummyUser.id, "true");
+
+      const response = await client.auth.login.$post({
+        json: {
+          email: dummyUser.email,
+          password: "password123",
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.FORBIDDEN);
+
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("handles service unavailable (user service error)", async () => {
+      vi.spyOn(queries, "getUserByEmailQuery").mockRejectedValue(
+        new Error("DB error"),
+      );
+
+      const response = await client.auth.login.$post({
+        json: {
+          email: "test@example.com",
+          password: "password123",
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+  });
+
+  describe("post /auth/send-forgot-password-email", () => {
+    const dummyEmail = "test@example.com";
+    const dummyId = "dummy-id";
+
+    beforeEach(async () => {
+      vi.restoreAllMocks();
+      await testDb
+        .insert(usersTable)
+        .values({ email: dummyEmail, password: "hashedpassword", id: dummyId });
+    });
+
+    afterEach(async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+    });
+
+    it("should return 204 No Content for valid request (user exists)", async () => {
+      const response = await client.auth["send-forgot-password-email"].$post({
+        json: { email: dummyEmail },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+    });
+
+    it("should return 204 No Content even if user not found (security measure)", async () => {
+      const nonExistentEmail = "non@mail.com";
+
+      const response = await client.auth["send-forgot-password-email"].$post({
+        json: { email: nonExistentEmail },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+    });
+
+    it("should return 503 Service Unavailable for database connection failure", async () => {
+      const dummyEmail = "test-db-fail@example.com";
+      vi.spyOn(queries, "getUserByEmailQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.auth["send-forgot-password-email"].$post({
+        json: { email: dummyEmail },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("should return 422 Unprocessable Entity for invalid email format", async () => {
+      const invalidEmail = "invalid-email";
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(insertUserSchema.shape.sendEmail);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.auth["send-forgot-password-email"].$post({
+        json: { email: invalidEmail },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("handles user blacklisted", async () => {
+      const blacklistKey = `blacklist`;
+      await testRedis.hset(blacklistKey, dummyId, "true");
+
+      const response = await client.auth["send-forgot-password-email"].$post({
+        json: {
+          email: dummyEmail,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.FORBIDDEN);
+
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+      await testRedis.flushdb();
+    });
+
+    it("should return 500 Internal Server Error for unexpected errors", async () => {
+      const dummyEmail = "test-server-error@example.com";
+
+      vi.spyOn(authServices, "sendForgotPasswordEmail").mockImplementationOnce(
+        () => {
+          throw new Error("Unexpected service error");
+        },
+      );
+
+      const response = await client.auth["send-forgot-password-email"].$post({
+        json: { email: dummyEmail },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("handles concurrent requests correctly", async () => {
+      const concurrencyLevel = 3;
+      const delayMs = 3000;
+      const requests: Promise<Response>[] = [];
+
+      const originalAddJobToQueue = queueUtils.addJobToQueue;
+
+      vi.spyOn(queueUtils, "addJobToQueue").mockImplementation(
+        async (...args) => {
+          await new Promise((res) => setTimeout(res, delayMs));
+          return originalAddJobToQueue(...args);
+        },
+      );
+
+      for (let i = 0; i < concurrencyLevel; i++) {
+        requests.push(
+          client.auth["send-forgot-password-email"].$post({
+            json: {
+              email: dummyEmail,
+            },
+          }),
+        );
+      }
+
+      const results = await Promise.allSettled(requests);
+
+      let successCount = 0;
+      let conflictOrLockFailureCount = 0;
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          const response = result.value;
+          if (response.status === HttpStatusCodes.OK) {
+            successCount++;
+          } else {
+            conflictOrLockFailureCount++;
+          }
+        } else {
+          conflictOrLockFailureCount++;
+        }
+      }
+
+      expect(successCount).toBe(1);
+
+      expect(conflictOrLockFailureCount).toBe(concurrencyLevel - 1);
+    });
+  });
+
+  describe("post /forgot-password", () => {
+    const dummyUser = {
+      id: "dummy-user-id",
+      email: "forgot@mail.com",
+      password: "oldPassword123", // This will be hashed in beforeEach
+      isEmailVerified: true,
+    };
+
+    const dummyUserInfo: InsertUserInfo = {
+      preferences: {
+        genres: ["fantasy", "sci-fi", "comedy"],
+        authors: ["author"],
+        series: ["series"],
+      },
+      profile: {
+        avatarUrl: "url",
+        bio: "bio",
+        username: "username",
+      },
+    };
+
+    const dummyToken = "valid-reset-token"; // This is the raw token sent to the user
+    const dummyNewPassword = "newPassword123";
+    let hashedToken = authUtils.encodeToken(dummyToken); // Hashed token stored in Redis key
+    let redisKey = `forgot-password:${hashedToken}`; // Redis key: forgot-password:<hashedToken>
+    let originalHashedPassword = "";
+
+    beforeEach(async () => {
+      originalHashedPassword = await authUtils.hashString(dummyUser.password);
+      hashedToken = authUtils.encodeToken(dummyToken);
+      redisKey = `forgot-password:${hashedToken}`;
+
+      await testDb
+        .insert(usersTable)
+        .values({
+          ...dummyUser,
+          password: originalHashedPassword,
+        })
+        .onConflictDoNothing();
+
+      await testDb.insert(userInfoTable).values({
+        userId: dummyUser.id,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+
+      await testRedis.set(redisKey, dummyUser.id);
+      vi.restoreAllMocks();
+    });
+
+    afterEach(async () => {
+      await testRedis.flushall();
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+    });
+
+    it("handles success", async () => {
+      const response = await client.auth["forgot-password"].$post({
+        json: {
+          token: dummyToken,
+          newPassword: dummyNewPassword,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+      expect(response.headers.has("set-cookie")).toBe(true);
+    });
+
+    it("returns bad request if user associated with token does not exist", async () => {
+      await testDb.delete(usersTable).where(eq(usersTable.id, dummyUser.id));
+
+      const response = await client.auth["forgot-password"].$post({
+        json: {
+          token: dummyToken,
+          newPassword: dummyNewPassword,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      const json = await response.json();
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/invalid|expired|token/i),
+      });
+    });
+
+    it("returns bad request if token is invalid or expired", async () => {
+      const invalidTokenResponse = await client.auth["forgot-password"].$post({
+        json: {
+          token: "invalid-token-format",
+          newPassword: dummyNewPassword,
+        },
+      });
+
+      expect(invalidTokenResponse.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      const json = await invalidTokenResponse.json();
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/invalid|expired|token/i),
+      });
+    });
+
+    it("returns unprocessable entity if request body is invalid (e.g., short password)", async () => {
+      const invalidPassword = "";
+
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(forgotPasswordBodySchema);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.auth["forgot-password"].$post({
+        json: {
+          token: dummyToken,
+          newPassword: invalidPassword,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("returns service unavailable if database connection fails during password update", async () => {
+      vi.spyOn(queries, "updateUserByIdQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError(
+          "Simulated DB connection failure during update",
+        );
+      });
+
+      const response = await client.auth["forgot-password"].$post({
+        json: {
+          token: dummyToken,
+          newPassword: dummyNewPassword,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+
+      const userCheck = await testDb.query.usersTable.findFirst({
+        where: eq(usersTable.id, dummyUser.id),
+      });
+      expect(userCheck!.password).toBe(originalHashedPassword);
+
+      const tokenExists = await testRedis.exists(redisKey);
+      expect(tokenExists).toBe(1);
+    });
+
+    it("returns internal server error on unexpected error", async () => {
+      vi.spyOn(authUtils, "encodeToken").mockImplementationOnce(() => {
+        throw new Error("Simulated unexpected error");
+      });
+
+      const response = await client.auth["forgot-password"].$post({
+        json: {
+          token: dummyToken,
+          newPassword: dummyNewPassword,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("handles concurrent requests correctly", async () => {
+      const concurrencyLevel = 3;
+      const delayMs = 3000;
+      const requests: Promise<Response>[] = [];
+
+      const originalAddJobToQueue = queueUtils.addJobToQueue;
+
+      vi.spyOn(queueUtils, "addJobToQueue").mockImplementation(
+        async (...args) => {
+          await new Promise((res) => setTimeout(res, delayMs));
+          return originalAddJobToQueue(...args);
+        },
+      );
+
+      for (let i = 0; i < concurrencyLevel; i++) {
+        requests.push(
+          client.auth["forgot-password"].$post({
+            json: {
+              token: dummyToken,
+              newPassword: dummyNewPassword,
+            },
+          }),
+        );
+      }
+
+      const results = await Promise.allSettled(requests);
+
+      let successCount = 0;
+      let conflictOrLockFailureCount = 0;
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          const response = result.value;
+          if (response.status === HttpStatusCodes.OK) {
+            successCount++;
+          } else {
+            conflictOrLockFailureCount++;
+          }
+        } else {
+          conflictOrLockFailureCount++;
+        }
+      }
+
+      expect(successCount).toBe(1);
+
+      expect(conflictOrLockFailureCount).toBe(concurrencyLevel - 1);
+    });
+  });
+
+  describe("post /logout", () => {
+    const dummySessionToken = "session123";
+    const dummyUserId = "user123";
+
+    beforeEach(async () => {
+      await sessionService.createSession(
+        {
+          logger: testDependencies.logger,
+          prometheusRegistry: testDependencies.prometheusRegistry,
+          redisClient: testRedis,
+          reqId: testDependencies.reqId,
+        },
+        dummySessionToken,
+        dummyUserId,
+      );
+      vi.clearAllMocks();
+    });
+
+    afterEach(async () => {
+      testRedis.flushall();
+    });
+
+    it("handles success", async () => {
+      const response = await client.auth.logout.$post({
+        header: {
+          cookie: `session=${dummySessionToken}`,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+
+      const header = response.headers.get("Set-Cookie");
+      expect(header).toMatch(/session=;/);
+    });
+
+    it("returns unauthorized for invalid session cookie", async () => {
+      const response = await client.auth.logout.$post({
+        header: {
+          cookie: `session=invalidSession;`,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+      const json = await response.json();
+
+      expect(json).toMatchObject({
+        message: expect.stringMatching(/unauthorized/i),
+      });
+    });
+
+    it("returns service unavailable if database connection fails", async () => {
+      vi.spyOn(sessionService, "invalidateSession").mockImplementationOnce(
+        () => {
+          throw new DatabaseConnectionError("Database connection failed");
+        },
+      );
+
+      const response = await client.auth.logout.$post({
+        header: {
+          cookie: `session=${dummySessionToken}`,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+
+    it("returns internal server error on unexpected error", async () => {
+      vi.spyOn(sessionService, "invalidateSession").mockImplementationOnce(
+        () => {
+          throw new Error("Unexpected error");
+        },
+      );
+
+      const response = await client.auth.logout.$post({
+        header: {
+          cookie: `session=${dummySessionToken}`,
+        },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.INTERNAL_SERVER_ERROR);
+      const json = await response.json();
+      expect(json).toHaveProperty("message");
+    });
+  });
+
+  describe("get /oauth/:provider", () => {
+    const dummyData = {
+      redirectUrl: "https://provider.com/auth",
+      state: "state123",
+      codeVerifier: "verifier123",
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("handles success", async () => {
+      vi.spyOn(authServices, "initOAuth").mockResolvedValueOnce({
+        success: true,
+        data: dummyData,
+      });
+
+      const response = await client.auth.oauth[":provider"].$get({
+        param: { provider: "google" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+      const cookie = response.headers.get("set-cookie") ?? "";
+      expect(cookie).toContain("state=");
+    });
+
+    it("returns unprocessable entity for invalid provider", async () => {
+      const response = await client.auth.oauth[":provider"].$get({
+        param: { provider: "invalid" as any },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+    });
+  });
+
+  describe("get /oauth/:provider/callback", () => {
+    const dummySession: authServices.AuthenticatedSessionResponseData = {
+      token: "sessiontoken",
+      expiresAt: new Date(),
+      user: {
+        id: "id",
+        email: "mail@mail.com",
+        isEmailVerified: true,
+        isOnboarded: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        userInfo: {
+          profile: { avatarUrl: "", bio: null, username: "" },
+          preferences: { genres: ["fantasy", "sci-fi", "horror"] },
+        },
+      },
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("handles success", async () => {
+      vi.spyOn(authServices, "oAuthCallback").mockResolvedValueOnce({
+        success: true,
+        data: dummySession,
+      });
+
+      const response = await client.auth.oauth[":provider"].callback.$get({
+        param: { provider: "google" },
+        query: { state: "s", code: "c" },
+        // @ts-expect-error header not defined in types
+        header: { cookie: "state=s; code_verifier=v" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.FOUND);
+      const location = response.headers.get("location") ?? "";
+      expect(location).toBeDefined();
+      expect(response.headers.has("set-cookie")).toBe(true);
+    });
+
+    it("redirects when provider rejects code", async () => {
+      vi.spyOn(authServices, "oAuthCallback").mockResolvedValueOnce({
+        success: false,
+        error: { kind: "UNAUTHORIZED", message: "invalid" },
+      });
+
+      const response = await client.auth.oauth[":provider"].callback.$get({
+        param: { provider: "google" },
+        query: { state: "s", code: "c" },
+        // @ts-expect-error header not defined in types
+        header: { cookie: "state=s; code_verifier=v" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.FOUND);
+    });
+
+    it("returns unprocessable entity for invalid provider", async () => {
+      const response = await client.auth.oauth[":provider"].callback.$get({
+        param: { provider: "invalid" as any },
+        query: { state: "s", code: "c" },
+        // @ts-expect-error header not defined in types
+        header: { cookie: "state=s; code_verifier=v" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+    });
+  });
+});
+</file>
+
+<file path="src/modules/auth/auth.handlers.ts">
+import env from "@/env";
+import logger from "@/lib/logger";
+import { prometheusRegistry } from "@/lib/metrics";
+import type { AppRouteHandler } from "@/types/index.types";
+import { db } from "@novelty/db";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { emailQueue } from "@novelty/message-queue/queues/email.queue";
+import { redis, redlock } from "@novelty/redis";
+import {
+  forgotPassword,
+  initOAuth,
+  loginUser,
+  logoutUser,
+  oAuthCallback,
+  registerUser,
+  sendForgotPasswordEmail,
+  sendVerificationEmail,
+  verifyEmail,
+} from "@novelty/services/auth.service";
+import { OAUTH_COOKIE_EXPIRATION } from "@novelty/services/lib/config";
+import { SESSION_EXPIRATION_TIME } from "@novelty/services/session.service";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { providers } from "./auth.providers";
+import type {
+  AuthMeRoute,
+  ForgotPasswordRoute,
+  LoginRoute,
+  LogoutRoute,
+  OAuthCallbackRoute,
+  OAuthInitRoute,
+  RegisterRoute,
+  SendForgotPasswordEmailRoute,
+  SendVerificationEmailRoute,
+  VerifyEmailRoute,
+} from "./auth.routes";
+import type { OauthInitParams } from "./auth.validations";
+
+export const handleAuthMe: AppRouteHandler<AuthMeRoute> = async (c) => {
+  const { userId } = c.var.user;
+
+  if (!userId) {
+    return c.json(
+      {
+        message: "Unauthorized",
+        success: false,
+      },
+      HttpStatusCodes.UNAUTHORIZED,
+    );
+  }
+
+  return c.json(
+    {
+      userId,
+      success: true,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleRegister: AppRouteHandler<RegisterRoute> = async (c) => {
+  const body = c.req.valid("json");
+
+  const result = await registerUser(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
+
+  if (result.success === false) {
+    const error = result.error;
+    return c.json(
+      { message: error.message, success: false },
+      HttpStatusCodes[error.kind],
+    );
+  }
+
+  const newUser = result.data;
+
+  return c.json(
+    {
+      success: true,
+      message:
+        "Registration successful. Please verify your email to activate your account.",
+      user: newUser,
+    },
+    HttpStatusCodes.CREATED,
+  );
+};
+
+export const handleSendVerificationEmail: AppRouteHandler<
+  SendVerificationEmailRoute
+> = async (c) => {
+  const body = c.req.valid("json");
+
+  const res = await sendVerificationEmail(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      redlockClient: redlock,
+      messageQueueInstance: emailQueue,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
+
+  // Prevent pwning of the email
+  if (res.success === false && res.error.kind === "NOT_FOUND") {
+    return c.json(
+      {
+        message: "Email sent to the recipient",
+        success: true,
+      },
+      HttpStatusCodes.OK,
+    );
+  }
+
+  if (res.success === false && res.error.kind !== "NOT_FOUND") {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.json(
+    {
+      message: "Email sent to the recipient",
+      success: true,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleVerifyEmail: AppRouteHandler<VerifyEmailRoute> = async (
+  c,
+) => {
+  const body = c.req.valid("json");
+
+  const res = await verifyEmail(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.json(
+    {
+      message: "Email verified",
+      success: true,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleLogin: AppRouteHandler<LoginRoute> = async (c) => {
+  const body = c.req.valid("json");
+
+  const res = await loginUser(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  if (res.data) {
+    const { token, expiresAt } = res.data;
+
+    setCookie(c, "session", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      maxAge: SESSION_EXPIRATION_TIME / 1000,
+      expires: expiresAt,
+    });
+  }
+
+  return c.json(
+    {
+      success: true,
+      message: `Login successful`,
+      user: res.data.user,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleOAuthInit: AppRouteHandler<OAuthInitRoute> = async (c) => {
+  const provider = c.req.param("provider") as OauthInitParams["provider"];
+
+  const res = await initOAuth(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+      providers,
+    },
+    provider,
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message:
+          "The server is currently unable to handle the request. Please try again later.",
+        success: false,
+      },
+      HttpStatusCodes["SERVICE_UNAVAILABLE"],
+    );
+  }
+
+  if (res.data) {
+    const { state, codeVerifier } = res.data;
+
+    setCookie(c, "state", state, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      maxAge: OAUTH_COOKIE_EXPIRATION,
+      expires: new Date(Date.now() + OAUTH_COOKIE_EXPIRATION),
+    });
+
+    setCookie(c, "code_verifier", codeVerifier, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      maxAge: OAUTH_COOKIE_EXPIRATION,
+      expires: new Date(Date.now() + OAUTH_COOKIE_EXPIRATION),
+    });
+  }
+
+  return c.json(
+    {
+      url: res.data.redirectUrl,
+      success: true,
+    },
+    HttpStatusCodes["OK"],
+  );
+};
+
+export const handleOAuthCallback: AppRouteHandler<OAuthCallbackRoute> = async (
+  c,
+) => {
+  const provider = c.req.param("provider") as OauthInitParams["provider"];
+
+  const { state, code, error: oauthError } = c.req.query();
+
+  const cookieState = getCookie(c, "state");
+  const cookieCodeVerifier = getCookie(c, "code_verifier");
+
+  const clientUrl = `${env.BASE_CLIENT_URL}`;
+  const errorRedirect = (msg: string) =>
+    `${clientUrl}/login?oauth_error=${encodeURIComponent(msg)}`;
+
+  if (oauthError) {
+    return c.redirect(errorRedirect(oauthError), HttpStatusCodes.FOUND);
+  }
+
+  if (
+    !state ||
+    !code ||
+    !cookieState ||
+    !cookieCodeVerifier ||
+    state !== cookieState
+  ) {
+    return c.redirect(errorRedirect("invalid_request"), HttpStatusCodes.FOUND);
+  }
+
+  const res = await oAuthCallback(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+      providers,
+    },
+    {
+      provider,
+      codeVerifier: cookieCodeVerifier,
+      code,
+    },
+  );
+
+  if (res.success === false) {
+    return c.redirect(
+      errorRedirect(res.error.kind || "token_exchange_failed"),
+      HttpStatusCodes.FOUND,
+    );
+  }
+
+  if (res.data) {
+    const { token, expiresAt } = res.data;
+
+    deleteCookie(c, "state");
+    deleteCookie(c, "code_verifier");
+
+    setCookie(c, "session", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      maxAge: SESSION_EXPIRATION_TIME / 1000,
+      expires: expiresAt,
+    });
+  }
+
+  return c.redirect(clientUrl, HttpStatusCodes.FOUND);
+};
+
+export const handleLogout: AppRouteHandler<LogoutRoute> = async (c) => {
+  const { userId, sessionId } = c.var.user;
+
+  await logoutUser(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    userId,
+    sessionId,
+  );
+
+  deleteCookie(c, "session");
+
+  return c.json(
+    {
+      message: "Logout successful",
+      success: true,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleSendForgotPasswordEmail: AppRouteHandler<
+  SendForgotPasswordEmailRoute
+> = async (c) => {
+  const body = c.req.valid("json");
+
+  const res = await sendForgotPasswordEmail(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      redlockClient: redlock,
+      messageQueueInstance: emailQueue,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.json(
+    {
+      message: "Email sent to the recipient",
+      success: true,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleForgotPasswordRoute: AppRouteHandler<
+  ForgotPasswordRoute
+> = async (c) => {
+  const body = c.req.valid("json");
+
+  const res = await forgotPassword(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      redlockClient: redlock,
+      messageQueueInstance: emailQueue,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    body,
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  if (res.data) {
+    const { token, expiresAt, user } = res.data;
+
+    setCookie(c, "session", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/",
+      maxAge: SESSION_EXPIRATION_TIME / 1000,
+      expires: expiresAt,
+    });
+
+    return c.json(
+      {
+        message: "Password successfully reset",
+        user,
+        success: true,
+      },
+      HttpStatusCodes.OK,
+    );
+  }
+
+  return c.json(
+    {
+      message: "Password successfully reset",
+      success: true,
+    },
+    HttpStatusCodes.OK
+  );
+};
+</file>
+
+<file path="src/modules/auth/auth.index.ts">
+import { createRouter } from "@/lib/create-app";
+
+import * as handlers from "./auth.handlers";
+import * as routes from "./auth.routes";
+
+export const authRouter = createRouter()
+  .openapi(routes.authMeRoute, handlers.handleAuthMe)
+  .openapi(routes.registerRoute, handlers.handleRegister)
+  .openapi(
+    routes.sendVerificationEmailRoute,
+    handlers.handleSendVerificationEmail,
+  )
+  .openapi(routes.verifyEmailRoute, handlers.handleVerifyEmail)
+  .openapi(routes.loginRoute, handlers.handleLogin)
+  .openapi(routes.logoutRoute, handlers.handleLogout)
+  .openapi(
+    routes.sendForgotPasswordEmailRoute,
+    handlers.handleSendForgotPasswordEmail,
+  )
+  .openapi(routes.forgotPasswordRoute, handlers.handleForgotPasswordRoute)
+  .openapi(routes.oAuthInitRoute, handlers.handleOAuthInit)
+  .openapi(routes.oAuthCallbackRoute, handlers.handleOAuthCallback);
+</file>
+
+<file path="src/modules/auth/auth.providers.ts">
+import env from "@/env";
+import { AmazonCognito, Google } from "arctic";
+
+const google = new Google(
+  env.GOOGLE_CLIENT_ID!,
+  env.GOOGLE_CLIENT_SECRET!,
+  env.GOOGLE_REDIRECT_URI!,
+);
+
+const amazon = new AmazonCognito(
+  env.AMAZON_COGNITO_DOMAIN!,
+  env.AMAZON_COGNITO_CLIENT_ID!,
+  env.AMAZON_COGNITO_CLIENT_SECRET!,
+  env.AMAZON_COGNITO_REDIRECT_URI!,
+);
+
+export const providers = { google, amazon };
+</file>
+
+<file path="src/modules/auth/auth.routes.ts">
+import createErrorSchema from "@/lib/create-error-schema";
+import { jsonContent, jsonContentRequired } from "@/lib/json-content";
+import {
+  blacklistedSchema,
+  cookieSchema,
+  csrfErrorSchema,
+  locationSchema,
+  oAuthHeaderSchema,
+  serviceUnavailableSchema,
+  tooManyRequestsSchema,
+  unauthenticatedSchema,
+} from "@/lib/response-schemas";
+import { createRoute, z } from "@hono/zod-openapi";
+
+import { insertAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
+import { insertUserSchema } from "@novelty/db/schemas/user.schema";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import {
+  forgotPasswordBodySchema,
+  verifyEmailBodySchema,
+} from "@novelty/lib/validations/auth";
+import {
+  forgotPasswordConflictSchema,
+  forgotPasswordSuccessSchema,
+  getAuthMeSuccessSchema,
+  loginSuccessSchema,
+  loginUnauthorizedSchema,
+  logoutSuccessSchema,
+  oAuthCallbackBadRequestSchema,
+  oAuthCallbackQuerySchema,
+  oauthInitParamsSchema,
+  oAuthInitSuccessSchema,
+  registerConflictSchema,
+  registerCreatedSchema,
+  sendVerificationEmailConflictSchema,
+  sendVerificationEmailSuccessSchema,
+  verifyEmailBadRequestSchema,
+  verifyEmailConflictSchema,
+  verifyEmailNotFoundSchema,
+  verifyEmailSuccessSchema,
+} from "./auth.validations";
+
+const tags = ["Auth"];
+
+export const authMeRoute = createRoute({
+  tags,
+  method: "get",
+  path: "/auth/me",
+  description: "Validates the session and returns userId",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(getAuthMeSuccessSchema, "Valid session"),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "Invalid session",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Service unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type AuthMeRoute = typeof authMeRoute;
+
+export const registerRoute = createRoute({
+  tags,
+  method: "post",
+  path: "/auth/register",
+  description: "Creates the unverified user in the database",
+  request: {
+    body: jsonContentRequired(
+      insertUserSchema.shape.register,
+      "The user inputted data",
+    ),
+  },
+  responses: {
+    [HttpStatusCodes.CREATED]: jsonContent(
+      registerCreatedSchema,
+      "Successful registration",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      registerConflictSchema,
+      "Existing email",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertUserSchema.shape.register),
+      "Validation error(s)",
+    ),
+  },
+});
+
+export type RegisterRoute = typeof registerRoute;
+
+export const sendVerificationEmailRoute = createRoute({
+  tags,
+  method: "post",
+  path: "/auth/send-verification-email",
+  description: "Sends the verification email to the user",
+  request: {
+    body: jsonContentRequired(
+      insertUserSchema.shape.sendEmail,
+      "The user email",
+    ),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      sendVerificationEmailSuccessSchema,
+      "Email sent",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      sendVerificationEmailConflictSchema,
+      "Lock not acquired",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertUserSchema.shape.sendEmail),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type SendVerificationEmailRoute = typeof sendVerificationEmailRoute;
+
+export const verifyEmailRoute = createRoute({
+  tags,
+  method: "post",
+  path: "/auth/verify-email",
+  description:
+    "Verifies the PIN provided by the user, updates the isEmailVerified field in the database",
+  request: {
+    body: jsonContentRequired(
+      verifyEmailBodySchema,
+      "The verification code and encrypted userId",
+    ),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        "application/json": {
+          schema: verifyEmailSuccessSchema,
+        },
+      },
+      description: "Email verified",
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      verifyEmailNotFoundSchema,
+      "User not found",
+    ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      verifyEmailBadRequestSchema,
+      "Verification code does not match or it has expired",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      verifyEmailConflictSchema,
+      "Email already verified",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertUserSchema.shape.sendEmail),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type VerifyEmailRoute = typeof verifyEmailRoute;
+
+export const loginRoute = createRoute({
+  tags,
+  method: "post",
+  path: "/auth/login",
+  description: "Authenticates the user and creates a session",
+  request: {
+    body: jsonContentRequired(insertUserSchema.shape.login, "User credentials"),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        "application/json": {
+          schema: loginSuccessSchema,
+        },
+      },
+      description: "Authenticates a user and creates a session",
+      headers: cookieSchema,
+    },
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      loginUnauthorizedSchema,
+      "Invalid credentials",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Too many login attempts",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertUserSchema.shape.login),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(
+      blacklistedSchema,
+      "Access denied (e.g., account banned, inactive)",
+    ),
+  },
+});
+
+export type LoginRoute = typeof loginRoute;
+
+export const oAuthInitRoute = createRoute({
+  tags: [...tags, "OAuth"],
+  method: "get",
+  path: "/auth/oauth/{provider}",
+  description: "Redirects to the OAuth provider",
+  request: {
+    params: oauthInitParamsSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        "application/json": {
+          schema: oAuthInitSuccessSchema,
+        },
+      },
+      description: "Redirects to the OAuth provider",
+      headers: oAuthHeaderSchema,
+    },
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertAuthProviderSchema.shape.init),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Too many login attempts",
+    ),
+  },
+});
+
+export type OAuthInitRoute = typeof oAuthInitRoute;
+
+export const oAuthCallbackRoute = createRoute({
+  tags: [...tags, "OAuth"],
+  method: "get",
+  path: "/auth/oauth/{provider}/callback",
+  description:
+    "Retrieves user information, creates the user and establishes session",
+  request: {
+    params: oauthInitParamsSchema,
+    query: oAuthCallbackQuerySchema,
+  },
+  responses: {
+    [HttpStatusCodes.FOUND]: {
+      description:
+        "Authenticates a user and creates a session and returns user data",
+      headers: z.object({
+        cookie: cookieSchema.shape.cookie,
+        location: locationSchema.shape.Location,
+      }),
+    },
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      oAuthCallbackBadRequestSchema,
+      "Missing request data",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      loginUnauthorizedSchema,
+      "Invalid credentials",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertAuthProviderSchema.shape.init),
+      "Validation error(s)",
+    ),
+  },
+});
+
+export type OAuthCallbackRoute = typeof oAuthCallbackRoute;
+
+export const logoutRoute = createRoute({
+  tags,
+  method: "post",
+  path: "/auth/logout",
+  description: "Logouts the user and invalidates the session",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      logoutSuccessSchema,
+      "Invalidates the session",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(csrfErrorSchema, "CSRF failure"),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Too many logout attempts",
+    ),
+  },
+});
+
+export type LogoutRoute = typeof logoutRoute;
+
+export const sendForgotPasswordEmailRoute = createRoute({
+  tags,
+  method: "post",
+  path: "/auth/send-forgot-password-email",
+  description: "Sends the forgot password email to the user",
+  request: {
+    body: jsonContentRequired(
+      insertUserSchema.shape.sendEmail,
+      "The user email",
+    ),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(verifyEmailSuccessSchema, "Email sent"),
+
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      forgotPasswordConflictSchema,
+      "Lock not acquired",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Too many request attempts",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(insertUserSchema.shape.sendEmail),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(csrfErrorSchema, "CSRF failure"),
+  },
+});
+
+export type SendForgotPasswordEmailRoute = typeof sendForgotPasswordEmailRoute;
+
+export const forgotPasswordRoute = createRoute({
+  tags,
+  method: "post",
+  path: "/auth/forgot-password",
+  description:
+    "Changes the password of the user, sets the session cookie and returns the user data",
+  request: {
+    body: jsonContentRequired(
+      forgotPasswordBodySchema,
+      "The token and new password",
+    ),
+  },
+  responses: {
+    [HttpStatusCodes.OK]: {
+      content: {
+        "application/json": {
+          schema: forgotPasswordSuccessSchema,
+        },
+      },
+      description: "Password reset",
+      headers: cookieSchema,
+    },
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      forgotPasswordConflictSchema,
+      "Lock not acquired",
+    ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      verifyEmailBadRequestSchema,
+      "Password reset token does not match or it has expired",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(forgotPasswordBodySchema),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+    [HttpStatusCodes.FORBIDDEN]: jsonContent(csrfErrorSchema, "CSRF failure"),
+  },
+});
+
+export type ForgotPasswordRoute = typeof forgotPasswordRoute;
+</file>
+
+<file path="src/modules/auth/auth.validations.ts">
+import { z } from "@hono/zod-openapi";
+import { selectUserWithInfoSchema } from "@novelty/db/lib/types";
+import { selectAuthProviderSchema } from "@novelty/db/schemas/auth-provider.schema";
+import { selectUserSchema } from "@novelty/db/schemas/user.schema";
+
+export const getAuthMeSuccessSchema = z
+  .object({
+    userId: z.string(),
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      userId: "V1StGXR8_Z5jdHi6B-myT",
+      success: true,
+    },
+  });
+
+export const registerCreatedSchema = z
+  .object({
+    message: z.string(),
+    user: selectUserSchema,
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      message:
+        "Registration successful. Please verify your email to activate your account.",
+      success: true,
+      user: {
+        id: "V1StGXR8_Z5jdHi6B-myT",
+        email: "email@mail.com",
+        isEmailVerified: false,
+        createdAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        updatedAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        isOnboarded: false,
+      },
+    },
+  });
+
+export const registerConflictSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      success: false,
+      message: "An account with that email already exists.",
+    },
+  });
+
+export const sendVerificationEmailSuccessSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      message: "Email verification sent successfully",
+      success: true,
+    },
+  });
+
+export const sendVerificationEmailNotFoundSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "This email does not exist",
+      success: false,
+    },
+  });
+
+export const sendVerificationEmailConflictSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "Another process is already handling this email",
+      success: false,
+    },
+  });
+
+export const verifyEmailSuccessSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      message: "Email verified",
+      success: true,
+    },
+  });
+
+export const verifyEmailNotFoundSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "This user does not exist",
+      success: false,
+    },
+  });
+
+export const verifyEmailBadRequestSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "The code is incorrect or it has already expired",
+      success: false,
+    },
+  });
+
+export const verifyEmailConflictSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "This email has already been verified",
+      success: false,
+    },
+  });
+
+export const loginSuccessSchema = z
+  .object({
+    message: z.string(),
+    user: selectUserWithInfoSchema,
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      message: "Login successful",
+      success: true,
+      user: {
+        id: "V1StGXR8_Z5jdHi6B-myT",
+        email: "email@mail.com",
+        isEmailVerified: false,
+        createdAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        updatedAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        isOnboarded: false,
+        userInfo: {
+          profile: {
+            avatarUrl: "avatar:url",
+            bio: "some-bio",
+            username: "username",
+          },
+          preferences: {
+            genres: ["fantasy", "sc-fi", "romance"],
+            authors: ["Brandon Sanderson", "Stephen King"],
+            series: ["Mistborn", "The Dark Tower"],
+          },
+        },
+      },
+    },
+  });
+
+export const loginUnauthorizedSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "Invalid credentials",
+      success: false,
+    },
+  });
+
+export const oauthInitParamsSchema = z.object({
+  provider: selectAuthProviderSchema.shape.provider.refine(
+    (v) => v !== "email",
+    {
+      message: "The provider must be oauth",
+    },
+  ),
+});
+
+export type OauthInitParams = z.infer<typeof oauthInitParamsSchema>;
+
+export const oAuthCallbackQuerySchema = z.object({
+  state: z.string(),
+  code: z.string(),
+});
+
+export type OAuthCallbackQuery = z.infer<typeof oAuthCallbackQuerySchema>;
+
+export const oAuthCallbackBadRequestSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "Invalid request",
+      success: false,
+    },
+  });
+
+export const logoutSuccessSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    example: {
+      message: "Logout successful",
+    },
+  });
+
+export const forgotPasswordConflictSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "Another process is already handling this email",
+      success: false,
+    },
+  });
+
+export const forgotPasswordSuccessSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      message: "Password successfully reset",
+      success: true,
+    },
+  });
+
+export const forgotPasswordSchema = z
+  .object({
+    message: z.string(),
+    user: selectUserWithInfoSchema.optional(),
+  })
+  .openapi({
+    example: {
+      message: "Email verified",
+      user: {
+        id: "V1StGXR8_Z5jdHi6B-myT",
+        email: "email@mail.com",
+        isEmailVerified: false,
+        createdAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        updatedAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        isOnboarded: false,
+        userInfo: {
+          profile: {
+            avatarUrl: "avatar:url",
+            bio: "some-bio",
+            username: "username",
+          },
+          preferences: {
+            genres: ["fantasy", "sc-fi", "romance"],
+            authors: ["Brandon Sanderson", "Stephen King"],
+            series: ["Mistborn", "The Dark Tower"],
+          },
+        },
+      },
+    },
+  });
+
+export const oAuthInitSuccessSchema = z
+  .object({
+    url: z.url(),
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      url: "https://accounts.google.com/o/oauth2/v2/auth",
+      success: true,
+    },
+  });
+</file>
+
+<file path="src/modules/healhcheck/test/healthcheck.endpoint.test.ts">
+import type { Pool as TPool } from "pg";
+import env from "@/env";
+import createApp from "@/lib/create-app";
+import { testDb, testQueue, testRedis, testS3 } from "@/test-setup";
+import { S3Client } from "@aws-sdk/client-s3";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { redisConfig } from "@novelty/message-queue/config";
+import { createQueue } from "@novelty/message-queue/lib/create-queue";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { testClient } from "hono/testing";
+import { Redis } from "ioredis";
+import { describe, expect, it, vi } from "vitest";
+import { healthcheckRouter } from "../healthcheck.index";
+
+vi.mock("@hono/node-server/conninfo", () => ({
+  getConnInfo: vi.fn(() => ({
+    remote: {
+      address: "127.0.0.1",
+    },
+  })),
+}));
+
+let dbClient: any;
+
+vi.mock("@novelty/db/index", () => ({
+  get db() {
+    return dbClient;
+  },
+}));
+
+let redis: any;
+
+vi.mock("@novelty/redis/index", () => ({
+  get redis() {
+    return redis;
+  },
+}));
+
+let emailQueue: any;
+
+vi.mock("@novelty/message-queue/queues/email.queue", () => ({
+  get emailQueue() {
+    return emailQueue;
+  },
+}));
+
+let s3Client: any;
+
+vi.mock("@novelty/lib/s3-client", () => ({
+  get s3Client() {
+    return s3Client;
+  },
+}));
+
+vi.mock("@/middleware/rate-limit.ts", () => ({
+  mainLimiter: vi.fn(),
+  emailVerificationLimiter: vi.fn(),
+}));
+
+if (env.NODE_ENV !== "test") {
+  throw new Error("NODE_ENV must be 'test'");
+}
+
+const client = testClient(createApp().route("/", healthcheckRouter));
+
+describe("healthcheck routes", () => {
+  it("get /healthcheck handles all service available", async () => {
+    dbClient = testDb;
+    redis = testRedis;
+    emailQueue = testQueue;
+    s3Client = testS3;
+
+    const response = await client.healthcheck.$get();
+
+    expect(response.status).toBe(HttpStatusCodes.OK);
+
+    const json = await response.json();
+    expect(json.status).toMatch(/healthy/i);
+    expect(json.environment).toBe("test");
+    expect(json.readiness.database).toBe("connected");
+    expect(json.readiness.redis).toBe("connected");
+    expect(json.readiness.emailQueue).toBe("connected");
+    expect(json.readiness.r2).toBe("connected");
+  });
+
+  it("get /healthcheck handles all services unavailable", async () => {
+    dbClient = drizzle({ client: "" as unknown as TPool });
+    redis = new Redis({
+      port: 0,
+      retryStrategy: () => {},
+    });
+    emailQueue = createQueue("test", {
+      port: 0,
+      host: "host",
+      retryStrategy: redisConfig.retryStrategy,
+    });
+    s3Client = new S3Client();
+
+    const response = await client.healthcheck.$get();
+
+    expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+    const json = await response.json();
+    expect(json.status).toMatch(/unhealthy/);
+    expect(json.environment).toBe("test");
+    expect(json.readiness.database).toBe("disconnected");
+    expect(json.readiness.redis).toBe("disconnected");
+    expect(json.readiness.emailQueue).toBe("disconnected");
+  });
+
+  it("get /healthcheck handles database service unavailable", async () => {
+    dbClient = drizzle({ client: "" as unknown as TPool });
+    redis = testRedis;
+    emailQueue = testQueue;
+    s3Client = testS3;
+
+    const response = await client.healthcheck.$get();
+
+    expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+    const json = await response.json();
+    expect(json.status).toMatch(/unhealthy/);
+    expect(json.environment).toBe("test");
+    expect(json.readiness.database).toBe("disconnected");
+    expect(json.readiness.redis).toBe("connected");
+    expect(json.readiness.emailQueue).toBe("connected");
+    expect(json.readiness.r2).toBe("connected");
+  });
+
+  it("get /healthcheck handles redis service unavailable", async () => {
+    dbClient = testDb;
+    redis = new Redis({
+      port: 0,
+      retryStrategy: () => {},
+    });
+    emailQueue = testQueue;
+    s3Client = testS3;
+
+    const response = await client.healthcheck.$get();
+
+    expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+    const json = await response.json();
+    expect(json.status).toMatch(/unhealthy/);
+    expect(json.environment).toBe("test");
+    expect(json.readiness.database).toBe("connected");
+    expect(json.readiness.redis).toBe("disconnected");
+    expect(json.readiness.emailQueue).toBe("connected");
+    expect(json.readiness.r2).toBe("connected");
+  });
+
+  it("get /healthcheck handles emailQueue service unavailable", async () => {
+    dbClient = testDb;
+    redis = testRedis;
+    emailQueue = createQueue("test", {
+      port: 0,
+      host: "host",
+      retryStrategy: redisConfig.retryStrategy,
+    });
+    s3Client = testS3;
+
+    const response = await client.healthcheck.$get();
+
+    expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+    const json = await response.json();
+    expect(json.status).toMatch(/healthy/i);
+    expect(json.environment).toBe("test");
+    expect(json.readiness.database).toBe("connected");
+    expect(json.readiness.redis).toBe("connected");
+    expect(json.readiness.emailQueue).toBe("disconnected");
+    expect(json.readiness.r2).toBe("connected");
+  });
+
+  it("get /healthcheck handles r2 service unavailable", async () => {
+    dbClient = testDb;
+    redis = testRedis;
+    emailQueue = testQueue;
+    s3Client = new S3Client();
+
+    const response = await client.healthcheck.$get();
+
+    expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+    const json = await response.json();
+    expect(json.status).toMatch(/healthy/i);
+    expect(json.environment).toBe("test");
+    expect(json.readiness.database).toBe("connected");
+    expect(json.readiness.redis).toBe("connected");
+    expect(json.readiness.emailQueue).toBe("connected");
+    expect(json.readiness.r2).toBe("disconnected");
+  });
+});
+</file>
+
+<file path="src/modules/healhcheck/healthcheck.handlers.ts">
+import type { AppRouteHandler } from "@/types/index.types";
+import type { HealthcheckRoute } from "./healthcheck.routes";
+import env from "@/env";
+import logger from "@/lib/logger";
+import { prometheusRegistry } from "@/lib/metrics";
+import { db } from "@novelty/db/index";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { s3Client } from "@novelty/lib/s3-client";
+import { emailQueue } from "@novelty/message-queue/queues/email.queue";
+import { redis } from "@novelty/redis";
+import {
+  checkDbHealth,
+  checkEmailQueueHealth,
+  checkR2Health,
+  checkRedisHealth,
+} from "@novelty/services/healthcheck.service";
+
+interface Response {
+  dbStatus?: boolean;
+  redisStatus?: boolean;
+  emailQueueStatus?: boolean;
+  r2Status?: boolean;
+}
+
+export const handleHealthcheck: AppRouteHandler<HealthcheckRoute> = async (
+  c,
+) => {
+  c.var.logger.info({
+    message: "API status requested",
+    reqId: c.var.requestId,
+  });
+
+  const res: Response = {};
+
+  try {
+    res.dbStatus = !!(await checkDbHealth({
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    }));
+  }
+  catch (error) {
+    c.var.logger.error({
+      message: "Database connection error",
+      source: "handleHealthcheck",
+      error: (error as Error).message,
+      stackTrace: (error as Error)?.stack,
+    });
+  }
+
+  try {
+    res.redisStatus = !!(await checkRedisHealth({
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    }));
+  }
+  catch (error) {
+    c.var.logger.error({
+      message: "Redis connection error",
+      source: "handleHealthcheck",
+      error: (error as Error).message,
+      stackTrace: (error as Error)?.stack,
+    });
+  }
+
+  try {
+    res.emailQueueStatus = !!(await checkEmailQueueHealth({
+      messageQueueInstance: emailQueue,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    }));
+  }
+  catch (error) {
+    c.var.logger.error({
+      message: "Email queue connection error",
+      source: "handleHealthcheck",
+      error: (error as Error).message,
+      stackTrace: (error as Error)?.stack,
+    });
+  }
+
+  try {
+    res.r2Status = !!(await checkR2Health({
+      s3Client,
+      logger,
+      reqId: c.var.requestId,
+      prometheusRegistry,
+    }));
+  }
+  catch (error) {
+    c.var.logger.error({
+      message: "R2 connection error",
+      source: "handleHealthcheck",
+      error: (error as Error).message,
+      stackTrace: (error as Error)?.stack,
+    });
+  }
+
+  if (
+    !res.dbStatus
+    || !res.redisStatus
+    || !res.emailQueueStatus
+    || !res.r2Status
+  ) {
+    return c.json(
+      {
+        status: "unhealthy",
+        environment: env.NODE_ENV ?? "development",
+        readiness: {
+          database: res?.dbStatus ? "connected" : "disconnected",
+          redis: res?.redisStatus ? "connected" : "disconnected",
+          emailQueue: res?.emailQueueStatus ? "connected" : "disconnected",
+          r2: res.r2Status ? "connected" : "disconnected",
+        },
+      },
+      HttpStatusCodes.SERVICE_UNAVAILABLE,
+    );
+  }
+
+  return c.json(
+    {
+      status: "healthy",
+      environment: env.NODE_ENV ?? "development",
+      readiness: {
+        database: "connected",
+        redis: "connected",
+        emailQueue: "connected",
+        r2: "connected",
+      },
+    },
+    HttpStatusCodes.OK,
+  );
+};
+</file>
+
+<file path="src/modules/healhcheck/healthcheck.index.ts">
+import { createRouter } from "@/lib/create-app";
+
+import * as handlers from "./healthcheck.handlers";
+import * as routes from "./healthcheck.routes";
+
+export const healthcheckRouter = createRouter().openapi(
+  routes.healthcheckRoute,
+  handlers.handleHealthcheck,
+);
+</file>
+
+<file path="src/modules/healhcheck/healthcheck.routes.ts">
+import { jsonContent } from "@/lib/json-content";
+import { createRoute } from "@hono/zod-openapi";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import {
+  healthcheckOkSchema,
+  healthcheckUnavailableSchema,
+} from "./healthcheck.validations";
+
+export const healthcheckRoute = createRoute({
+  tags: ["Healthcheck"],
+  method: "get",
+  path: "/healthcheck",
+  description: "Verifies the status of the API",
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      healthcheckOkSchema,
+      "Successful healthcheck",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      healthcheckUnavailableSchema,
+      "Service unavailable",
+    ),
+  },
+});
+
+export type HealthcheckRoute = typeof healthcheckRoute;
+</file>
+
+<file path="src/modules/healhcheck/healthcheck.validations.ts">
+import { z } from "@hono/zod-openapi";
+
+export const healthcheckOkSchema = z
+  .object({
+    status: z.literal("healthy"),
+    environment: z.enum(["development", "production", "test", "debug"]),
+    readiness: z.object({
+      database: z.literal("connected"),
+      redis: z.literal("connected"),
+      emailQueue: z.literal("connected"),
+      r2: z.literal("connected"),
+    }),
+  })
+  .openapi({
+    example: {
+      status: "healthy",
+      environment: "development",
+      readiness: {
+        database: "connected",
+        redis: "connected",
+        emailQueue: "connected",
+        r2: "connected",
+      },
+    },
+  });
+
+export const healthcheckUnavailableSchema = z
+  .object({
+    status: z.literal("unhealthy"),
+    environment: z.enum(["development", "production", "test", "debug"]),
+    readiness: z.object({
+      database: z.enum(["connected", "disconnected"]),
+      redis: z.enum(["connected", "disconnected"]),
+      emailQueue: z.enum(["connected", "disconnected"]),
+      r2: z.enum(["connected", "disconnected"]),
+    }),
+  })
+  .openapi({
+    example: {
+      status: "unhealthy",
+      environment: "development",
+      readiness: {
+        database: "disconnected",
+        redis: "disconnected",
+        emailQueue: "disconnected",
+        r2: "disconnected",
+      },
+    },
+  });
+
+export type HealthcheckOKResponse = z.infer<typeof healthcheckOkSchema>;
+</file>
+
+<file path="src/modules/user/test/user.endpoints.test.ts">
+import env from "@/env";
+import createApp from "@/lib/create-app";
+import createErrorSchema from "@/lib/create-error-schema";
+import { testDb, testDependencies, testRedis, testS3 } from "@/test-setup";
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { DatabaseConnectionError } from "@novelty/db/lib/errors";
+import * as authDbQueries from "@novelty/db/queries/auth.query";
+import * as userDbQueries from "@novelty/db/queries/user.query";
+import type { InsertUserInfo } from "@novelty/db/schemas/user-info.schema";
+import { userInfoTable } from "@novelty/db/schemas/user-info.schema";
+import { usersTable } from "@novelty/db/schemas/user.schema";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { RedisConnectionError } from "@novelty/redis/lib/errors";
+import * as redisQueries from "@novelty/redis/queries/index.query";
+import * as redisJsonQueries from "@novelty/redis/queries/json.query";
+import { USER_INFO_DRAFT_KEY } from "@novelty/services/lib/config";
+import * as serviceUtils from "@novelty/services/lib/utils";
+import { createSession } from "@novelty/services/session.service";
+import { sql } from "drizzle-orm";
+import { Blob } from "fetch-blob";
+import { testClient } from "hono/testing";
+import { Buffer } from "node:buffer";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { z } from "zod/v4";
+import { userRouter } from "../user.index";
+
+vi.mock("@hono/node-server/conninfo", () => ({
+  getConnInfo: vi.fn(() => ({
+    remote: {
+      address: "127.0.0.1",
+    },
+  })),
+}));
+
+vi.mock("@novelty/db/index", () => ({
+  get db() {
+    return testDb;
+  },
+}));
+
+vi.mock("@novelty/redis/index", () => ({
+  get redis() {
+    return testRedis;
+  },
+}));
+
+vi.mock("@novelty/lib/s3-client", () => ({
+  get s3Client() {
+    return testS3;
+  },
+}));
+
+vi.mock("@/middleware/rate-limit.ts", () => ({
+  mainLimiter: vi.fn((c, next) => next()),
+  emailVerificationLimiter: vi.fn((c, next) => next()),
+}));
+
+if (env.NODE_ENV !== "test") {
+  throw new Error("NODE_ENV must be 'test'");
+}
+
+const dummyUser = {
+  email: "mail@email.com",
+  password: "password123",
+  id: "123",
+  isEmailVerified: true,
+};
+
+const dummyUserInfo: InsertUserInfo = {
+  preferences: {
+    genres: ["fantasy", "sci-fi", "comedy"],
+    authors: ["author"],
+    series: ["series"],
+  },
+  profile: {
+    avatarUrl: "url",
+    bio: "bio",
+    username: "username",
+  },
+};
+
+const dummyUserInfoDraft = {
+  avatarUrl: dummyUserInfo.profile.avatarUrl,
+  bio: dummyUserInfo.profile.bio,
+  username: dummyUserInfo.profile.username,
+  preferences: dummyUserInfo.preferences,
+};
+
+const client = testClient(createApp().route("/", userRouter));
+
+describe("user routes", () => {
+  let dummyCookie: string;
+
+  beforeEach(async () => {
+    await testDb.insert(usersTable).values(dummyUser);
+    await testDb.insert(userInfoTable).values({
+      userId: dummyUser.id,
+      avatarUrl: dummyUserInfo.profile.avatarUrl,
+      bio: dummyUserInfo.profile.bio,
+      username: dummyUserInfo.profile.username,
+      preferences: dummyUserInfo.preferences,
+    });
+
+    const dummySessionToken = "dummy-token";
+
+    await createSession(
+      {
+        logger: testDependencies.logger,
+        prometheusRegistry: testDependencies.prometheusRegistry,
+        redisClient: testRedis,
+        reqId: testDependencies.reqId,
+      },
+      dummySessionToken,
+      dummyUser.id,
+    );
+
+    dummyCookie = [
+      `session=${dummySessionToken}`,
+      "HttpOnly",
+      "SameSite=Lax",
+      "Path=/",
+      `Max-Age=${1000}`,
+    ]
+      .filter(Boolean)
+      .join("; ");
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await testDb.execute(sql`TRUNCATE table users CASCADE`);
+    await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+  });
+
+  describe("get /user/profile", async () => {
+    it("should handle success", async () => {
+      const response = await client.user.profile.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+
+      const profileData = await response.json();
+
+      expect(profileData).toEqual({
+        success: true,
+        userInfo: dummyUserInfo.profile,
+      });
+    });
+
+    it("should handle not found", async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+
+      const response = await client.user.profile.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.profile.$get({
+        header: { cookie: "invalid-cookie" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(userDbQueries, "getProfileByUserIdQuery").mockImplementationOnce(
+        () => {
+          throw new DatabaseConnectionError("Database connection failed");
+        },
+      );
+
+      const response = await client.user.profile.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe("patch /user/profile", async () => {
+    const dummyFile = new Blob([Buffer.from("fake image data")], {
+      type: "image/jpg",
+    });
+
+    const bucketName = env.R2_BUCKET_NAME;
+
+    const dummyPayload = {
+      bio: dummyUserInfo.profile.bio,
+      username: dummyUserInfo.profile.username,
+      profileImage: dummyFile,
+    };
+
+    const dummyKey = `profile_pictures/${dummyUser.id}.jpg`;
+
+    beforeEach(() => {
+      vi.spyOn(serviceUtils, "getOldKey").mockReturnValue(dummyKey);
+    });
+
+    afterEach(async () => {
+      await testS3.send(
+        new DeleteObjectCommand({
+          Bucket: bucketName,
+          Key: dummyKey,
+        }),
+      );
+    });
+
+    it("should handle success", async () => {
+      const response = await client.user.profile.$patch({
+        form: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NO_CONTENT);
+    });
+
+    it("should handle not found", async () => {
+      await testDb.delete(usersTable);
+
+      const response = await client.user.profile.$patch({
+        form: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle conflict", async () => {
+      await testDb.insert(usersTable).values({
+        isEmailVerified: true,
+        id: "1234",
+        email: "dummy@mail.com",
+        password: "pass",
+      });
+
+      await testDb.insert(userInfoTable).values({
+        username: "new-user",
+        userId: "1234",
+      });
+
+      const response = await client.user.profile.$patch({
+        form: { ...dummyPayload, username: "new-user" },
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.CONFLICT);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.profile.$patch({
+        header: { cookie: "invalid-cookie" },
+        form: {},
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("returns unprocessable entity if request body is invalid", async () => {
+      const invalidBody = {
+        bio: "",
+        username: "us", // username must be at least 4 characters
+        profileImage: dummyFile,
+      };
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(serviceUtils.updateProfileSchema);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.user.profile.$patch({
+        header: { cookie: dummyCookie },
+        form: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("returns unprocessable entity if file type is invalid", async () => {
+      const invalidFile = new Blob([Buffer.from("fake image data")], {
+        type: ".pdf",
+      });
+
+      const invalidBody = {
+        bio: "",
+        username: "username",
+        profileImage: invalidFile,
+      };
+
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(serviceUtils.updateProfileSchema);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.user.profile.$patch({
+        header: { cookie: dummyCookie },
+        form: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(authDbQueries, "getUserByIdQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.user.profile.$patch({
+        form: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe("get /user/preferences", async () => {
+    it("should handle success", async () => {
+      const response = await client.user.preferences.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.OK);
+
+      const profileData = await response.json();
+
+      expect(profileData).toEqual({
+        success: true,
+        userPreferences: dummyUserInfo.preferences,
+      });
+    });
+
+    it("should handle not found", async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+
+      const response = await client.user.preferences.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.preferences.$get({
+        header: { cookie: "invalid-cookie" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(
+        userDbQueries,
+        "getPreferencesByUserIdQuery",
+      ).mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.user.preferences.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe("patch /user/preferences", async () => {
+    const dummyPayload = dummyUserInfo.preferences;
+
+    it("should handle success", async () => {
+      const response = await client.user.preferences.$patch({
+        json: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NO_CONTENT);
+    });
+
+    it("should handle not found", async () => {
+      await testDb.delete(usersTable);
+
+      const response = await client.user.preferences.$patch({
+        json: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.NOT_FOUND);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.preferences.$patch({
+        header: { cookie: "invalid-cookie" },
+        json: dummyPayload,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("returns unprocessable entity if request body is invalid", async () => {
+      const invalidBody = {
+        genres: [""],
+        authors: 1,
+      };
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const errorSchema = createErrorSchema(serviceUtils.updateProfileSchema);
+      type ValidationError = z.infer<typeof errorSchema>;
+
+      const response = await client.user.preferences.$patch({
+        header: { cookie: dummyCookie },
+        // @ts-expect-error simulate zod error
+        json: invalidBody,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNPROCESSABLE_ENTITY);
+      const json = (await response.json()) as ValidationError;
+
+      expect(json).toHaveProperty("error");
+      expect(json.success).toBe(false);
+      expect(json.error.name).toBe("ZodError");
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(authDbQueries, "getUserByIdQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.user.preferences.$patch({
+        json: dummyPayload,
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe("patch /user/onboarding/complete", () => {
+    it("returns 204 when onboarding completes", async () => {
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+    });
+
+    it("returns 404 when user not found", async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: dummyCookie },
+      });
+      expect(res.status).toBe(HttpStatusCodes.NOT_FOUND);
+      const data = await res.json();
+      expect(data).toMatchObject({ success: false });
+    });
+
+    it("returns 409 when already onboarded", async () => {
+      await testDb.update(usersTable).set({ isOnboarded: true });
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: dummyCookie },
+      });
+      expect(res.status).toBe(HttpStatusCodes.CONFLICT);
+      const data = await res.json();
+      expect(data).toMatchObject({ success: false });
+    });
+
+    it("returns 400 when missing required info", async () => {
+      await testDb.update(usersTable).set({ isEmailVerified: false });
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: dummyCookie },
+      });
+      expect(res.status).toBe(HttpStatusCodes.BAD_REQUEST);
+      const data = await res.json();
+      expect(data).toMatchObject({ success: false });
+    });
+
+    it("returns 401 when unauthorized", async () => {
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: "invalid-cookie" },
+      });
+      expect(res.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+      const data = await res.json();
+
+      expect(data).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("returns 503 when service is unavailable", async () => {
+      vi.spyOn(authDbQueries, "updateUserByIdQuery").mockImplementationOnce(
+        () => {
+          throw new DatabaseConnectionError("DB error");
+        },
+      );
+      const res = await client.user.onboarding.complete.$patch({
+        header: { cookie: dummyCookie },
+      });
+      expect(res.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+      const data = await res.json();
+      expect(data).toMatchObject({ message: expect.any(String) });
+    });
+  });
+
+  describe("get /user/draft", () => {
+    const dummyKey = `${USER_INFO_DRAFT_KEY}:${dummyUser.id}`;
+
+    beforeEach(async () => {
+      await testRedis.call(
+        "JSON.SET",
+        dummyKey,
+        "$",
+        JSON.stringify(dummyUserInfoDraft),
+      );
+    });
+
+    afterEach(async () => {
+      await testRedis.flushall();
+    });
+
+    it("returns the cached user info", async () => {
+      const res = await client.user.draft.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      const data = await res.json();
+
+      if ("userInfo" in data) {
+        expect(data.userInfo).toEqual([dummyUserInfoDraft]);
+      }
+      expect(res.status).toBe(HttpStatusCodes.OK);
+    });
+
+    it("should handle not found", async () => {
+      await testDb.execute(sql`TRUNCATE users CASCADE`);
+
+      const res = await client.user.draft.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.NOT_FOUND);
+
+      const profileData = await res.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle conflict", async () => {
+      await testRedis.del(dummyKey);
+
+      vi.spyOn(redisQueries, "doesKeyExists").mockResolvedValue(1);
+
+      const res = await client.user.draft.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.CONFLICT);
+
+      const profileData = await res.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.draft.$get({
+        header: { cookie: "invalid-cookie" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(userDbQueries, "getUserInfoQuery").mockImplementationOnce(() => {
+        throw new DatabaseConnectionError("Database connection failed");
+      });
+
+      const response = await client.user.draft.$get({
+        header: { cookie: dummyCookie },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe("patch /user/draft", () => {
+    it("updates the user info draft", async () => {
+      const res = await client.user.draft.$put({
+        header: { cookie: dummyCookie },
+        json: dummyUserInfo,
+      });
+
+      expect(res.status).toBe(HttpStatusCodes.NO_CONTENT);
+    });
+
+    it("should handle not authorized", async () => {
+      const response = await client.user.draft.$get({
+        header: { cookie: "invalid-cookie" },
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.UNAUTHORIZED);
+
+      const profileData = await response.json();
+
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it("should handle service unavailable", async () => {
+      vi.spyOn(redisJsonQueries, "setByKeyJson").mockRejectedValueOnce(
+        new RedisConnectionError("Database connection failed"),
+      );
+
+      const response = await client.user.draft.$put({
+        header: { cookie: dummyCookie },
+        json: dummyUserInfo,
+      });
+
+      expect(response.status).toBe(HttpStatusCodes.SERVICE_UNAVAILABLE);
+
+      const profileData = await response.json();
+      expect(profileData).toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+});
+</file>
+
+<file path="src/modules/user/user.handlers.ts">
+import env from "@/env";
+import logger from "@/lib/logger";
+import { prometheusRegistry } from "@/lib/metrics";
+import { readArray } from "@/lib/read-array";
+import type { AppRouteHandler } from "@/types/index.types";
+import { db } from "@novelty/db";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { s3Client } from "@novelty/lib/s3-client";
+import { redis } from "@novelty/redis";
+import {
+  completeOnboarding,
+  getPreferences,
+  getProfile,
+  getUser,
+  getUserDraft,
+  updatePreferences,
+  updateProfile,
+  updateUser,
+  updateUserDraft,
+} from "@novelty/services/user.service";
+import type {
+  CompleteOnboardingRoute,
+  GetPreferencesRoute,
+  GetProfileRoute,
+  GetUserDraftRoute,
+  GetUserRoute,
+  UpdatePreferencesRoute,
+  UpdateProfileRoute,
+  UpdateUserDraftRoute,
+  UpdateUserRoute,
+} from "./user.routes";
+
+export const handleGetUser: AppRouteHandler<GetUserRoute> = async (c) => {
+  const { userId } = c.var.user;
+
+  const res = await getUser(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    userId
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        success: false,
+        message: res.error.message,
+      },
+      HttpStatusCodes[res.error.kind]
+    );
+  }
+
+  return c.json(
+    {
+      success: true,
+      user: res.data,
+    },
+    HttpStatusCodes.OK
+  );
+};
+
+export const handleUpdateUser: AppRouteHandler<UpdateUserRoute> = async (c) => {
+  const form = await c.req.formData();
+
+  const username = form.get("username")?.toString() ?? "";
+  const bio = form.get("bio")?.toString() ?? "";
+
+  const pf = form.get("profileImage");
+  const file = pf instanceof File ? pf : undefined;
+
+  const genres = readArray("genres", "genres[]");
+  const authors = readArray("authors", "authors[]");
+  const series = readArray("series", "series[]");
+
+  const { userId: currentUserId } = c.var.user;
+
+  const res = await updateUser(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      s3Client,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+      bucketName: env.R2_BUCKET_NAME,
+    },
+    {
+      payload: {
+        profile: {
+          username,
+          bio,
+          profileImage: file,
+        },
+        preferences: {
+          genres,
+          authors,
+          series,
+        },
+      },
+      userId: currentUserId,
+    }
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind]
+    );
+  }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
+};
+
+export const handleGetProfile: AppRouteHandler<GetProfileRoute> = async (c) => {
+  const { userId } = c.var.user;
+
+  const res = await getProfile(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    userId,
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        success: false,
+        message: res.error.message,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.json(
+    {
+      success: true,
+      userInfo: res.data,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleUpdateProfile: AppRouteHandler<UpdateProfileRoute> = async (
+  c,
+) => {
+  const body = await c.req.parseBody({ dot: true });
+
+  const username = body.username as string;
+  const bio = body.bio as string;
+  const profileImage = body.profileImage as File;
+
+  const { userId: currentUserId } = c.var.user;
+
+  const res = await updateProfile(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      s3Client,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+      bucketName: env.R2_BUCKET_NAME,
+    },
+    {
+      payload: {
+        username,
+        bio,
+        profileImage,
+      },
+      userId: currentUserId,
+    },
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
+};
+
+export const handleGetPreferences: AppRouteHandler<
+  GetPreferencesRoute
+> = async (c) => {
+  const { userId } = c.var.user;
+
+  const res = await getPreferences(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    userId,
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        success: false,
+        message: res.error.message,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.json(
+    {
+      success: true,
+      userPreferences: res.data,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleUpdatePreferences: AppRouteHandler<
+  UpdatePreferencesRoute
+> = async (c) => {
+  const body = c.req.valid("json");
+
+  const { userId } = c.var.user;
+
+  const res = await updatePreferences(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    {
+      payload: body,
+      userId,
+    },
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
+};
+
+export const handleCompleteOnboarding: AppRouteHandler<
+  CompleteOnboardingRoute
+> = async (c) => {
+  const { userId } = c.var.user;
+
+  const res = await completeOnboarding(
+    {
+      dbInstance: db,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    {
+      userId,
+    },
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
+};
+
+export const handleGetUserDraft: AppRouteHandler<GetUserDraftRoute> = async (
+  c,
+) => {
+  const { userId } = c.var.user;
+
+  const res = await getUserDraft(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    {
+      userId,
+    },
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.json(
+    {
+      userInfo: res.data,
+      success: true,
+    },
+    HttpStatusCodes.OK,
+  );
+};
+
+export const handleUpdateUserDraft: AppRouteHandler<
+  UpdateUserDraftRoute
+> = async (c) => {
+  const { userId } = c.var.user;
+  const body = c.req.valid("json");
+
+  await updateUserDraft(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+    },
+    {
+      userId,
+      payload: body,
+    },
+  );
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
+};
+</file>
+
+<file path="src/modules/user/user.index.ts">
+import { createRouter } from "@/lib/create-app";
+import * as handlers from "./user.handlers";
+import * as routes from "./user.routes";
+
+export const userRouter = createRouter()
+  .openapi(routes.getUserRoute, handlers.handleGetUser)
+  .openapi(routes.updateUserRoute, handlers.handleUpdateUser)
+  .openapi(routes.getProfileRoute, handlers.handleGetProfile)
+  .openapi(routes.updateProfileRoute, handlers.handleUpdateProfile)
+  .openapi(routes.getPreferencesRoute, handlers.handleGetPreferences)
+  .openapi(routes.updatePreferencesRoute, handlers.handleUpdatePreferences)
+  .openapi(routes.completeOnboardingRoute, handlers.handleCompleteOnboarding)
+  .openapi(routes.getUserDraftRoute, handlers.handleGetUserDraft)
+  .openapi(routes.updateUserDraftRoute, handlers.handleUpdateUserDraft);
+</file>
+
+<file path="src/modules/user/user.routes.ts">
+import createErrorSchema from "@/lib/create-error-schema";
+import { jsonContent } from "@/lib/json-content";
+import {
+  accountNotFoundSchema,
+  cookieSchema,
+  serviceUnavailableSchema,
+  tooManyRequestsSchema,
+  unauthenticatedSchema,
+} from "@/lib/response-schemas";
+import { createRoute } from "@hono/zod-openapi";
+import {
+  updateAllUserInfoSchema,
+  updateUserInfoSchema,
+} from "@novelty/db/schemas/user-info.schema";
+import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
+import { userDraftBodySchema } from "@novelty/lib/validations/user";
+import { updateProfileSchema } from "@novelty/services/lib/utils";
+import {
+  completeOnboardingConflictSchema,
+  completeOnboardingMissingFields,
+  getPreferencesSuccessSchema,
+  getProfileSuccessSchema,
+  getUserDraftConflictSchema,
+  getUserDraftSuccessSchema,
+  getUserSuccessSchema,
+  updateProfileConflictSchema,
+} from "./user.validations";
+
+const userTags = ["User"];
+const onboardingTags = ["Onboarding"];
+
+export const getUserRoute = createRoute({
+  tags: userTags,
+  method: "get",
+  path: "/user",
+  description: "Returns the user",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(getUserSuccessSchema, "User"),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist"
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated"
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Service unavailable"
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter"
+    ),
+  },
+});
+
+export type GetUserRoute = typeof getUserRoute;
+
+export const updateUserRoute = createRoute({
+  tags: userTags,
+  method: "patch",
+  path: "/user",
+  description: "Updates the user information",
+  request: {
+    body: {
+      content: {
+        "multipart/form-data": {
+          schema: updateAllUserInfoSchema,
+        },
+      },
+    },
+    description: "The user inputted data",
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: "Updated user profile",
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist"
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      updateProfileConflictSchema,
+      "Another process handling this query/username already taken"
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated"
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable"
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(updateUserInfoSchema.shape.profile),
+      "Validation error(s)"
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter"
+    ),
+  },
+});
+
+export type UpdateUserRoute = typeof updateUserRoute;
+
+export const getProfileRoute = createRoute({
+  tags: userTags,
+  method: "get",
+  path: "/user/profile",
+  description: "Returns the user profile",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      getProfileSuccessSchema,
+      "User profile information",
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Service unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type GetProfileRoute = typeof getProfileRoute;
+
+export const updateProfileRoute = createRoute({
+  tags: userTags,
+  method: "patch",
+  path: "/user/profile",
+  description: "Updates the user profile",
+  request: {
+    body: {
+      content: {
+        "multipart/form-data": {
+          schema: updateProfileSchema,
+        },
+      },
+    },
+    description: "The user inputted data",
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: "Updated user profile",
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      updateProfileConflictSchema,
+      "Another process handling this query/username already taken",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(updateUserInfoSchema.shape.profile),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type UpdateProfileRoute = typeof updateProfileRoute;
+
+export const getPreferencesRoute = createRoute({
+  tags: userTags,
+  method: "get",
+  path: "/user/preferences",
+  description: "Returns the user preferences",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      getPreferencesSuccessSchema,
+      "User preferences information",
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Service unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type GetPreferencesRoute = typeof getPreferencesRoute;
+
+export const updatePreferencesRoute = createRoute({
+  tags: userTags,
+  method: "patch",
+  path: "/user/preferences",
+  description: "Updates the user preferences",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: updateUserInfoSchema.shape.preferences,
+        },
+      },
+    },
+    description: "The user inputted data",
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: "Updated user preferences",
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(updateUserInfoSchema.shape.profile),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type UpdatePreferencesRoute = typeof updatePreferencesRoute;
+
+export const completeOnboardingRoute = createRoute({
+  tags: userTags.concat(onboardingTags),
+  method: "patch",
+  path: "/user/onboarding/complete",
+  description: "Completes the onboarding",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: "Onboarding completed",
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      completeOnboardingConflictSchema,
+      "Already onboarded",
+    ),
+    [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+      completeOnboardingMissingFields,
+      "Missing required information",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type CompleteOnboardingRoute = typeof completeOnboardingRoute;
+
+export const getUserDraftRoute = createRoute({
+  tags: userTags,
+  method: "get",
+  path: "/user/draft",
+  description: "Retrieves the cached user input if missing it sets it",
+  request: {
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.OK]: jsonContent(
+      getUserDraftSuccessSchema,
+      "Return from cache",
+    ),
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      getUserDraftConflictSchema,
+      "Already cached",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type GetUserDraftRoute = typeof getUserDraftRoute;
+
+export const updateUserDraftRoute = createRoute({
+  tags: userTags,
+  method: "put",
+  path: "/user/draft",
+  description: "Updates the cached user input",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: userDraftBodySchema,
+        },
+      },
+    },
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: "Return from cache",
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(updateUserInfoSchema.shape.profile),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type UpdateUserDraftRoute = typeof updateUserDraftRoute;
+</file>
+
+<file path="src/modules/user/user.validations.ts">
+import { z } from "@hono/zod-openapi";
+import { selectUserWithInfoSchema } from "@novelty/db/lib/types";
+import { selectUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
+
+export const getUserSuccessSchema = z
+  .object({
+    user: selectUserWithInfoSchema,
+    success: z.literal(true),
+  })
+  .openapi({
+    example: {
+      success: true,
+      user: {
+        id: "V1StGXR8_Z5jdHi6B-myT",
+        email: "email@mail.com",
+        isEmailVerified: false,
+        createdAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        updatedAt: "2024-12-09T12:34:56.789Z" as unknown as Date,
+        isOnboarded: false,
+        userInfo: {
+          profile: {
+            avatarUrl: "avatar:url",
+            bio: "some-bio",
+            username: "username",
+          },
+          preferences: {
+            genres: ["fantasy", "sc-fi", "romance"],
+            authors: ["Brandon Sanderson", "Stephen King"],
+            series: ["Mistborn", "The Dark Tower"],
+          },
+        },
+      },
+    },
+  });
+
+export const getProfileSuccessSchema = z
+  .object({
+    userInfo: selectUserInfoSchema.shape.profile,
+  })
+  .openapi({
+    example: {
+      userInfo: {
+        avatarUrl: "avatar:url",
+        bio: "some-bio",
+        username: "username",
+      },
+    },
+  });
+
+export const updateProfileConflictSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    examples: [
+      {
+        message: "This username already exists",
+      },
+    ],
+  });
+
+export const getPreferencesSuccessSchema = z
+  .object({
+    userPreferences: selectUserInfoSchema.shape.preferences,
+  })
+  .openapi({
+    example: {
+      userPreferences: {
+        genres: ["fantasy", "sc-fi", "romance"],
+        authors: ["Brandon Sanderson", "Stephen King"],
+        series: ["Mistborn", "The Dark Tower"],
+      },
+    },
+  });
+
+export const completeOnboardingConflictSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    examples: [
+      {
+        message: "The user is already onboarded",
+      },
+    ],
+  });
+
+export const completeOnboardingMissingFields = z
+  .object({
+    message: z.string(),
+  })
+  .openapi({
+    examples: [
+      {
+        message: "All required information must be provided",
+      },
+    ],
+  });
+
+export const getUserDraftSuccessSchema = z
+  .object({
+    userInfo: selectUserInfoSchema,
+  })
+  .openapi({
+    example: {
+      userInfo: {
+        profile: {
+          avatarUrl: "avatar:url",
+          bio: "some-bio",
+          username: "username",
+        },
+        preferences: {
+          genres: ["fantasy", "sc-fi", "romance"],
+          authors: ["Brandon Sanderson", "Stephen King"],
+          series: ["Mistborn", "The Dark Tower"],
+        },
+      },
+    },
+  });
+
+export const getUserDraftConflictSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    examples: [
+      {
+        message: "The cache is not empty",
+        success: false,
+      },
+    ],
+  });
+</file>
+
+<file path="src/types/index.types.ts">
+import type {
+  OpenAPIHono,
+  RouteConfig,
+  RouteHandler,
+  z,
+} from "@hono/zod-openapi";
+import type { Span } from "@sentry/core";
+import type { PinoLogger } from "hono-pino";
+
+export interface User {
+  userId: string;
+  sessionId: string;
+}
+
+export interface AppBindings {
+  Variables: {
+    logger: PinoLogger;
+    sentrySpan: Span;
+    user: User;
+  };
+}
+
+export type AppOpenAPI = OpenAPIHono<AppBindings>;
+
+export type AppRouteHandler<R extends RouteConfig> = RouteHandler<
+  R,
+  AppBindings
+>;
+
+export type ZodSchema =
+  // @ts-expect-error error
+  z.ZodUnion | z.AnyZodObject | z.ZodArray<z.AnyZodObject>;
+</file>
+
+<file path="src/app.ts">
+import { healthcheckRouter } from "$/healhcheck/healthcheck.index";
+
+import { startCronJobs } from "@/cron/scheduler";
+import configureOpenAPI from "@/lib/configure-open-api";
+
+import { configurePrometheus } from "@/lib/configure-prometheus";
+import createApp from "@/lib/create-app";
+import { authRouter } from "./modules/auth/auth.index";
+import { userRouter } from "./modules/user/user.index";
+
+startCronJobs();
+
+const app = createApp()
+  .route("/", healthcheckRouter)
+  .route("/", authRouter)
+  .route("/", userRouter);
+
+configureOpenAPI(app);
+configurePrometheus(app);
+
+export type AppType = typeof app;
+
+export default app;
+</file>
+
+<file path="src/env.ts">
+/* eslint-disable node/no-process-env */
+import { config } from "dotenv";
+import { expand } from "dotenv-expand";
+import path from "node:path";
+import { z } from "zod/v4";
+
+expand(
+  config({
+    path: path.resolve(
+      process.cwd(),
+      process.env.NODE_ENV === "test" ? ".env.test" : ".env.local",
+    ),
+  }),
+);
+
+const EnvSchema = z.object({
+  NODE_ENV: z
+    .enum(["test", "debug", "development", "production"])
+    .default("development"),
+  PORT: z.coerce.number().default(3001),
+  LOKI_PORT: z.coerce.number().default(3100),
+  NODE_EXPORTER_PORT: z.coerce.number().default(9100),
+  LOG_LEVEL: z
+    .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
+    .default("info"),
+  BASE_URL: z.string().default("http://localhost"),
+  BASE_CLIENT_URL: z.string().default("http://localhost"),
+  SENTRY_DSN: z.string().default(""),
+  IS_OPEN_API_GENERATE: z.coerce.number().default(0),
+  DATABASE_URL: z.string().optional(),
+  REDIS_PORT: z.coerce.number().default(6379),
+  REDIS_PASSWORD: z.string().optional(),
+  EMAIL_ADDRESS: z.string().email().default("mail@email.com"),
+  ENCRYPTION_KEY: z.string(),
+  R2_ACCESS_KEY: z.string(),
+  R2_SECRET_ACCESS_KEY: z.string(),
+  R2_ENDPOINT: z.string().optional(),
+  R2_BUCKET_NAME: z.string(),
+
+  GOOGLE_CLIENT_ID: z.string(),
+  GOOGLE_CLIENT_SECRET: z.string(),
+  GOOGLE_REDIRECT_URI: z.string(),
+
+  AMAZON_COGNITO_DOMAIN: z.string(),
+  AMAZON_COGNITO_CLIENT_ID: z.string(),
+  AMAZON_COGNITO_CLIENT_SECRET: z.string(),
+  AMAZON_COGNITO_REDIRECT_URI: z.string(),
+});
+
+export type env = z.infer<typeof EnvSchema>;
+
+// eslint-disable-next-line ts/no-redeclare
+const { data: env, error } = EnvSchema.safeParse(process.env);
+
+if (error) {
+  // oxlint-disable-next-line no-console
+  console.error("❌ Invalid env:");
+  // oxlint-disable-next-line no-console
+  console.error(JSON.stringify(z.treeifyError(error).errors, null, 2));
+  process.exit(1);
+}
+
+export default env!;
+</file>
+
+<file path="src/index.ts">
+import app from "@/app";
+import env from "@/env";
+import logger from "@/lib/logger";
+import { serve } from "@hono/node-server";
+import "../instrument";
+
+logger.info(`Server is running on port http://localhost:${env.PORT}`);
+
+serve({
+  fetch: app.fetch,
+  port: env.PORT,
+});
+</file>
+
+<file path="src/rpc.ts">
+import { hc } from "hono/client";
+import type app from "./app";
+
+// eslint-disable-next-line unused-imports/no-unused-vars
+const client = hc<typeof app>("");
+export type Client = typeof client;
+
+export function generateRpcClient(...args: Parameters<typeof hc>): Client {
+  return hc<typeof app>(...args);
+}
+</file>
+
+<file path="src/test-setup.ts">
+/* eslint-disable import/no-mutable-exports */
+import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import type { DBClient } from "@novelty/db/lib/types";
+import * as schema from "@novelty/db/schemas/index.schema";
+import { configureLogger } from "@novelty/lib/logger";
+import { createQueue } from "@novelty/message-queue/lib/create-queue";
+import { createTestWorker } from "@novelty/message-queue/lib/create-test-worker";
+import type { ServiceDependencies } from "@novelty/services/types";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import type { ConnectionOptions, Queue } from "bullmq";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import type { Redis as TRedis } from "ioredis";
+import { Redis } from "ioredis";
+import path from "node:path";
+import type { Pool as TPool } from "pg";
+import { Pool } from "pg";
+import { Registry } from "prom-client";
+import Redlock from "redlock";
+import type { StartedTestContainer } from "testcontainers";
+import { GenericContainer } from "testcontainers";
+import { afterAll, beforeAll, vi } from "vitest";
+import env from "./env";
+
+// eslint-disable-next-line node/no-process-env
+if (process.env.NODE_ENV !== "test") {
+  throw new Error("NODE_ENV must be 'test'");
+}
+
+let dbContainer: StartedPostgreSqlContainer;
+let redisContainer: StartedTestContainer;
+let s3Container: StartedTestContainer;
+let pool: TPool;
+let testDb: DBClient;
+let testRedis: TRedis;
+let testQueue: Queue;
+let testS3: S3Client;
+let testDependencies: ServiceDependencies;
+let testRedlock: Redlock;
+let originalConsoleError: any;
+
+beforeAll(async () => {
+  dbContainer = await new PostgreSqlContainer()
+    .withStartupTimeout(12000)
+    .start();
+
+  redisContainer = await new GenericContainer("redis/redis-stack-server:latest")
+    .withExposedPorts(6379)
+    .start();
+
+  testRedis = new Redis({
+    maxRetriesPerRequest: null,
+    host: redisContainer.getHost(),
+    port: redisContainer.getMappedPort(6379),
+    enableReadyCheck: false,
+    enableOfflineQueue: true,
+  });
+
+  // oxlint-disable-next-line no-console
+  originalConsoleError = console.error;
+
+  // oxlint-disable-next-line no-console
+  console.error = (...args) => {
+    const message = args.join(" ");
+    if (message.includes("ECONNREFUSED") || message.includes("ENOTFOUND")) {
+      return;
+    }
+    originalConsoleError(...args);
+  };
+
+  testRedis.on("error", () => {});
+
+  const connectionOptions: ConnectionOptions = testRedis;
+
+  const redisClients = [testRedis];
+  testRedlock = new Redlock(redisClients);
+
+  const queueName = "email-queue";
+  const jobProcessors: Record<string, (data: any) => Promise<void>> = {
+    "send-verification-email": async () => {},
+    "send-forgot-password-email": async () => {},
+  };
+
+  testQueue = createQueue(queueName, connectionOptions);
+
+  testQueue.on("error", () => {});
+
+  createTestWorker(queueName, jobProcessors, testRedis);
+
+  pool = new Pool({
+    connectionString: dbContainer.getConnectionUri(),
+  });
+
+  testDb = drizzle({ client: pool, schema });
+
+  const migrationsFolder = path.resolve(
+    __dirname,
+    "../../../packages/db/migrations",
+  );
+  await migrate(testDb, {
+    migrationsFolder,
+  });
+
+  s3Container = await new GenericContainer("scireum/s3-ninja:latest")
+    .withExposedPorts(9000)
+    .start();
+
+  testS3 = new S3Client({
+    endpoint: `http://${s3Container.getHost()}:${s3Container.getMappedPort(9000)}`,
+    region: "auto",
+    credentials: {
+      accessKeyId: env.R2_ACCESS_KEY,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    },
+    forcePathStyle: true,
+  });
+
+  await testS3.send(new CreateBucketCommand({ Bucket: env.R2_BUCKET_NAME }));
+
+  const logger = configureLogger({
+    nodeEnvironment: "test",
+    hostUrl: "",
+    labels: {},
+    logLevel: "info",
+  });
+
+  testDependencies = {
+    dbInstance: testDb,
+    logger,
+    reqId: "test-req-id",
+    prometheusRegistry: new Registry(),
+    redisClient: testRedis,
+    s3Client: testS3,
+    redlockClient: testRedlock,
+  };
+});
+
+afterAll(async () => {
+  await pool.end();
+  await redisContainer.stop();
+  await dbContainer.stop();
+  await s3Container?.stop();
+  vi.clearAllMocks();
+});
+
+export { testDb, testDependencies, testQueue, testRedis, testRedlock, testS3 };
+</file>
+
+<file path=".env.example">
+NODE_ENV=development
+PORT=3000
+LOKI_PORT=3100
+NODE_EXPORTER_PORT=9100
+LOG_LEVEL=info
+BASE_URL=http://localhost
+BASE_CLIENT_URL=http://localhost:3002
+SENTRY_DSN=
+IS_OPEN_API_CI=false
+REDIS_PORT=6379
+REDIS_PASSWORD=na
+EMAIL_ADDRESS=na
+RESEND_API_KEY=na
+</file>
+
+<file path=".env.local">
+NODE_ENV=development
+PORT=3001
+NODE_EXPORTER_PORT=9100
+LOG_LEVEL=info
+BASE_URL=http://localhost
+BASE_CLIENT_URL=http://localhost:3002
+SENTRY_DSN=https://c73f7a4d40453e78fb70eeb7a2580ec7@o4508002054635520.ingest.de.sentry.io/4508375750738000
+DATABASE_URL=postgresql://user:password@localhost:5432/database
+REDIS_PORT=6379
+REDIS_PASSWORD=na
+RESEND_API_KEY=re_ie2GKDKX_Eht5Bo7roX78miiVCav9jBUJ
+EMAIL_ADDRESS=novelty@mail.novelty.im
+ENCRYPTION_KEY=cf7a2f4714194a2ee3e650e9ad89fd91
+R2_ACCESS_KEY=924a500e0146f2c640a35bd88e880812
+R2_SECRET_ACCESS_KEY=6ff6ad296b0ed48a3e679f5d9a534c5e45695d619890bd8bd5c8b991928086dd
+R2_ENDPOINT=https://17944129aec15089ba5b652da7933023.r2.cloudflarestorage.com
+R2_BUCKET_NAME=novelty
+GOOGLE_CLIENT_ID=680871126746-5c0j1n2h1kc55vgdfuv2uhgjps51un1c.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=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
+GOOGLE_REDIRECT_URI=http://localhost:3001/auth/oauth/google/callback
+AMAZON_COGNITO_DOMAIN=eu-north-1xudch9l8u.auth.eu-north-1.amazoncognito.com
+AMAZON_COGNITO_CLIENT_ID=52lirhves2irnp8g3tclhm77df
+AMAZON_COGNITO_CLIENT_SECRET=1l37rltdg284kcfeo7b7m8atkkp0dud0gdhgq65esl7p7fc6o9rn
+AMAZON_COGNITO_REDIRECT_URI=http://localhost:3001/auth/oauth/amazon/callback
+</file>
+
+<file path=".env.test">
+NODE_ENV=test
+PORT=3001
+LOG_LEVEL=silent
+BASE_URL=http://localhost
+BASE_CLIENT_URL=http://localhost:3002
+SENTRY_DSN=na
+DATABASE_URL=na
+REDIS_PORT=6379
+REDIS_PASSWORD=na
+EMAIL_ADDRESS=test@mail.com
+RESEND_API_KEY=na
+ENCRYPTION_KEY=0307f8a78425749c026cc6cac6341772
+R2_BUCKET_NAME=test-bucket
+R2_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
+R2_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+GOOGLE_CLIENT_ID=na
+GOOGLE_CLIENT_SECRET=na
+GOOGLE_REDIRECT_URI=na
+AMAZON_COGNITO_DOMAIN=na
+AMAZON_COGNITO_CLIENT_ID=na
+AMAZON_COGNITO_CLIENT_SECRET=na
+AMAZON_COGNITO_REDIRECT_URI=na
+</file>
+
+<file path=".sentryclirc">
+[auth]
+token=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
+</file>
+
+<file path="instrument.js">
+import * as Sentry from "@sentry/node";
+import { nodeProfilingIntegration } from "@sentry/profiling-node";
+import "dotenv/config";
+
+Sentry.init({
+  dsn: "https://c73f7a4d40453e78fb70eeb7a2580ec7@o4508002054635520.ingest.de.sentry.io/4508375750738000",
+  integrations: [nodeProfilingIntegration()],
+  // Tracing
+  // eslint-disable-next-line node/no-process-env
+  tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1, //  Capture 100% of the transactions
+  profilesSampleRate: 0.5,
+});
+// Manually call startProfiler and stopProfiler
+// to profile the code in between
+Sentry.profiler.startProfiler();
+
+// Starts a transaction that will also be profiled
+Sentry.startSpan(
+  {
+    name: "Index",
+  },
+  () => {},
+);
+</file>
+
+<file path="open-api-spec.yaml">
+openapi: 3.0.0
+info:
+  description: Novelty API
+  version: 0.0.1
+  title: Novelty API
+tags:
+  - name: Healthcheck
+components:
+  schemas: {}
+  parameters: {}
+paths:
+  /healthcheck:
+    get:
+      tags:
+        - Healthcheck
+      description: Verifies the status of the API
+      responses:
+        '200':
+          description: Successful healthcheck
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - healthy
+                  environment:
+                    type: string
+                    enum:
+                      - development
+                      - production
+                      - test
+                      - debug
+                  readiness:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        enum:
+                          - connected
+                      redis:
+                        type: string
+                        enum:
+                          - connected
+                example:
+                  status: healthy
+                  environment: development
+                  readiness:
+                    database: connected
+                    redis: connected
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - unhealthy
+                  environment:
+                    type: string
+                    enum:
+                      - development
+                      - production
+                      - test
+                      - debug
+                  readiness:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        enum:
+                          - connected
+                          - disconnected
+                      redis:
+                        type: string
+                        enum:
+                          - connected
+                          - disconnected
+                example:
+                  status: unhealthy
+                  environment: development
+                  readiness:
+                    database: disconnected
+                    redis: disconnected
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      description: Creates the unverified user in the database
+      requestBody:
+        description: The user inputted data
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  maxLength: 255
+                  format: email
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+      responses:
+        '201':
+          description: Successful registration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        maxLength: 255
+                      email:
+                        type: string
+                        maxLength: 255
+                      isEmailVerified:
+                        type: boolean
+                      createdAt:
+                        type: string
+                      updatedAt:
+                        type: string
+                example:
+                  message: >-
+                    Registration successful. Please verify your email to
+                    activate your account.
+                  user:
+                    id: V1StGXR8_Z5jdHi6B-myT
+                    email: email@mail.com
+                    isEmailVerified: false
+                    createdAt: '2024-12-09T12:34:56.789Z'
+                    updatedAt: '2024-12-09T12:34:56.789Z'
+        '409':
+          description: Existing email
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: An account with that email already exists.
+        '422':
+          description: Validation error(s)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+                    properties:
+                      issues:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            code:
+                              type: string
+                            path:
+                              type: array
+                              items:
+                                anyOf:
+                                  - type: string
+                                  - type: number
+                            message:
+                              type: string
+                      name:
+                        type: string
+                    example:
+                      issues:
+                        - code: invalid_type
+                          expected: string
+                          received: undefined
+                          path:
+                            - email
+                          message: Required
+                        - code: invalid_type
+                          expected: string
+                          received: undefined
+                          path:
+                            - password
+                          message: Required
+                      name: ZodError
+        '503':
+          description: Services unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: >-
+                    The server is currently unable to handle the request. Please
+                    try again later.
+  /auth/send-verification-email:
+    post:
+      tags:
+        - Auth
+      description: Sends the verification email to the user
+      requestBody:
+        description: The user email
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  maxLength: 255
+                  format: email
+      responses:
+        '200':
+          description: Email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: Email verification sent successfully
+        '404':
+          description: Email not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: This email does not exist
+        '409':
+          description: Email already verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: This email has already been verified
+        '422':
+          description: Validation error(s)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+                    properties:
+                      issues:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            code:
+                              type: string
+                            path:
+                              type: array
+                              items:
+                                anyOf:
+                                  - type: string
+                                  - type: number
+                            message:
+                              type: string
+                      name:
+                        type: string
+                    example:
+                      issues:
+                        - code: invalid_type
+                          expected: string
+                          received: undefined
+                          path:
+                            - email
+                          message: Required
+                      name: ZodError
+        '429':
+          description: Rate limiter
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: Too many requests, try again later
+        '503':
+          description: Services unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: >-
+                    The server is currently unable to handle the request. Please
+                    try again later.
+</file>
+
+<file path="package.json">
+{
+  "name": "@novelty/api",
+  "type": "module",
+  "version": "0.0.1",
+  "private": "true",
+  "exports": {
+    "./rpc": {
+      "import": {
+        "types": "./dist/src/rpc.d.ts",
+        "default": "./dist/src/rpc.js"
+      }
+    }
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "ts-node ./dist/src/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "pnpm run lint --fix",
+    "build": "tspc && tsc-alias --resolve-full-paths pnpm run build:rpc && pnpm sentry:sourcemaps",
+    "build:api": "tspc && pnpm sentry:sourcemaps",
+    "build:rpc": "tspc -p tsconfig.rpc.json",
+    "test": "cross-env NODE_ENV=test vitest",
+    "test:debug": "cross-env NODE_ENV=test vitest run --printConsoleTrace=true --silent=false",
+    "test:ci": "cross-env NODE_ENV=test vitest run",
+    "test:ui": "cross-env NODE_ENV=test vitest --ui",
+    "test:coverage": "cross-env NODE_ENV=test vitest run --coverage",
+    "clean": "rm -rf node_modules .turbo dist coverage",
+    "open-api:generate": "IS_OPEN_API_GENERATE=1 tsx ./src/lib/generate-open-api-spec.ts",
+    "open-api:lint": "pnpm dlx @superfaceai/openapi-linter lint ./open-api-spec.yaml",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org karol-pietrucha --project novelty-api ./dist && sentry-cli sourcemaps upload --org karol-pietrucha --project novelty-api ./dist"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^8.1.0",
+    "@hono/node-server": "^1.14.1",
+    "@hono/prometheus": "^1.0.1",
+    "@hono/sentry": "^1.2.1",
+    "@hono/zod-openapi": "^1.1.0",
+    "@novelty/db": "workspace:*",
+    "@novelty/email": "workspace:*",
+    "@novelty/lib": "workspace:*",
+    "@novelty/message-queue": "workspace:*",
+    "@novelty/redis": "workspace:*",
+    "@novelty/services": "workspace:*",
+    "@scalar/hono-api-reference": "^0.8.1",
+    "@sentry/cli": "^2.43.0",
+    "@sentry/node": "^9.12.0",
+    "@sentry/profiling-node": "^9.12.0",
+    "@types/pg": "^8.15.4",
+    "arctic": "^3.7.0",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.5.0",
+    "dotenv-expand": "^12.0.1",
+    "hono": "^4.7.6",
+    "hono-pino": "^0.8.0",
+    "hono-rate-limiter": "^0.4.2",
+    "js-yaml": "^4.1.0",
+    "node-cron": "^3.0.3",
+    "pino": "^9.6.0",
+    "pino-loki": "^2.5.0",
+    "pino-pretty": "^13.0.0",
+    "prom-client": "^15.1.3",
+    "rate-limit-redis": "^4.2.0",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^5.2.1",
+    "@aws-sdk/client-s3": "^3.864.0",
+    "@novelty/typescript-config": "workspace:*",
+    "@sentry/core": "^10.5.0",
+    "@sentry/types": "^10.5.0",
+    "@testcontainers/postgresql": "^11.5.1",
+    "@testcontainers/redis": "^11.5.1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.3.0",
+    "@types/node-cron": "^3.0.11",
+    "bullmq": "^5.58.0",
+    "cross-env": "^10.0.0",
+    "drizzle-orm": "^0.44.4",
+    "fetch-blob": "^4.0.0",
+    "ioredis": "^5.7.0",
+    "pg": "^8.16.3",
+    "redlock": "5.0.0-beta.2",
+    "testcontainers": "^11.5.1",
+    "ts-node": "^10.9.2",
+    "ts-patch": "^3.3.0",
+    "tsc-alias": "^1.8.16",
+    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.20.4",
+    "typescript": "5.9.2",
+    "typescript-transform-paths": "^3.5.5"
+  }
+}
+</file>
+
+<file path="tsconfig.json">
+{
+  "extends": "@novelty/typescript-config/base.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "lib": ["ESNext"],
+    "baseUrl": "./",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "paths": {
+      "@/*": ["./src/*"],
+      "$/*": ["./src/modules/*"]
+    },
+
+    "types": ["node"],
+    "declaration": true,
+    "inlineSources": true,
+    "outDir": "dist",
+    "sourceMap": true,
+
+    // Set `sourceRoot` to  "/" to strip the build path prefix
+    // from generated source code references.
+    // This improves issue grouping in Sentry.
+    "sourceRoot": "/",
+    "plugins": [{ "transform": "typescript-transform-paths" }]
+  },
+  "ts-node": {
+    "require": ["tsconfig-paths/register"]
+  },
+  "include": ["src/**/*"]
+}
+</file>
+
+<file path="tsconfig.rpc.json">
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "./dist"
+  },
+  "include": ["src/rpc.ts"]
+}
+</file>
+
+<file path="vitest.config.ts">
+import path from "node:path";
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    globals: true,
+    include: [
+      "src/modules/**/*.test.ts",
+      "src/middleware/**/*.test.ts",
+      "src/cron/**/*.test.ts",
+    ],
+    pool: "vmForks",
+    environment: "node",
+    reporters: ["default"],
+    hookTimeout: 100000,
+    setupFiles: "./src/test-setup.ts",
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "$": path.resolve(__dirname, "./src/modules/"),
+    },
+  },
+});
+</file>
+
+</files>

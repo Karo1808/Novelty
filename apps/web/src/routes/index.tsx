@@ -87,7 +87,7 @@ function Home() {
               </Link>
             </>
           )}
-          <Button
+          {/* <Button
             onClick={() => {
               throw new Error("Test error thrown from button");
             }}
@@ -97,7 +97,7 @@ function Home() {
               active:scale-95 active:bg-red-600 border-red-600 px-6 rounded-sm"
           >
             Throw Error
-          </Button>
+          </Button> */}
         </div>
       </nav>
 

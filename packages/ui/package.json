@@ -12,13 +12,13 @@
     "clean": "rm -rf node_modules .turbo dist coverage"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^4.12.0",
+    "@antfu/eslint-config": "^5.2.1",
     "@novelty/typescript-config": "workspace:*",
-    "@types/react": "^19.1.2",
-    "@types/react-dom": "^19.1.2",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "typescript": "5.8.3"
+    "typescript": "5.9.2"
   },
   "peerDependencies": {
     "react": "^19.1.0",
@@ -26,8 +26,13 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
+    "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-checkbox": "^1.3.2",
     "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-popover": "^1.1.14",
+    "@radix-ui/react-progress": "^1.1.7",
+    "@radix-ui/react-scroll-area": "^1.2.9",
+    "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@tailwindcss/postcss": "^4.1.10",
     "class-variance-authority": "^0.7.1",
@@ -40,7 +45,7 @@
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.9",
-    "tw-animate-css": "^1.3.4",
-    "zod": "^3.24.2"
+    "tw-animate-css": "^1.3.7",
+    "zod": "^4.0.17"
   }
 }

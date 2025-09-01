@@ -9,16 +9,41 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from "./routes/__root";
+import { Route as AuthRouteRouteImport } from "./routes/_auth/route";
 import { Route as IndexRouteImport } from "./routes/index";
+import { Route as AuthVerifyEmailRouteImport } from "./routes/_auth/verify-email";
+import { Route as AuthRegisterRouteImport } from "./routes/_auth/register";
+import { Route as AuthLoginRouteImport } from "./routes/_auth/login";
+import { Route as userOnboardingRouteImport } from "./routes/(user)/onboarding";
 import { Route as legalTermsOfServiceRouteImport } from "./routes/(legal)/terms-of-service";
-import { Route as authVerifyEmailRouteImport } from "./routes/(auth)/verify-email";
-import { Route as authRegisterRouteImport } from "./routes/(auth)/register";
-import { Route as authProtectedRouteImport } from "./routes/(auth)/protected";
-import { Route as authLoginRouteImport } from "./routes/(auth)/login";
 
+const AuthRouteRoute = AuthRouteRouteImport.update({
+  id: "/_auth",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const IndexRoute = IndexRouteImport.update({
   id: "/",
   path: "/",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AuthVerifyEmailRoute = AuthVerifyEmailRouteImport.update({
+  id: "/verify-email",
+  path: "/verify-email",
+  getParentRoute: () => AuthRouteRoute,
+} as any);
+const AuthRegisterRoute = AuthRegisterRouteImport.update({
+  id: "/register",
+  path: "/register",
+  getParentRoute: () => AuthRouteRoute,
+} as any);
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: "/login",
+  path: "/login",
+  getParentRoute: () => AuthRouteRoute,
+} as any);
+const userOnboardingRoute = userOnboardingRouteImport.update({
+  id: "/(user)/onboarding",
+  path: "/onboarding",
   getParentRoute: () => rootRouteImport,
 } as any);
 const legalTermsOfServiceRoute = legalTermsOfServiceRouteImport.update({
@@ -26,95 +51,110 @@ const legalTermsOfServiceRoute = legalTermsOfServiceRouteImport.update({
   path: "/terms-of-service",
   getParentRoute: () => rootRouteImport,
 } as any);
-const authVerifyEmailRoute = authVerifyEmailRouteImport.update({
-  id: "/(auth)/verify-email",
-  path: "/verify-email",
-  getParentRoute: () => rootRouteImport,
-} as any);
-const authRegisterRoute = authRegisterRouteImport.update({
-  id: "/(auth)/register",
-  path: "/register",
-  getParentRoute: () => rootRouteImport,
-} as any);
-const authProtectedRoute = authProtectedRouteImport.update({
-  id: "/(auth)/protected",
-  path: "/protected",
-  getParentRoute: () => rootRouteImport,
-} as any);
-const authLoginRoute = authLoginRouteImport.update({
-  id: "/(auth)/login",
-  path: "/login",
-  getParentRoute: () => rootRouteImport,
-} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
-  "/login": typeof authLoginRoute;
-  "/protected": typeof authProtectedRoute;
-  "/register": typeof authRegisterRoute;
-  "/verify-email": typeof authVerifyEmailRoute;
   "/terms-of-service": typeof legalTermsOfServiceRoute;
+  "/onboarding": typeof userOnboardingRoute;
+  "/login": typeof AuthLoginRoute;
+  "/register": typeof AuthRegisterRoute;
+  "/verify-email": typeof AuthVerifyEmailRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
-  "/login": typeof authLoginRoute;
-  "/protected": typeof authProtectedRoute;
-  "/register": typeof authRegisterRoute;
-  "/verify-email": typeof authVerifyEmailRoute;
   "/terms-of-service": typeof legalTermsOfServiceRoute;
+  "/onboarding": typeof userOnboardingRoute;
+  "/login": typeof AuthLoginRoute;
+  "/register": typeof AuthRegisterRoute;
+  "/verify-email": typeof AuthVerifyEmailRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
-  "/(auth)/login": typeof authLoginRoute;
-  "/(auth)/protected": typeof authProtectedRoute;
-  "/(auth)/register": typeof authRegisterRoute;
-  "/(auth)/verify-email": typeof authVerifyEmailRoute;
+  "/_auth": typeof AuthRouteRouteWithChildren;
   "/(legal)/terms-of-service": typeof legalTermsOfServiceRoute;
+  "/(user)/onboarding": typeof userOnboardingRoute;
+  "/_auth/login": typeof AuthLoginRoute;
+  "/_auth/register": typeof AuthRegisterRoute;
+  "/_auth/verify-email": typeof AuthVerifyEmailRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | "/"
+    | "/terms-of-service"
+    | "/onboarding"
     | "/login"
-    | "/protected"
     | "/register"
-    | "/verify-email"
-    | "/terms-of-service";
+    | "/verify-email";
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
+    | "/terms-of-service"
+    | "/onboarding"
     | "/login"
-    | "/protected"
     | "/register"
-    | "/verify-email"
-    | "/terms-of-service";
+    | "/verify-email";
   id:
     | "__root__"
     | "/"
-    | "/(auth)/login"
-    | "/(auth)/protected"
-    | "/(auth)/register"
-    | "/(auth)/verify-email"
-    | "/(legal)/terms-of-service";
+    | "/_auth"
+    | "/(legal)/terms-of-service"
+    | "/(user)/onboarding"
+    | "/_auth/login"
+    | "/_auth/register"
+    | "/_auth/verify-email";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
-  authLoginRoute: typeof authLoginRoute;
-  authProtectedRoute: typeof authProtectedRoute;
-  authRegisterRoute: typeof authRegisterRoute;
-  authVerifyEmailRoute: typeof authVerifyEmailRoute;
+  AuthRouteRoute: typeof AuthRouteRouteWithChildren;
   legalTermsOfServiceRoute: typeof legalTermsOfServiceRoute;
+  userOnboardingRoute: typeof userOnboardingRoute;
 }
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
+    "/_auth": {
+      id: "/_auth";
+      path: "";
+      fullPath: "";
+      preLoaderRoute: typeof AuthRouteRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/": {
       id: "/";
       path: "/";
       fullPath: "/";
       preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/_auth/verify-email": {
+      id: "/_auth/verify-email";
+      path: "/verify-email";
+      fullPath: "/verify-email";
+      preLoaderRoute: typeof AuthVerifyEmailRouteImport;
+      parentRoute: typeof AuthRouteRoute;
+    };
+    "/_auth/register": {
+      id: "/_auth/register";
+      path: "/register";
+      fullPath: "/register";
+      preLoaderRoute: typeof AuthRegisterRouteImport;
+      parentRoute: typeof AuthRouteRoute;
+    };
+    "/_auth/login": {
+      id: "/_auth/login";
+      path: "/login";
+      fullPath: "/login";
+      preLoaderRoute: typeof AuthLoginRouteImport;
+      parentRoute: typeof AuthRouteRoute;
+    };
+    "/(user)/onboarding": {
+      id: "/(user)/onboarding";
+      path: "/onboarding";
+      fullPath: "/onboarding";
+      preLoaderRoute: typeof userOnboardingRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/(legal)/terms-of-service": {
@@ -124,44 +164,30 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof legalTermsOfServiceRouteImport;
       parentRoute: typeof rootRouteImport;
     };
-    "/(auth)/verify-email": {
-      id: "/(auth)/verify-email";
-      path: "/verify-email";
-      fullPath: "/verify-email";
-      preLoaderRoute: typeof authVerifyEmailRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/(auth)/register": {
-      id: "/(auth)/register";
-      path: "/register";
-      fullPath: "/register";
-      preLoaderRoute: typeof authRegisterRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/(auth)/protected": {
-      id: "/(auth)/protected";
-      path: "/protected";
-      fullPath: "/protected";
-      preLoaderRoute: typeof authProtectedRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/(auth)/login": {
-      id: "/(auth)/login";
-      path: "/login";
-      fullPath: "/login";
-      preLoaderRoute: typeof authLoginRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
   }
 }
 
+interface AuthRouteRouteChildren {
+  AuthLoginRoute: typeof AuthLoginRoute;
+  AuthRegisterRoute: typeof AuthRegisterRoute;
+  AuthVerifyEmailRoute: typeof AuthVerifyEmailRoute;
+}
+
+const AuthRouteRouteChildren: AuthRouteRouteChildren = {
+  AuthLoginRoute: AuthLoginRoute,
+  AuthRegisterRoute: AuthRegisterRoute,
+  AuthVerifyEmailRoute: AuthVerifyEmailRoute,
+};
+
+const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(
+  AuthRouteRouteChildren,
+);
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  authLoginRoute: authLoginRoute,
-  authProtectedRoute: authProtectedRoute,
-  authRegisterRoute: authRegisterRoute,
-  authVerifyEmailRoute: authVerifyEmailRoute,
+  AuthRouteRoute: AuthRouteRouteWithChildren,
   legalTermsOfServiceRoute: legalTermsOfServiceRoute,
+  userOnboardingRoute: userOnboardingRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
