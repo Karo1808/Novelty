@@ -463,8 +463,7 @@ export const handleForgotPasswordRoute: AppRouteHandler<
 
   return c.json(
     {
-      message:
-        "Password successfully reset, please login with the new password",
+      message: "Password successfully reset",
       success: true,
     },
     HttpStatusCodes.OK,

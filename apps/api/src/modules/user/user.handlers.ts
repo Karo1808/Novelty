@@ -14,6 +14,7 @@ import {
   getUserDraft,
   updatePreferences,
   updateProfile,
+  updateUser,
   updateUserDraft,
 } from "@novelty/services/user.service";
 import type {
@@ -25,6 +26,7 @@ import type {
   UpdatePreferencesRoute,
   UpdateProfileRoute,
   UpdateUserDraftRoute,
+  UpdateUserRoute,
 } from "./user.routes";
 
 export const handleGetUser: AppRouteHandler<GetUserRoute> = async (c) => {
@@ -57,6 +59,55 @@ export const handleGetUser: AppRouteHandler<GetUserRoute> = async (c) => {
     },
     HttpStatusCodes.OK,
   );
+};
+
+export const handleUpdateUser: AppRouteHandler<UpdateUserRoute> = async (c) => {
+  const form = c.req.valid("form");
+
+  const { username, bio, profileImage, genres, series, authors } = form;
+
+  c.var.logger.warn(form);
+
+  const { userId: currentUserId } = c.var.user;
+
+  const res = await updateUser(
+    {
+      dbInstance: db,
+      redisClient: redis,
+      s3Client,
+      logger,
+      prometheusRegistry,
+      reqId: c.var.requestId,
+      bucketName: env.R2_BUCKET_NAME,
+    },
+    {
+      payload: {
+        profile: {
+          username,
+          bio,
+          profileImage,
+        },
+        preferences: {
+          genres: genres ?? [],
+          authors,
+          series,
+        },
+      },
+      userId: currentUserId,
+    },
+  );
+
+  if (res.success === false) {
+    return c.json(
+      {
+        message: res.error.message,
+        success: false,
+      },
+      HttpStatusCodes[res.error.kind],
+    );
+  }
+
+  return c.body(null, HttpStatusCodes.NO_CONTENT);
 };
 
 export const handleGetProfile: AppRouteHandler<GetProfileRoute> = async (c) => {
