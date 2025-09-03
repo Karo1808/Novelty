@@ -12,7 +12,10 @@ import {
   getUserInfoQuery,
   updateUserProfileByUserIdQuery,
 } from "@novelty/db/queries/user.query";
-import type { SelectAuthProvider } from "@novelty/db/schemas/auth-provider.schema";
+import type {
+  Provider,
+  SelectAuthProvider,
+} from "@novelty/db/schemas/auth-provider.schema";
 import type { InsertUser, SelectUser } from "@novelty/db/schemas/user.schema";
 import {
   encodeToken,
@@ -523,7 +526,7 @@ export const authenticateOAuthUser = async (
     ServiceDependencies,
     ["messageQueueInstance"]
   >,
-  provider: SelectAuthProvider["provider"],
+  provider: Provider,
   claims: OAuthIdTokenSchema,
 ): Promise<AuthenticatedSessionResponseData> => {
   const existingProvider = await getProvidersByProviderUserId(
@@ -557,7 +560,7 @@ export const authenticateOAuthUser = async (
 
       await updateUserProfileByUserIdQuery(
         dependencies,
-        { username: claims.name, avatarUrl: claims.picture },
+        { username: claims.name, profileImage: claims.picture },
         userId!,
       );
     }

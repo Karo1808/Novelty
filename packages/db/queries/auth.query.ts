@@ -3,6 +3,7 @@ import { createDBQuery } from "../lib/create-db-query";
 import type { Dependencies } from "../lib/types";
 import type {
   InsertAuthProvider,
+  Provider,
   SelectAuthProvider,
 } from "../schemas/auth-provider.schema";
 import { authProvidersTable } from "../schemas/auth-provider.schema";
@@ -58,7 +59,7 @@ export function getUserByEmailQuery(
 export const createUserQuery = (
   dependencies: Dependencies,
   newUser: InsertUser["register"],
-  provider: InsertAuthProvider["init"]["provider"],
+  provider: Provider,
   providerUserId?: string,
 ) => {
   return createDBQuery({
@@ -150,7 +151,7 @@ export const updateUserByIdQuery = (
 export function getProvidersByProviderUserId(
   deps: Dependencies,
   providerUserId: string,
-  provider: SelectAuthProvider["provider"],
+  provider: Provider,
 ): Promise<SelectAuthProvider>;
 
 export function getProvidersByProviderUserId(
@@ -161,7 +162,7 @@ export function getProvidersByProviderUserId(
 export function getProvidersByProviderUserId(
   deps: Dependencies,
   providerUserId: string,
-  provider?: SelectAuthProvider["provider"],
+  provider?: Provider,
 ) {
   return createDBQuery<SelectAuthProvider | SelectAuthProvider[]>({
     dependencies: deps,
@@ -194,6 +195,7 @@ export const createProvider = (
     query: async (db) => {
       return await db
         .insert(authProvidersTable)
+        // @ts-expect-error: weird zod shenanigans
         .values(newProvider)
         .returning();
     },

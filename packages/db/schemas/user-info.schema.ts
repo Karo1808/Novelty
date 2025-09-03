@@ -6,7 +6,8 @@ import {
   createUpdateSchema,
 } from "drizzle-zod";
 import { nanoid } from "nanoid";
-import { z } from "zod/v4";
+import { z } from "zod";
+import { imageFileSchema } from "../lib/schemas";
 import { usersTable } from "./user.schema";
 
 export const userInfoTable = pgTable("user_info", {
@@ -37,9 +38,9 @@ export const userInfoRelations = relations(userInfoTable, ({ one }) => ({
 }));
 
 export const userPreferencesSchema = z.object({
-  genres: z.string().array().length(3), // TODO:update to genres enum in the future
-  authors: z.string().array().optional(),
-  series: z.string().array().optional(),
+  genres: z.array(z.string()).min(3, { error: "Select at least 3 genres" }), // ✅
+  authors: z.array(z.string()).optional(),
+  series: z.array(z.string()).optional(),
 });
 
 export const baseSelectSchema = createSelectSchema(userInfoTable, {
@@ -82,17 +83,26 @@ export const insertUserInfoSchema = z.object({
 
 export type InsertUserInfo = z.infer<typeof insertUserInfoSchema>;
 
-const baseUpdateSchema = createUpdateSchema(userInfoTable, {
-  username: (schema) => schema.min(4),
-  avatarUrl: (schema) => schema.url(),
-  bio: (schema) => schema.max(80),
+export const baseUpdateSchema = createUpdateSchema(userInfoTable, {
+  username: (s) =>
+    s.min(4, { error: "Username must be at least 4 characters long" }),
+  avatarUrl: () => z.url(),
+  bio: (s) => s.max(80, { error: "bio must not exceed 80 characters" }),
   preferences: userPreferencesSchema,
 });
+
+export const updateProfileSchema = z.object({
+  username: baseUpdateSchema.shape.username.optional(),
+  bio: baseUpdateSchema.shape.bio.optional(),
+  profileImage: imageFileSchema.optional(),
+});
+
+export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 
 export const updateUserInfoSchema = z.object({
   profile: z.object({
     username: baseUpdateSchema.shape.username,
-    avatarUrl: baseUpdateSchema.shape.avatarUrl,
+    profileImage: updateProfileSchema.shape.profileImage,
     bio: baseUpdateSchema.shape.bio,
   }),
   preferences: z.object({
@@ -103,3 +113,14 @@ export const updateUserInfoSchema = z.object({
 });
 
 export type UpdateUserInfo = z.infer<typeof updateUserInfoSchema>;
+
+export const updateAllUserInfoSchema = z.object({
+  username: baseUpdateSchema.shape.username,
+  profileImage: updateProfileSchema.shape.profileImage,
+  bio: baseUpdateSchema.shape.bio,
+  genres: baseUpdateSchema.shape.preferences.shape.genres.optional(),
+  authors: baseUpdateSchema.shape.preferences.shape.authors,
+  series: baseUpdateSchema.shape.preferences.shape.series,
+});
+
+export type UpdateAllUserInfo = z.infer<typeof updateAllUserInfoSchema>;

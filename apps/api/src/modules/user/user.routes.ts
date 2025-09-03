@@ -8,7 +8,10 @@ import {
   unauthenticatedSchema,
 } from "@/lib/response-schemas";
 import { createRoute } from "@hono/zod-openapi";
-import { updateUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
+import {
+  updateAllUserInfoSchema,
+  updateUserInfoSchema,
+} from "@novelty/db/schemas/user-info.schema";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { userDraftBodySchema } from "@novelty/lib/validations/user";
 import { updateProfileSchema } from "@novelty/services/lib/utils";
@@ -56,6 +59,55 @@ export const getUserRoute = createRoute({
 });
 
 export type GetUserRoute = typeof getUserRoute;
+
+export const updateUserRoute = createRoute({
+  tags: userTags,
+  method: "patch",
+  path: "/user",
+  description: "Updates the user information",
+  request: {
+    body: {
+      content: {
+        "multipart/form-data": {
+          schema: updateAllUserInfoSchema,
+        },
+      },
+    },
+    description: "The user inputted data",
+    headers: cookieSchema,
+  },
+  responses: {
+    [HttpStatusCodes.NO_CONTENT]: {
+      description: "Updated user profile",
+    },
+    [HttpStatusCodes.NOT_FOUND]: jsonContent(
+      accountNotFoundSchema,
+      "Account does not exist",
+    ),
+    [HttpStatusCodes.CONFLICT]: jsonContent(
+      updateProfileConflictSchema,
+      "Another process handling this query/username already taken",
+    ),
+    [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+      unauthenticatedSchema,
+      "User must be authenticated",
+    ),
+    [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+      serviceUnavailableSchema,
+      "Services unavailable",
+    ),
+    [HttpStatusCodes.UNPROCESSABLE_ENTITY]: jsonContent(
+      createErrorSchema(updateAllUserInfoSchema),
+      "Validation error(s)",
+    ),
+    [HttpStatusCodes.TOO_MANY_REQUESTS]: jsonContent(
+      tooManyRequestsSchema,
+      "Rate limiter",
+    ),
+  },
+});
+
+export type UpdateUserRoute = typeof updateUserRoute;
 
 export const getProfileRoute = createRoute({
   tags: userTags,

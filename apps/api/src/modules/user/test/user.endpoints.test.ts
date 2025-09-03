@@ -21,7 +21,7 @@ import { Blob } from "fetch-blob";
 import { testClient } from "hono/testing";
 import { Buffer } from "node:buffer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { z } from "zod/v4";
+import type { z } from "zod";
 import { userRouter } from "../user.index";
 
 vi.mock("@hono/node-server/conninfo", () => ({

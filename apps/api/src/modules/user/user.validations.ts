@@ -49,14 +49,14 @@ export const getProfileSuccessSchema = z
 
 export const updateProfileConflictSchema = z
   .object({
+    success: z.literal(false),
     message: z.string(),
   })
   .openapi({
-    examples: [
-      {
-        message: "This username already exists",
-      },
-    ],
+    example: {
+      message: "This username already exists",
+      success: false,
+    },
   });
 
 export const getPreferencesSuccessSchema = z

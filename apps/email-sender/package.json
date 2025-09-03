@@ -25,20 +25,20 @@
     "@novelty/email": "workspace:*",
     "@novelty/lib": "workspace:*",
     "@novelty/message-queue": "workspace:*",
-    "bullmq": "^5.48.1",
+    "bullmq": "^5.58.0",
     "dotenv": "^16.5.0",
     "dotenv-expand": "^12.0.1",
     "prom-client": "^15.1.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "zod": "^3.24.2"
+    "zod": "^4.0.17"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^4.12.0",
+    "@antfu/eslint-config": "^5.2.1",
     "@novelty/typescript-config": "workspace:*",
-    "@types/react": "^19.1.2",
-    "@types/react-dom": "^19.1.2",
-    "tsx": "^4.19.3",
-    "typescript": "5.8.3"
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "tsx": "^4.20.4",
+    "typescript": "5.9.2"
   }
 }
