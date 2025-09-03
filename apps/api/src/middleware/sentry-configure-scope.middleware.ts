@@ -1,6 +1,6 @@
-import type { MiddlewareHandler } from "hono";
 import env from "@/env";
 import { getConnInfo } from "@hono/node-server/conninfo";
+import type { MiddlewareHandler } from "hono";
 
 export const sentryConfigureScope = (): MiddlewareHandler => {
   return async (c, next) => {

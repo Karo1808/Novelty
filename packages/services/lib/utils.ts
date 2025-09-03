@@ -1,15 +1,12 @@
-import { updateUserInfoSchema } from "@novelty/db/schemas/user-info.schema";
+import { baseUpdateSchema } from "@novelty/db/schemas/user-info.schema";
 import { imageFileSchema } from "@novelty/lib/validations/file";
-import type { z } from "zod/v4";
+import { z } from "zod";
 
-export const updateProfileSchema = updateUserInfoSchema.shape.profile
-  .extend({
-    profileImage: imageFileSchema,
-  })
-  .omit({
-    avatarUrl: true,
-  })
-  .partial();
+export const updateProfileSchema = z.object({
+  username: baseUpdateSchema.shape.username.optional(),
+  bio: baseUpdateSchema.shape.bio.optional(),
+  profileImage: imageFileSchema.optional(),
+});
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 

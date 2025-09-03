@@ -1,5 +1,17 @@
 import { z } from "@hono/zod-openapi";
 
+// Requests
+
+// export const userUpdateFormSchema = zfd.formData({
+//   username: zfd.text(z.string().min(1)).optional(),
+//   bio: zfd.text(z.string()).optional(),
+//   genres: zfd.repeatable(), // -> string[]
+//   authors: zfd.repeatable().optional(), // -> string[]
+//   series: zfd.repeatable().optional(), // -> string[]
+//   // If you accept a file:
+//   profileImage: zfd.file().optional(),
+// });
+
 // Headers
 
 export const cookieSchema = z.object({

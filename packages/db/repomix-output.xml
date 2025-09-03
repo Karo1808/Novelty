@@ -1,0 +1,3335 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: docker/**
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+lib/
+  test/
+    create-db-query.test.ts
+  create-db-query.ts
+  errors.ts
+  metrics.ts
+  schemas.ts
+  types.ts
+migrations/
+  meta/
+    _journal.json
+    0000_snapshot.json
+    0001_snapshot.json
+    0002_snapshot.json
+    0003_snapshot.json
+    0004_snapshot.json
+  0000_short_starbolt.sql
+  0001_outstanding_wild_pack.sql
+  0002_left_korg.sql
+  0003_lean_jack_flag.sql
+  0004_fix-user-info-trigger.sql
+queries/
+  test/
+    auth.query.test.ts
+    misc.query.test.ts
+    user.query.test.ts
+  auth.query.ts
+  misc.query.ts
+  user.query.ts
+schemas/
+  auth-provider.schema.ts
+  index.schema.ts
+  user-info.schema.ts
+  user.schema.ts
+.env.example
+.env.local
+drizzle.config.ts
+index.ts
+package.json
+test-setup.ts
+tsconfig.json
+vitest.config.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="lib/test/create-db-query.test.ts">
+import type { DBClient } from "lib/types";
+import * as Sentry from "@novelty/lib/sentry";
+import { sql } from "drizzle-orm";
+import { testDependencies } from "test-setup";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createDBQuery } from "../create-db-query";
+import { DatabaseConnectionError, QueryExecutionError } from "../errors";
+import * as metrics from "../metrics";
+import "dotenv/config";
+
+describe("createDBQuery", () => {
+  let captureExceptionSpy: any;
+  let endTimerSpy: any;
+  let startTimerSpy: any;
+
+  beforeAll(async () => {
+    captureExceptionSpy = vi.spyOn(Sentry, "captureException");
+
+    const histogram = metrics.dbQueryDurationHistogram(
+      testDependencies.prometheusRegistry,
+    );
+    startTimerSpy = vi.spyOn(histogram, "startTimer").mockImplementation(() => {
+      endTimerSpy = vi.fn();
+      return endTimerSpy;
+    });
+  });
+
+  beforeEach(() => {
+    captureExceptionSpy.mockClear();
+    startTimerSpy.mockClear();
+    if (endTimerSpy) {
+      endTimerSpy.mockClear();
+    }
+  });
+
+  it("executes a successful query", async () => {
+    const result = await createDBQuery({
+      dependencies: testDependencies,
+      queryName: "insert-test",
+      query: async (db) => {
+        const res = await db.execute(sql`SELECT 1`);
+        return res;
+      },
+    });
+    expect(result).toBeTruthy();
+
+    expect(startTimerSpy).toHaveBeenCalledWith({ queryName: "insert-test" });
+    expect(endTimerSpy).toHaveBeenCalledWith({ status: "success" });
+
+    expect(captureExceptionSpy).not.toHaveBeenCalled();
+  });
+
+  it("handles query errors", async () => {
+    await expect(
+      createDBQuery({
+        dependencies: testDependencies,
+        queryName: "error-test",
+        query: async (db) => {
+          await db.execute(sql`SELEC 1`); // Intentional typo to cause an error
+        },
+      }),
+    ).rejects.toThrow(QueryExecutionError);
+
+    expect(captureExceptionSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.any(Error),
+        tags: expect.arrayContaining([
+          { name: "requestId", value: "test-req-id" },
+        ]),
+        breadcrumb: {
+          category: "database query",
+          message: expect.any(String),
+          level: "error",
+        },
+        contextName: "error-test",
+        context: { queryName: "error-test" },
+      }),
+    );
+
+    expect(startTimerSpy).toHaveBeenCalledWith({ queryName: "error-test" });
+    expect(endTimerSpy).toHaveBeenCalledWith({ status: "failure" });
+  });
+
+  it("throws DatabaseConnectionError when connection was not established", async () => {
+    const mockDbInstance = {
+      execute: vi.fn().mockImplementation(() => {
+        throw new Error("Connection error");
+      }),
+    } as unknown as DBClient;
+    const invalidDependencies = {
+      ...testDependencies,
+      dbInstance: mockDbInstance,
+    };
+    await expect(
+      createDBQuery({
+        dependencies: invalidDependencies,
+        queryName: "no-db-test",
+        query: async (db) => {
+          await db.execute("SELECT 1");
+        },
+      }),
+    ).rejects.toThrow(DatabaseConnectionError);
+
+    expect(captureExceptionSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.any(Error),
+        tags: expect.arrayContaining([
+          { name: "requestId", value: "test-req-id" },
+        ]),
+        breadcrumb: {
+          category: "database query",
+          message: "Connection error",
+          level: "error",
+        },
+        contextName: "no-db-test",
+        context: { queryName: "no-db-test" },
+      }),
+    );
+
+    expect(startTimerSpy).not.toHaveBeenCalled();
+  });
+
+  it("handles query timeout", async () => {
+    await expect(
+      createDBQuery({
+        dependencies: testDependencies,
+        queryName: "timeout-test",
+        timeoutDurationMs: 1000,
+        query: async (db) => {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await db.execute("SELECT 1");
+        },
+      }),
+    ).rejects.toThrow(QueryExecutionError);
+
+    expect(captureExceptionSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.any(Error),
+        tags: expect.arrayContaining([
+          { name: "requestId", value: "test-req-id" },
+        ]),
+        breadcrumb: {
+          category: "database query",
+          message: "Query timed out after 1000 ms",
+          level: "error",
+        },
+        contextName: "timeout-test",
+        context: { queryName: "timeout-test" },
+      }),
+    );
+
+    expect(startTimerSpy).toHaveBeenCalledWith({ queryName: "timeout-test" });
+    expect(endTimerSpy).toHaveBeenCalledWith({ status: "failure" });
+  });
+});
+</file>
+
+<file path="lib/create-db-query.ts">
+import type { Dependencies } from "./types";
+import { captureException } from "@novelty/lib/sentry";
+import { timeoutQuery } from "@novelty/lib/timeout-query";
+import {
+  DatabaseConnectionError,
+  QueryExecutionError,
+  QueryTimeoutError,
+} from "./errors";
+import { dbQueryDurationHistogram } from "./metrics";
+
+interface CreateDBQueryParams<T> {
+  query: (db: Dependencies["dbInstance"]) => Promise<T>;
+  queryName?: string;
+  timeoutDurationMs?: number;
+  dependencies: Dependencies;
+}
+
+export const createDBQuery = async <T>({
+  dependencies,
+  query,
+  queryName = "unknown query",
+  timeoutDurationMs = 3000,
+}: CreateDBQueryParams<T>): Promise<T> => {
+  const { dbInstance, logger, reqId, prometheusRegistry } = dependencies;
+
+  try {
+    await dbInstance.execute("SELECT 1");
+  }
+  catch (error) {
+    logger.error({
+      message: "Database connection could not be established",
+      source: queryName,
+      error: (error as Error).message,
+      stackTrace: (error as Error)?.stack,
+      reqId,
+    });
+
+    captureException({
+      error: error as Error,
+      tags: [{ name: "requestId", value: reqId }],
+      breadcrumb: {
+        category: "database query",
+        message: (error as Error).message,
+        level: "error",
+      },
+      contextName: queryName,
+      context: { queryName },
+    });
+
+    throw new DatabaseConnectionError(
+      "Database connection could not be established",
+      error as Error,
+    );
+  }
+
+  const endTimer = dbQueryDurationHistogram(prometheusRegistry).startTimer({
+    queryName,
+  });
+
+  try {
+    const res = await timeoutQuery({
+      query: query(dbInstance),
+      timeoutDuration: timeoutDurationMs,
+      customError: new QueryTimeoutError(timeoutDurationMs),
+      queryName,
+      logger,
+    });
+    endTimer({ status: "success" });
+    return res;
+  }
+  catch (error) {
+    logger.error({
+      message: `Query execution failed for ${queryName}`,
+      source: queryName,
+      error: (error as Error).message,
+      stackTrace: (error as Error)?.stack,
+      reqId,
+    });
+    captureException({
+      error: error as Error,
+      tags: [{ name: "requestId", value: reqId }],
+      breadcrumb: {
+        category: "database query",
+        message: (error as Error).message,
+        level: "error",
+      },
+      contextName: queryName,
+      context: { queryName },
+    });
+    endTimer({ status: "failure" });
+    throw new QueryExecutionError(queryName, error as Error);
+  }
+};
+</file>
+
+<file path="lib/errors.ts">
+export class QueryExecutionError extends Error {
+  constructor(
+    public queryName: string,
+    originalError?: Error,
+  ) {
+    super(
+      `Error in database query "${queryName}": ${originalError?.message ?? ""}`,
+    );
+    this.name = "QueryExecutionError";
+    this.stack = originalError?.stack ?? "";
+  }
+}
+
+export class DatabaseConnectionError extends Error {
+  private status: number;
+  constructor(
+    message: string,
+    public originalError?: Error,
+  ) {
+    super(message);
+    this.name = "DatabaseConnectionError";
+    this.status = 503;
+  }
+}
+
+export class QueryTimeoutError extends Error {
+  constructor(timeoutDuration: number) {
+    super(`Query timed out after ${timeoutDuration} ms`);
+    this.name = "QueryTimeoutError";
+  }
+}
+</file>
+
+<file path="lib/metrics.ts">
+import type { Registry } from "prom-client";
+import { createMetric } from "@novelty/lib/factory/create-metric";
+
+export const dbQueryDurationHistogram = (registry: Registry) => {
+  return createMetric("Histogram", {
+    name: "db_query_duration_ms",
+    help: "Duration of database queries in milliseconds",
+    labelNames: ["queryName", "status"],
+    buckets: [1, 10, 50, 100, 200, 500, 1000, 2000, 3000, 5000],
+    registry,
+  });
+};
+</file>
+
+<file path="lib/schemas.ts">
+// validations/file.ts (runtime)
+import { z } from "zod";
+
+const MAX_MB = 5;
+const MAX_BYTES = MAX_MB * 1024 * 1024;
+const ALLOWED_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/gif",
+  "image/webp",
+] as const;
+
+type AnyUpload = {
+  size?: number;
+  type?: string; // Web File
+  name?: string;
+  arrayBuffer?: () => Promise<ArrayBuffer>;
+  mimetype?: string; // Multer/Busboy
+  originalname?: string;
+  buffer?: unknown;
+  filepath?: string; // Formidable
+};
+
+const hasData = (f: AnyUpload) =>
+  typeof f?.arrayBuffer === "function" ||
+  !!f?.buffer ||
+  typeof f?.filepath === "string";
+
+const getMime = (f: AnyUpload) => f?.type ?? f?.mimetype ?? "";
+const getSize = (f: AnyUpload) => (typeof f?.size === "number" ? f.size : 0);
+
+export const imageFileSchema = z
+  .any()
+  .refine((v): v is AnyUpload => !!v && typeof v === "object", {
+    message: "Expected an image file",
+  })
+  .refine((f) => hasData(f), { message: "Invalid file data" })
+  .refine((f) => (ALLOWED_TYPES as readonly string[]).includes(getMime(f)), {
+    message: "Unsupported image type",
+  })
+  .refine((f) => getSize(f) <= MAX_BYTES, {
+    message: `File must be ≤ ${MAX_MB} MB`,
+  });
+</file>
+
+<file path="lib/types.ts">
+import type { Logger } from "@novelty/lib/types";
+import type { Registry } from "prom-client";
+import type { z } from "zod";
+import type { db } from "..";
+import { selectUserInfoSchema } from "../schemas/user-info.schema";
+import { selectUserSchema } from "../schemas/user.schema";
+
+export type DBClient = typeof db;
+
+export interface Dependencies {
+  dbInstance: Omit<DBClient, "$client"> | DBClient;
+  reqId: string;
+  logger: Logger;
+  prometheusRegistry: Registry;
+}
+
+export const selectUserWithInfoSchema = selectUserSchema.extend({
+  userInfo: selectUserInfoSchema,
+});
+
+export type SelectUserWithInfo = z.infer<typeof selectUserWithInfoSchema>;
+</file>
+
+<file path="migrations/meta/_journal.json">
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1739890905042,
+      "tag": "0000_short_starbolt",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1750066507021,
+      "tag": "0001_outstanding_wild_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1750066572063,
+      "tag": "0002_left_korg",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1750070193890,
+      "tag": "0003_lean_jack_flag",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1753869094103,
+      "tag": "0004_fix-user-info-trigger",
+      "breakpoints": true
+    }
+  ]
+}
+</file>
+
+<file path="migrations/meta/0000_snapshot.json">
+{
+  "id": "4599cbad-6791-4dee-8c67-6279e165a509",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.user_info": {
+      "name": "user_info",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avatar_url": {
+          "name": "avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bio": {
+          "name": "bio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preferences": {
+          "name": "preferences",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_info_user_id_users_id_fk": {
+          "name": "user_info_user_id_users_id_fk",
+          "tableFrom": "user_info",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_info_user_id_unique": {
+          "name": "user_info_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["user_id"]
+        },
+        "user_info_username_unique": {
+          "name": "user_info_username_unique",
+          "nullsNotDistinct": false,
+          "columns": ["username"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_email_verified": {
+          "name": "is_email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_onboarded": {
+          "name": "is_onboarded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": ["email"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
+</file>
+
+<file path="migrations/meta/0001_snapshot.json">
+{
+  "id": "87c8f4af-d9d3-40a8-8a15-eead58ac4793",
+  "prevId": "4599cbad-6791-4dee-8c67-6279e165a509",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.user_info": {
+      "name": "user_info",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avatar_url": {
+          "name": "avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bio": {
+          "name": "bio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preferences": {
+          "name": "preferences",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_info_user_id_users_id_fk": {
+          "name": "user_info_user_id_users_id_fk",
+          "tableFrom": "user_info",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_info_user_id_unique": {
+          "name": "user_info_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["user_id"]
+        },
+        "user_info_username_unique": {
+          "name": "user_info_username_unique",
+          "nullsNotDistinct": false,
+          "columns": ["username"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_email_verified": {
+          "name": "is_email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_onboarded": {
+          "name": "is_onboarded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": ["email"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
+</file>
+
+<file path="migrations/meta/0002_snapshot.json">
+{
+  "id": "c5106b68-19ba-4a32-a7ab-689e62d6605f",
+  "prevId": "87c8f4af-d9d3-40a8-8a15-eead58ac4793",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.auth_providers": {
+      "name": "auth_providers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "auth_provider_enum",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_user_id": {
+          "name": "provider_user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "auth_providers_user_id_users_id_fk": {
+          "name": "auth_providers_user_id_users_id_fk",
+          "tableFrom": "auth_providers",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_info": {
+      "name": "user_info",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avatar_url": {
+          "name": "avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bio": {
+          "name": "bio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preferences": {
+          "name": "preferences",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_info_user_id_users_id_fk": {
+          "name": "user_info_user_id_users_id_fk",
+          "tableFrom": "user_info",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_info_user_id_unique": {
+          "name": "user_info_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["user_id"]
+        },
+        "user_info_username_unique": {
+          "name": "user_info_username_unique",
+          "nullsNotDistinct": false,
+          "columns": ["username"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_email_verified": {
+          "name": "is_email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_onboarded": {
+          "name": "is_onboarded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": ["email"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
+</file>
+
+<file path="migrations/meta/0003_snapshot.json">
+{
+  "id": "d41a3cac-2ae0-4483-83d4-bf7fb8432c57",
+  "prevId": "c5106b68-19ba-4a32-a7ab-689e62d6605f",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.auth_providers": {
+      "name": "auth_providers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "auth_provider_enum",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_user_id": {
+          "name": "provider_user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "auth_providers_user_id_users_id_fk": {
+          "name": "auth_providers_user_id_users_id_fk",
+          "tableFrom": "auth_providers",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_info": {
+      "name": "user_info",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avatar_url": {
+          "name": "avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bio": {
+          "name": "bio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preferences": {
+          "name": "preferences",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_info_user_id_users_id_fk": {
+          "name": "user_info_user_id_users_id_fk",
+          "tableFrom": "user_info",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_info_user_id_unique": {
+          "name": "user_info_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["user_id"]
+        },
+        "user_info_username_unique": {
+          "name": "user_info_username_unique",
+          "nullsNotDistinct": false,
+          "columns": ["username"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_email_verified": {
+          "name": "is_email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_onboarded": {
+          "name": "is_onboarded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": ["email"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.auth_provider_enum": {
+      "name": "auth_provider_enum",
+      "schema": "public",
+      "values": ["email", "google", "amazon"]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
+</file>
+
+<file path="migrations/meta/0004_snapshot.json">
+{
+  "id": "4e393cfb-5aae-4164-9974-89c3e4109a61",
+  "prevId": "d41a3cac-2ae0-4483-83d4-bf7fb8432c57",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.auth_providers": {
+      "name": "auth_providers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "auth_provider_enum",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_user_id": {
+          "name": "provider_user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "auth_providers_user_id_users_id_fk": {
+          "name": "auth_providers_user_id_users_id_fk",
+          "tableFrom": "auth_providers",
+          "columnsFrom": ["user_id"],
+          "tableTo": "users",
+          "columnsTo": ["id"],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_info": {
+      "name": "user_info",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avatar_url": {
+          "name": "avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bio": {
+          "name": "bio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preferences": {
+          "name": "preferences",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_info_user_id_users_id_fk": {
+          "name": "user_info_user_id_users_id_fk",
+          "tableFrom": "user_info",
+          "columnsFrom": ["user_id"],
+          "tableTo": "users",
+          "columnsTo": ["id"],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_info_user_id_unique": {
+          "name": "user_info_user_id_unique",
+          "columns": ["user_id"],
+          "nullsNotDistinct": false
+        },
+        "user_info_username_unique": {
+          "name": "user_info_username_unique",
+          "columns": ["username"],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(255)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_email_verified": {
+          "name": "is_email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_onboarded": {
+          "name": "is_onboarded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "columns": ["email"],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.auth_provider_enum": {
+      "name": "auth_provider_enum",
+      "schema": "public",
+      "values": ["email", "google", "amazon"]
+    }
+  },
+  "schemas": {},
+  "views": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
+</file>
+
+<file path="migrations/0000_short_starbolt.sql">
+CREATE TABLE "user_info" (
+	"id" varchar(255) PRIMARY KEY NOT NULL,
+	"user_id" varchar(255) NOT NULL,
+	"username" varchar(255),
+	"avatar_url" text,
+	"bio" text,
+	"preferences" jsonb,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp NOT NULL,
+	CONSTRAINT "user_info_user_id_unique" UNIQUE("user_id"),
+	CONSTRAINT "user_info_username_unique" UNIQUE("username")
+);
+--> statement-breakpoint
+CREATE TABLE "users" (
+	"id" varchar(255) PRIMARY KEY NOT NULL,
+	"email" varchar(255) NOT NULL,
+	"password" varchar(255) NOT NULL,
+	"is_email_verified" boolean NOT NULL,
+	"is_onboarded" boolean NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp NOT NULL,
+	CONSTRAINT "users_email_unique" UNIQUE("email")
+);
+--> statement-breakpoint
+ALTER TABLE "user_info" ADD CONSTRAINT "user_info_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION create_user_info_after_email_verified()
+RETURNS trigger AS $$
+BEGIN
+  -- Check if is_email_verified changed to true (and was not true before)
+  IF NEW.is_email_verified = TRUE AND (OLD.is_email_verified IS DISTINCT FROM TRUE) THEN
+    INSERT INTO user_info (
+      id, 
+      user_id, 
+      username,      -- Set to NULL instead of NEW.email
+      avatar_url, 
+      bio, 
+      preferences, 
+      created_at, 
+      updated_at
+    )
+    VALUES (
+      gen_random_uuid()::text,  -- generate a new UUID
+      NEW.id, 
+      NULL,                     -- set username to NULL
+      '',                       -- default avatar_url (adjust as needed)
+      NULL,                     -- bio can be NULL
+      '{}'::jsonb,              -- default empty preferences JSON
+      now(), 
+      now()
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER trigger_create_user_info
+AFTER UPDATE OF is_email_verified ON users
+FOR EACH ROW
+WHEN (NEW.is_email_verified = TRUE)
+EXECUTE FUNCTION create_user_info_after_email_verified();
+</file>
+
+<file path="migrations/0001_outstanding_wild_pack.sql">
+ALTER TABLE "users" ALTER COLUMN "password" DROP NOT NULL;
+</file>
+
+<file path="migrations/0002_left_korg.sql">
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM   pg_type
+    WHERE  typname = 'auth_provider_enum'
+  ) THEN
+    CREATE TYPE auth_provider_enum AS ENUM ('email', 'google', 'amazon');
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS auth_providers (
+  id               varchar(255) PRIMARY KEY,
+  user_id          varchar(255) NOT NULL,
+  provider         auth_provider_enum NOT NULL,
+  provider_user_id varchar(255),
+  created_at       timestamp NOT NULL DEFAULT now(),
+  updated_at       timestamp NOT NULL
+);
+
+-- 3️⃣  FK constraint ─ add only if missing
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM   information_schema.table_constraints
+    WHERE  constraint_name = 'auth_providers_user_id_users_id_fk'
+      AND  table_name      = 'auth_providers'
+  ) THEN
+    ALTER TABLE auth_providers
+      ADD CONSTRAINT auth_providers_user_id_users_id_fk
+      FOREIGN KEY (user_id)
+      REFERENCES users(id)
+      ON DELETE CASCADE;
+  END IF;
+END $$;
+</file>
+
+<file path="migrations/0003_lean_jack_flag.sql">
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM   pg_type
+    WHERE  typname = 'auth_provider_enum'
+  ) THEN
+    CREATE TYPE auth_provider_enum AS ENUM ('email', 'google', 'amazon');
+  END IF;
+END $$;
+</file>
+
+<file path="migrations/0004_fix-user-info-trigger.sql">
+CREATE OR REPLACE FUNCTION create_user_info_after_email_verified()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.is_email_verified = TRUE
+     AND (OLD.is_email_verified IS DISTINCT FROM TRUE) THEN
+
+    INSERT INTO user_info (
+      id,
+      user_id,
+      username,
+      avatar_url,
+      bio,
+      preferences,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      gen_random_uuid()::text,
+      NEW.id,
+      NULL,
+      '',
+      NULL,
+      '{}'::jsonb,
+      now(),
+      now()
+    )
+    ON CONFLICT (user_id)
+      DO UPDATE
+        SET updated_at = EXCLUDED.updated_at;  -- or DO NOTHING
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+</file>
+
+<file path="queries/test/auth.query.test.ts">
+import "dotenv/config";
+import { eq } from "drizzle-orm";
+import { testDb, testDependencies } from "test-setup";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { InsertUser } from "../../schemas/user.schema";
+import { usersTable } from "../../schemas/user.schema";
+import {
+  createUserQuery,
+  getIsEmailVerifiedQuery,
+  getUserByEmailQuery,
+  getUserByIdQuery,
+  updateUserByIdQuery,
+} from "../auth.query";
+
+// eslint-disable-next-line node/no-process-env
+if (process.env.NODE_ENV !== "test") {
+  throw new Error("NODE_ENV must be 'test'");
+}
+
+describe("auth queries", () => {
+  describe("getUserByEmailQuery", () => {
+    const dummyUser = {
+      email: "mail@email.com",
+      password: "password123",
+    };
+
+    it("should find and returns the user by email", async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+
+      const result = await getUserByEmailQuery(
+        {
+          ...testDependencies,
+          dbInstance: testDb,
+        },
+        dummyUser.email,
+      );
+
+      expect(result).toBeTruthy();
+      expect(result).toMatchObject({
+        id: expect.stringMatching(/^[\w-]{21}$/),
+        email: expect.stringMatching(dummyUser.email),
+        isEmailVerified: false,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
+      expect(result).not.toHaveProperty("password");
+
+      await testDb
+        .delete(usersTable)
+        .where(eq(usersTable.email, dummyUser.email));
+    });
+
+    it("should return undefined when user does not exist", async () => {
+      const res = await getUserByEmailQuery(testDependencies, dummyUser.email);
+
+      expect(res).toBeUndefined();
+    });
+  });
+
+  describe("createUser", () => {
+    const dummyUser = {
+      email: "mail@email.com",
+      password: "password123",
+    };
+
+    afterEach(async () => {
+      await testDb
+        .delete(usersTable)
+        .where(eq(usersTable.email, dummyUser.email));
+    });
+
+    it("should create user if they don't exist", async () => {
+      const startTime = Date.now();
+
+      const result = await createUserQuery(
+        testDependencies,
+        dummyUser,
+        "email",
+      );
+
+      const endTime = Date.now();
+
+      expect(result).toBeTruthy();
+      expect(result).toMatchObject({
+        id: expect.stringMatching(/^[\w-]{21}$/),
+        email: expect.stringMatching(dummyUser.email),
+        isEmailVerified: false,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
+
+      expect(new Date(result!.createdAt).getTime()).toBeGreaterThanOrEqual(
+        startTime,
+      );
+      expect(new Date(result!.updatedAt).getTime()).toBeLessThanOrEqual(
+        endTime,
+      );
+    });
+  });
+
+  describe("getIsEmailVerifiedQuery", () => {
+    const dummyUser = {
+      email: "mail@email.com",
+      password: "password123",
+    };
+
+    it("should return the isEmailVerified column value", async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+      const result = await getIsEmailVerifiedQuery(
+        { ...testDependencies, dbInstance: testDb },
+        "email",
+        dummyUser.email,
+      );
+      expect(result).toBeTruthy();
+      expect(result).toMatchObject({
+        isEmailVerified: false,
+      });
+      expect(result).not.toHaveProperty("password");
+      await testDb
+        .delete(usersTable)
+        .where(eq(usersTable.email, dummyUser.email));
+    });
+
+    it("should return undefined when user does not exist", async () => {
+      const res = await getIsEmailVerifiedQuery(
+        { ...testDependencies, dbInstance: testDb },
+        "email",
+        dummyUser.email,
+      );
+      expect(res).toBeUndefined();
+    });
+  });
+
+  describe("getUserByIdQuery", () => {
+    let userId: string;
+
+    const dummyUser = {
+      email: "testuser@email.com",
+      password: "securepassword",
+    };
+
+    beforeEach(async () => {
+      const [insertedUser] = await testDb
+        .insert(usersTable)
+        .values(dummyUser)
+        .returning();
+      userId = insertedUser!.id;
+    });
+
+    afterEach(async () => {
+      await testDb.delete(usersTable).where(eq(usersTable.id, userId));
+    });
+
+    it("should find and return the user by ID", async () => {
+      const result = await getUserByIdQuery(
+        { ...testDependencies, dbInstance: testDb },
+        userId,
+      );
+
+      expect(result).toBeTruthy();
+      expect(result).toMatchObject({
+        id: expect.stringMatching(/^[\w-]{21}$/),
+        email: expect.stringMatching(dummyUser.email),
+        isEmailVerified: false,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
+
+      expect(result).not.toHaveProperty("password");
+    });
+
+    it("should return undefined when user does not exist", async () => {
+      const fakeUserId = "non-existent-id";
+      const result = await getUserByIdQuery(testDependencies, fakeUserId);
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe("updateUserByIdQuery", () => {
+    let userId: string;
+
+    const dummyUser: InsertUser["register"] = {
+      email: "testuser@email.com",
+      password: "securepassword",
+    };
+
+    beforeEach(async () => {
+      const [insertedUser] = await testDb
+        .insert(usersTable)
+        .values(dummyUser)
+        .returning();
+      userId = insertedUser!.id;
+    });
+
+    afterEach(async () => {
+      await testDb.delete(usersTable).where(eq(usersTable.id, userId));
+    });
+
+    it("should update a user's email and isEmailVerified status", async () => {
+      const newEmail = "updated@email.com";
+      const updateData = {
+        email: newEmail,
+        isEmailVerified: true,
+      };
+
+      const result = await updateUserByIdQuery(
+        testDependencies,
+        updateData,
+        userId,
+      );
+      expect(result).toBeTruthy();
+
+      const updatedUser = await testDb
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, userId))
+        .then((rows) => rows[0]);
+
+      expect(updatedUser).toBeTruthy();
+      expect(updatedUser!.email).toBe(newEmail);
+      expect(updatedUser!.isEmailVerified).toBe(true);
+    });
+
+    it("should update only one field without affecting others", async () => {
+      const updateData = { isEmailVerified: true };
+
+      const result = await updateUserByIdQuery(
+        testDependencies,
+        updateData,
+        userId,
+      );
+      expect(result).toBeTruthy();
+
+      const updatedUser = await testDb
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, userId))
+        .then((rows) => rows[0]);
+
+      expect(updatedUser).toBeTruthy();
+      expect(updatedUser!.isEmailVerified).toBe(true);
+      expect(updatedUser!.email).toBe(dummyUser.email);
+    });
+
+    it("should not update a non-existent user", async () => {
+      const fakeUserId = "non-existent-id";
+      const updateData = { isEmailVerified: true };
+
+      const result = await updateUserByIdQuery(
+        testDependencies,
+        updateData,
+        fakeUserId,
+      );
+
+      expect(result.length).toBe(0);
+    });
+
+    it("should not perform an update if the values remain the same", async () => {
+      const updateData = {
+        email: dummyUser.email,
+        isEmailVerified: false,
+      };
+
+      const result = await updateUserByIdQuery(
+        testDependencies,
+        updateData,
+        userId,
+      );
+
+      expect(result).toBeTruthy();
+    });
+  });
+});
+</file>
+
+<file path="queries/test/misc.query.test.ts">
+import { testDependencies } from "test-setup";
+import { describe, expect, it } from "vitest";
+
+import { getStatusQuery } from "../misc.query";
+import "dotenv/config";
+
+describe("getStatusQuery", () => {
+  it("executes the SELECT 1 query successfully", async () => {
+    const result = await getStatusQuery(testDependencies);
+    expect(result).toBeTruthy();
+  });
+});
+</file>
+
+<file path="queries/test/user.query.test.ts">
+import type { InsertUserInfo, UpdateUserInfo } from "schemas/user-info.schema";
+import { sql } from "drizzle-orm";
+import {
+  getIsUsernameUniqueQuery,
+  getPreferencesByUserIdQuery,
+  getProfileByUserIdQuery,
+  getUserInfoQuery,
+  updateUserPreferencesByIdQuery,
+  updateUserProfileByUserIdQuery,
+} from "queries/user.query";
+import { userInfoTable } from "schemas/user-info.schema";
+import { usersTable } from "schemas/user.schema";
+import { testDb, testDependencies } from "test-setup";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+// eslint-disable-next-line node/no-process-env
+if (process.env.NODE_ENV !== "test") {
+  throw new Error("NODE_ENV must be 'test'");
+}
+
+describe("user queries", () => {
+  describe("getProfileByUserIdQuery", () => {
+    const dummyUser = {
+      email: "mail@email.com",
+      password: "password123",
+      id: "123",
+    };
+
+    const dummyUserInfo: InsertUserInfo = {
+      preferences: {
+        genres: [],
+        authors: [],
+        series: [],
+      },
+      profile: {
+        avatarUrl: "url",
+        bio: "bio",
+        username: "username",
+      },
+    };
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+
+      const res = await testDb.query.usersTable.findFirst();
+      const userId = res?.id ?? "";
+
+      await testDb.insert(userInfoTable).values({
+        userId,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+    });
+
+    it("should return user profile", async () => {
+      const result = await getProfileByUserIdQuery(
+        {
+          ...testDependencies,
+          dbInstance: testDb,
+        },
+        dummyUser.id,
+      );
+
+      expect(result).toEqual(dummyUserInfo.profile);
+    });
+
+    it("should return undefined if user profile does not exist", async () => {
+      await testDb.delete(userInfoTable);
+
+      const result = await getProfileByUserIdQuery(
+        {
+          ...testDependencies,
+          dbInstance: testDb,
+        },
+        dummyUser.id,
+      );
+
+      expect(result).toEqual(undefined);
+    });
+  });
+
+  describe("getIsUsernameUniqueQuery", () => {
+    const dummyUser = {
+      email: "mail@email.com",
+      password: "password123",
+      id: "123",
+    };
+
+    const dummyUserInfo: InsertUserInfo = {
+      preferences: {
+        genres: [],
+        authors: [],
+        series: [],
+      },
+      profile: {
+        avatarUrl: "url",
+        bio: "bio",
+        username: "username",
+      },
+    };
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+
+      const res = await testDb.query.usersTable.findFirst();
+      const userId = res?.id ?? "";
+
+      await testDb.insert(userInfoTable).values({
+        userId,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+    });
+
+    it("should return false if not unique and not same user", async () => {
+      const result = await getIsUsernameUniqueQuery(
+        { ...testDependencies, dbInstance: testDb },
+        dummyUserInfo.profile.username!,
+        "1234",
+      );
+
+      expect(result).toBe(false);
+    });
+
+    it("should return true if unique and not same user", async () => {
+      const result = await getIsUsernameUniqueQuery(
+        { ...testDependencies, dbInstance: testDb },
+        "unique-username",
+        "1234",
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it("should return true if same user", async () => {
+      const result = await getIsUsernameUniqueQuery(
+        { ...testDependencies, dbInstance: testDb },
+        "unique-username",
+        dummyUser.id,
+      );
+
+      expect(result).toBe(true);
+    });
+  });
+
+  describe("updateUserProfileByUserIdQuery", () => {
+    const dummyUser = {
+      email: "mail@email.com",
+      password: "password123",
+      id: "123",
+    };
+
+    const dummyUserInfo: InsertUserInfo = {
+      preferences: {
+        genres: [],
+        authors: [],
+        series: [],
+      },
+      profile: {
+        avatarUrl: "url",
+        bio: "bio",
+        username: "username",
+      },
+    };
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+
+      const res = await testDb.query.usersTable.findFirst();
+      const userId = res?.id ?? "";
+
+      await testDb.insert(userInfoTable).values({
+        userId,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+    });
+
+    it("update user info", async () => {
+      await updateUserProfileByUserIdQuery(
+        testDependencies,
+        {
+          avatarUrl: "new-url",
+        },
+        dummyUser.id,
+      );
+
+      const updatedUser = await testDb.query.userInfoTable.findFirst();
+
+      expect(updatedUser?.avatarUrl).toBe("new-url");
+    });
+  });
+
+  describe("getPreferencesByUserIdQuery", () => {
+    const dummyUser = {
+      email: "mail@email.com",
+      password: "password123",
+      id: "123",
+    };
+
+    const dummyUserInfo: InsertUserInfo = {
+      preferences: {
+        genres: ["genre1", "genre2"],
+        authors: ["author1", "author2"],
+        series: ["series1", "series2"],
+      },
+      profile: {
+        avatarUrl: "url",
+        bio: "bio",
+        username: "username",
+      },
+    };
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+
+      const res = await testDb.query.usersTable.findFirst();
+      const userId = res?.id ?? "";
+
+      await testDb.insert(userInfoTable).values({
+        userId,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+    });
+
+    it("should return user preferences", async () => {
+      const result = await getPreferencesByUserIdQuery(
+        {
+          ...testDependencies,
+          dbInstance: testDb,
+        },
+        dummyUser.id,
+      );
+
+      expect(result?.preferences).toEqual(dummyUserInfo.preferences);
+    });
+
+    it("should return undefined if user profile does not exist", async () => {
+      await testDb.delete(userInfoTable);
+
+      const result = await getPreferencesByUserIdQuery(
+        {
+          ...testDependencies,
+          dbInstance: testDb,
+        },
+        dummyUser.id,
+      );
+
+      expect(result).toEqual(undefined);
+    });
+  });
+
+  describe("updateUserPreferencesByUserIdQuery", () => {
+    const dummyUser = {
+      email: "mail@email.com",
+      password: "password123",
+      id: "123",
+    };
+
+    const dummyUserInfo: InsertUserInfo = {
+      preferences: {
+        genres: ["genre1", "genre2"],
+        authors: ["author1", "author2"],
+        series: ["series1", "series2"],
+      },
+      profile: {
+        avatarUrl: "url",
+        bio: "bio",
+        username: "username",
+      },
+    };
+
+    beforeEach(async () => {
+      await testDb.insert(usersTable).values(dummyUser);
+
+      const res = await testDb.query.usersTable.findFirst();
+      const userId = res?.id ?? "";
+
+      await testDb.insert(userInfoTable).values({
+        userId,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        username: dummyUserInfo.profile.username,
+        preferences: dummyUserInfo.preferences,
+      });
+    });
+
+    afterEach(async () => {
+      await testDb.execute(sql`TRUNCATE table users CASCADE`);
+      await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+    });
+
+    it("update user info", async () => {
+      await updateUserPreferencesByIdQuery(
+        testDependencies,
+        {
+          genres: ["fantasy", "sc-fi", "comedy"],
+        },
+        dummyUser.id,
+      );
+
+      const updatedUser = await testDb.query.userInfoTable.findFirst();
+
+      const preferences = updatedUser!
+        .preferences as UpdateUserInfo["preferences"];
+
+      expect(preferences.genres.length).toBeGreaterThan(2);
+    });
+  });
+});
+
+describe("getUserInfoQuery", () => {
+  const dummyUser = {
+    email: "mail@email.com",
+    password: "password123",
+    id: "123",
+  };
+
+  const dummyUserInfo: InsertUserInfo = {
+    preferences: {
+      genres: ["genre1", "genre2"],
+      authors: ["author1", "author2"],
+      series: ["series1", "series2"],
+    },
+    profile: {
+      avatarUrl: "url",
+      bio: "bio",
+      username: "username",
+    },
+  };
+
+  beforeEach(async () => {
+    await testDb.insert(usersTable).values(dummyUser);
+
+    const res = await testDb.query.usersTable.findFirst();
+    const userId = res?.id ?? "";
+
+    await testDb.insert(userInfoTable).values({
+      userId,
+      avatarUrl: dummyUserInfo.profile.avatarUrl,
+      bio: dummyUserInfo.profile.bio,
+      username: dummyUserInfo.profile.username,
+      preferences: dummyUserInfo.preferences,
+    });
+  });
+
+  afterEach(async () => {
+    await testDb.execute(sql`TRUNCATE table users CASCADE`);
+    await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+  });
+
+  it("should return user info", async () => {
+    const result = await getUserInfoQuery(
+      {
+        ...testDependencies,
+        dbInstance: testDb,
+      },
+      "id",
+      dummyUser.id,
+    );
+
+    expect(result).toMatchObject({
+      isOnboarded: false,
+      isEmailVerified: false,
+      userInfo: {
+        preferences: dummyUserInfo.preferences,
+        bio: dummyUserInfo.profile.bio,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        username: dummyUserInfo.profile.username,
+      },
+    });
+  });
+
+  it("should return undefined if user profile does not exist", async () => {
+    await testDb.delete(usersTable);
+
+    const result = await getUserInfoQuery(
+      {
+        ...testDependencies,
+        dbInstance: testDb,
+      },
+      "id",
+      dummyUser.id,
+    );
+
+    expect(result).toEqual(undefined);
+  });
+});
+
+describe("getPreferencesByUserIdQuery", () => {
+  const dummyUser = {
+    email: "mail@email.com",
+    password: "password123",
+    id: "123",
+  };
+
+  const dummyUserInfo: InsertUserInfo = {
+    preferences: {
+      genres: ["genre1", "genre2"],
+      authors: ["author1", "author2"],
+      series: ["series1", "series2"],
+    },
+    profile: {
+      avatarUrl: "url",
+      bio: "bio",
+      username: "username",
+    },
+  };
+
+  beforeEach(async () => {
+    await testDb.insert(usersTable).values(dummyUser);
+
+    const res = await testDb.query.usersTable.findFirst();
+    const userId = res?.id ?? "";
+
+    await testDb.insert(userInfoTable).values({
+      userId,
+      avatarUrl: dummyUserInfo.profile.avatarUrl,
+      bio: dummyUserInfo.profile.bio,
+      username: dummyUserInfo.profile.username,
+      preferences: dummyUserInfo.preferences,
+    });
+  });
+
+  afterEach(async () => {
+    await testDb.execute(sql`TRUNCATE table users CASCADE`);
+    await testDb.execute(sql`TRUNCATE table user_info CASCADE`);
+  });
+
+  it("should return user info", async () => {
+    const result = await getUserInfoQuery(
+      {
+        ...testDependencies,
+        dbInstance: testDb,
+      },
+      "id",
+      dummyUser.id,
+    );
+
+    expect(result).toMatchObject({
+      isEmailVerified: false,
+      isOnboarded: false,
+      userInfo: {
+        username: dummyUserInfo.profile.username,
+        avatarUrl: dummyUserInfo.profile.avatarUrl,
+        bio: dummyUserInfo.profile.bio,
+        preferences: dummyUserInfo.preferences,
+      },
+    });
+  });
+
+  it("should return undefined if user profile does not exist", async () => {
+    await testDb.delete(usersTable);
+
+    const result = await getUserInfoQuery(
+      {
+        ...testDependencies,
+        dbInstance: testDb,
+      },
+      "id",
+      dummyUser.id,
+    );
+
+    expect(result).toEqual(undefined);
+  });
+});
+</file>
+
+<file path="queries/auth.query.ts">
+import { and, eq } from "drizzle-orm";
+import { createDBQuery } from "../lib/create-db-query";
+import type { Dependencies } from "../lib/types";
+import type {
+  InsertAuthProvider,
+  SelectAuthProvider,
+} from "../schemas/auth-provider.schema";
+import { authProvidersTable } from "../schemas/auth-provider.schema";
+import type {
+  InsertUser,
+  SelectUser,
+  UpdateUser,
+} from "../schemas/user.schema";
+import { usersTable } from "../schemas/user.schema";
+
+type SelectUserWithPassword = SelectUser & { password: string };
+
+export function getUserByEmailQuery(
+  dependencies: Dependencies,
+  email: string,
+  withPassword: true,
+): Promise<SelectUserWithPassword | undefined>;
+
+export function getUserByEmailQuery(
+  dependencies: Dependencies,
+  email: string,
+  withPassword?: false | undefined,
+): Promise<SelectUser | undefined>;
+
+export function getUserByEmailQuery(
+  dependencies: Dependencies,
+  email: string,
+  withPassword: boolean = false,
+): Promise<SelectUser | SelectUserWithPassword | undefined> {
+  return createDBQuery({
+    dependencies,
+    queryName: "getUserByEmail",
+    query: async (db) => {
+      const user = await db.query.usersTable.findFirst({
+        where: eq(usersTable.email, email),
+      });
+
+      if (!user) {
+        return undefined;
+      }
+
+      if (!withPassword) {
+        const { password, ...userWithoutPassword } =
+          user as SelectUserWithPassword;
+        return userWithoutPassword as SelectUser;
+      }
+
+      return user as SelectUserWithPassword;
+    },
+  });
+}
+
+export const createUserQuery = (
+  dependencies: Dependencies,
+  newUser: InsertUser["register"],
+  provider: InsertAuthProvider["init"]["provider"],
+  providerUserId?: string,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "createUser",
+    query: async (db) => {
+      const [createdUser] = await db
+        .insert(usersTable)
+        .values(newUser)
+        .returning({
+          id: usersTable.id,
+          email: usersTable.email,
+          isEmailVerified: usersTable.isEmailVerified,
+          createdAt: usersTable.createdAt,
+          updatedAt: usersTable.updatedAt,
+          isOnboarded: usersTable.isOnboarded,
+        });
+
+      if (!createdUser || !createdUser.id) {
+        return null;
+      }
+
+      await db.insert(authProvidersTable).values({
+        provider,
+        userId: createdUser.id,
+        providerUserId,
+      });
+
+      return createdUser;
+    },
+  });
+};
+
+export const getIsEmailVerifiedQuery = (
+  dependencies: Dependencies,
+  fieldName: keyof SelectUser,
+  value: any,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getIsEmailVerifiedQuery",
+    query: async (db) => {
+      return await db.query.usersTable.findFirst({
+        where: eq(usersTable[fieldName], value),
+        columns: {
+          isEmailVerified: true,
+        },
+      });
+    },
+  });
+};
+
+export const getUserByIdQuery = (
+  dependencies: Dependencies,
+  userId: string,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getUserByIdQuery",
+    query: async (db) => {
+      return await db.query.usersTable.findFirst({
+        where: eq(usersTable.id, userId),
+        columns: {
+          password: false,
+        },
+      });
+    },
+  });
+};
+
+export const updateUserByIdQuery = (
+  dependencies: Dependencies,
+  body: UpdateUser,
+  userId: SelectUser["id"],
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "updateUserByIdQuery",
+    query: async (db) => {
+      return await db
+        .update(usersTable)
+        .set(body)
+        .where(eq(usersTable.id, userId))
+        .returning();
+    },
+  });
+};
+
+export function getProvidersByProviderUserId(
+  deps: Dependencies,
+  providerUserId: string,
+  provider: SelectAuthProvider["provider"],
+): Promise<SelectAuthProvider>;
+
+export function getProvidersByProviderUserId(
+  deps: Dependencies,
+  providerUserId: string,
+): Promise<SelectAuthProvider[]>;
+
+export function getProvidersByProviderUserId(
+  deps: Dependencies,
+  providerUserId: string,
+  provider?: SelectAuthProvider["provider"],
+) {
+  return createDBQuery<SelectAuthProvider | SelectAuthProvider[]>({
+    dependencies: deps,
+    queryName: "getProvidersByProviderUserId",
+    // @ts-ignore
+    query: async (db) => {
+      if (provider) {
+        return await db.query.authProvidersTable.findFirst({
+          where: and(
+            eq(authProvidersTable.provider, provider),
+            eq(authProvidersTable.userId, providerUserId),
+          ),
+        });
+      }
+
+      return await db.query.authProvidersTable.findMany({
+        where: eq(authProvidersTable.userId, providerUserId),
+      });
+    },
+  });
+}
+
+export const createProvider = (
+  dependencies: Dependencies,
+  newProvider: InsertAuthProvider["authenticate"],
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "createProvider",
+    query: async (db) => {
+      return await db
+        .insert(authProvidersTable)
+        .values(newProvider)
+        .returning();
+    },
+  });
+};
+</file>
+
+<file path="queries/misc.query.ts">
+import type { Dependencies } from "../lib/types";
+import { sql } from "drizzle-orm";
+import { createDBQuery } from "../lib/create-db-query";
+
+export const getStatusQuery = (dependencies: Dependencies) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getDbStatus",
+    query: (db) => {
+      return db.execute(sql`SELECT 1`);
+    },
+  });
+};
+</file>
+
+<file path="queries/user.query.ts">
+import { eq } from "drizzle-orm";
+import { createDBQuery } from "../lib/create-db-query";
+import type { Dependencies } from "../lib/types";
+import type { UpdateUserInfo } from "../schemas/user-info.schema";
+import { userInfoTable } from "../schemas/user-info.schema";
+import type { SelectUser } from "../schemas/user.schema";
+import { usersTable } from "../schemas/user.schema";
+
+export const getProfileByUserIdQuery = (
+  dependencies: Dependencies,
+  userId: string,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getUserProfileByUserIdQuery",
+    query: async (db) => {
+      return await db.query.userInfoTable.findFirst({
+        where: eq(userInfoTable.userId, userId),
+        columns: {
+          avatarUrl: true,
+          bio: true,
+          username: true,
+        },
+      });
+    },
+  });
+};
+
+export const getIsUsernameUniqueQuery = (
+  dependencies: Dependencies,
+  username: string,
+  userId: string,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getIsUsernameUniqueQuery",
+    query: async (db) => {
+      const user = await db.query.userInfoTable.findFirst({
+        where: eq(userInfoTable.username, username),
+      });
+
+      if (user?.userId === userId) {
+        return true;
+      }
+
+      return user === undefined;
+    },
+  });
+};
+
+export const updateUserProfileByUserIdQuery = (
+  dependencies: Dependencies,
+  body: UpdateUserInfo["profile"],
+  userId: string,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "updateUserProfileByUserIdQuery",
+    query: async (db) => {
+      return await db
+        .update(userInfoTable)
+        .set(body)
+        .where(eq(userInfoTable.userId, userId));
+    },
+  });
+};
+
+export const getPreferencesByUserIdQuery = (
+  dependencies: Dependencies,
+  userId: string,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getUserPreferencesByUserIdQuery",
+    query: async (db) => {
+      return await db.query.userInfoTable.findFirst({
+        where: eq(userInfoTable.userId, userId),
+        columns: {
+          preferences: true,
+        },
+      });
+    },
+  });
+};
+
+export const updateUserPreferencesByIdQuery = (
+  dependencies: Dependencies,
+  body: UpdateUserInfo["preferences"],
+  userId: string,
+) => {
+  const stringifiedBody = JSON.stringify(body);
+
+  return createDBQuery({
+    dependencies,
+    queryName: "updateUserPreferencesByIdQuery",
+    query: async (db) => {
+      return await db
+        .update(userInfoTable)
+        .set({ preferences: stringifiedBody })
+        .where(eq(userInfoTable.userId, userId));
+    },
+  });
+};
+
+export const getUserInfoQuery = (
+  dependencies: Dependencies,
+  fieldName: keyof SelectUser,
+  fieldValue: any,
+) => {
+  return createDBQuery({
+    dependencies,
+    queryName: "getUserInfoQuery",
+    query: async (db) => {
+      return await db.query.usersTable.findFirst({
+        where: eq(usersTable[fieldName], fieldValue),
+        columns: {
+          email: true,
+          id: true,
+          isOnboarded: true,
+          isEmailVerified: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        with: {
+          userInfo: {
+            columns: {
+              username: true,
+              avatarUrl: true,
+              bio: true,
+              preferences: true,
+            },
+          },
+        },
+      });
+    },
+  });
+};
+</file>
+
+<file path="schemas/auth-provider.schema.ts">
+import { relations } from "drizzle-orm";
+import { pgEnum, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { nanoid } from "nanoid";
+import { z } from "zod";
+import { usersTable } from "./user.schema";
+
+export const providerEnum = pgEnum("auth_provider_enum", [
+  "email",
+  "google",
+  "amazon",
+]);
+
+export const authProvidersTable = pgTable("auth_providers", {
+  id: varchar({ length: 255 })
+    .$default(() => nanoid())
+    .primaryKey(),
+  userId: varchar("user_id", { length: 255 })
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  provider: providerEnum().notNull(),
+  providerUserId: varchar("provider_user_id", { length: 255 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" })
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+export const authProviderRelations = relations(
+  authProvidersTable,
+  ({ one }) => ({
+    user: one(usersTable, {
+      fields: [authProvidersTable.userId],
+      references: [usersTable.id],
+    }),
+  }),
+);
+
+const baseSchema = createInsertSchema(authProvidersTable);
+
+export const selectAuthProviderSchema = createSelectSchema(authProvidersTable);
+
+export const insertAuthProviderSchema = z.object({
+  init: z.object({
+    provider: baseSchema.shape.provider,
+  }),
+  callback: z
+    .object({
+      provider: baseSchema.shape.provider,
+      providerId: z.string(),
+    })
+    .optional(),
+  authenticate: z.object({
+    provider: baseSchema.shape.provider,
+    userId: baseSchema.shape.userId,
+    providerUserId: baseSchema.shape.providerUserId,
+  }),
+});
+
+export type SelectAuthProvider = z.infer<typeof selectAuthProviderSchema>;
+export type InsertAuthProvider = z.infer<typeof insertAuthProviderSchema>;
+</file>
+
+<file path="schemas/index.schema.ts">
+export {
+  authProviderRelations,
+  authProvidersTable,
+  providerEnum,
+} from "./auth-provider.schema";
+export { userInfoRelations, userInfoTable } from "./user-info.schema";
+export { userRelations, usersTable } from "./user.schema";
+</file>
+
+<file path="schemas/user-info.schema.ts">
+import { relations } from "drizzle-orm";
+import { jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  createInsertSchema,
+  createSelectSchema,
+  createUpdateSchema,
+} from "drizzle-zod";
+import { nanoid } from "nanoid";
+import { z } from "zod";
+import { imageFileSchema } from "../lib/schemas";
+import { usersTable } from "./user.schema";
+
+export const userInfoTable = pgTable("user_info", {
+  id: varchar({ length: 255 })
+    .$default(() => nanoid())
+    .primaryKey(),
+  userId: varchar("user_id", { length: 255 })
+    .notNull()
+    .references(() => usersTable.id, {
+      onDelete: "cascade",
+    })
+    .unique(),
+  username: varchar({ length: 255 }).unique(),
+  avatarUrl: text("avatar_url"),
+  bio: text(),
+  preferences: jsonb("preferences"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" })
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+export const userInfoRelations = relations(userInfoTable, ({ one }) => ({
+  user: one(usersTable, {
+    fields: [userInfoTable.userId],
+    references: [usersTable.id],
+  }),
+}));
+
+export const userPreferencesSchema = z.object({
+  genres: z.array(z.string()).min(3, { error: "Select at least 3 genres" }), // ✅
+  authors: z.array(z.string()).optional(),
+  series: z.array(z.string()).optional(),
+});
+
+export const baseSelectSchema = createSelectSchema(userInfoTable, {
+  preferences: userPreferencesSchema,
+});
+
+export const selectUserInfoSchema = z.object({
+  profile: z.object({
+    username: baseSelectSchema.shape.username,
+    avatarUrl: baseSelectSchema.shape.avatarUrl,
+    bio: baseSelectSchema.shape.bio,
+  }),
+  preferences: z.object({
+    genres: baseSelectSchema.shape.preferences.shape.genres,
+    authors: baseSelectSchema.shape.preferences.shape.authors,
+    series: baseSelectSchema.shape.preferences.shape.series,
+  }),
+});
+export type SelectUserInfo = z.infer<typeof selectUserInfoSchema>;
+
+const baseInsertSchema = createInsertSchema(userInfoTable, {
+  username: (schema) => schema.min(4).optional(),
+  avatarUrl: (schema) => schema.check(z.url()),
+  bio: (schema) => schema.max(80),
+  preferences: userPreferencesSchema,
+});
+
+export const insertUserInfoSchema = z.object({
+  profile: z.object({
+    username: baseInsertSchema.shape.username,
+    avatarUrl: baseInsertSchema.shape.avatarUrl,
+    bio: baseInsertSchema.shape.bio,
+  }),
+  preferences: z.object({
+    genres: baseInsertSchema.shape.preferences.shape.genres,
+    authors: baseInsertSchema.shape.preferences.shape.authors,
+    series: baseInsertSchema.shape.preferences.shape.series,
+  }),
+});
+
+export type InsertUserInfo = z.infer<typeof insertUserInfoSchema>;
+
+export const baseUpdateSchema = createUpdateSchema(userInfoTable, {
+  username: (s) =>
+    s.min(4, { error: "Username must be at least 4 characters long" }),
+  avatarUrl: () => z.url(),
+  bio: (s) => s.max(80, { error: "bio must not exceed 80 characters" }),
+  preferences: userPreferencesSchema,
+});
+
+export const updateProfileSchema = z.object({
+  username: baseUpdateSchema.shape.username.optional(),
+  bio: baseUpdateSchema.shape.bio.optional(),
+  profileImage: imageFileSchema.optional(),
+});
+
+export type UpdateProfile = z.infer<typeof updateProfileSchema>;
+
+export const updateUserInfoSchema = z.object({
+  profile: z.object({
+    username: baseUpdateSchema.shape.username,
+    profileImage: updateProfileSchema.shape.profileImage,
+    bio: baseUpdateSchema.shape.bio,
+  }),
+  preferences: z.object({
+    genres: baseUpdateSchema.shape.preferences.shape.genres,
+    authors: baseUpdateSchema.shape.preferences.shape.authors,
+    series: baseUpdateSchema.shape.preferences.shape.series,
+  }),
+});
+
+export type UpdateUserInfo = z.infer<typeof updateUserInfoSchema>;
+
+export const updateAllUserInfoSchema = z.object({
+  username: baseUpdateSchema.shape.username,
+  profileImage: updateProfileSchema.shape.profileImage,
+  bio: baseUpdateSchema.shape.bio,
+  genres: baseUpdateSchema.shape.preferences.shape.genres,
+  authors: baseUpdateSchema.shape.preferences.shape.authors,
+  series: baseUpdateSchema.shape.preferences.shape.series,
+});
+
+export type UpdateAllUserInfo = z.infer<typeof updateAllUserInfoSchema>;
+</file>
+
+<file path="schemas/user.schema.ts">
+import { relations } from "drizzle-orm";
+import { boolean, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  createInsertSchema,
+  createSelectSchema,
+  createUpdateSchema,
+} from "drizzle-zod";
+import { nanoid } from "nanoid";
+import { z } from "zod";
+import { authProvidersTable } from "./auth-provider.schema";
+import { userInfoTable } from "./user-info.schema";
+
+export const usersTable = pgTable("users", {
+  id: varchar({ length: 255 })
+    .$default(() => nanoid())
+    .primaryKey(),
+  email: varchar({ length: 255 }).unique().notNull(),
+  password: varchar({ length: 255 }),
+  isEmailVerified: boolean("is_email_verified")
+    .notNull()
+    .$default(() => false),
+  isOnboarded: boolean("is_onboarded")
+    .notNull()
+    .$default(() => false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" })
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+export const userRelations = relations(usersTable, ({ one, many }) => ({
+  userInfo: one(userInfoTable),
+  authProvider: many(authProvidersTable),
+}));
+
+const baseSchema = createInsertSchema(usersTable, {
+  email: (schema) => schema.check(z.email()),
+  password: (schema) => schema.min(1).optional(),
+}).pick({
+  email: true,
+  password: true,
+  isEmailVerified: true,
+});
+
+export const selectUserSchema = createSelectSchema(usersTable).omit({
+  password: true,
+});
+
+export const oauthProviderSchema = z.enum(["google", "amazon"]);
+
+export const insertUserSchema = z.object({
+  register: z.object({
+    email: baseSchema.shape.email,
+    password: baseSchema.shape.password,
+    isEmailVerified: baseSchema.shape.isEmailVerified,
+  }),
+  sendEmail: z.object({
+    email: baseSchema.shape.email,
+  }),
+  login: z.object({
+    email: baseSchema.shape.email,
+    password: baseSchema.shape.password,
+  }),
+  registerFormEmail: z
+    .object({
+      email: baseSchema.shape.email,
+      password: baseSchema.shape.password,
+      confirmPassword: z.string(),
+      terms: z.boolean().refine((val) => val, {
+        message: "You must accept the Terms of Service",
+      }),
+      promotional: z.boolean().optional(),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: "Passwords do not match",
+      path: ["confirmPassword"],
+    }),
+});
+
+export const updateUserSchema = createUpdateSchema(usersTable).omit({
+  createdAt: true,
+  id: true,
+  updatedAt: true,
+});
+
+export type SelectUser = z.infer<typeof selectUserSchema>;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpdateUser = z.infer<typeof updateUserSchema>;
+</file>
+
+<file path=".env.example">
+NODE_ENV=development
+LOGGER_LEVEL=info
+DB_HOST=
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
+DB_PORT=
+DATABASE_URL=
+</file>
+
+<file path=".env.local">
+NODE_ENV=development
+LOGGER_LEVEL=info
+DB_HOST=localhost
+DB_USER=user
+DB_PASSWORD=password
+DB_NAME=database
+DB_PORT=5432
+DATABASE_URL=postgresql://user:password@localhost:5432/database
+</file>
+
+<file path="drizzle.config.ts">
+import { configDotenv } from "dotenv";
+import { defineConfig } from "drizzle-kit";
+
+configDotenv({ path: ".env.local" });
+
+export default defineConfig({
+  out: "./migrations",
+  schema: "./schemas/index.schema.ts",
+  dialect: "postgresql",
+  dbCredentials: {
+    // eslint-disable-next-line node/no-process-env
+    url: process.env.DATABASE_URL || "",
+  },
+});
+</file>
+
+<file path="index.ts">
+/* eslint-disable node/no-process-env */
+import { drizzle } from "drizzle-orm/node-postgres";
+import * as schema from "./schemas/index.schema";
+import "dotenv/config";
+
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error("Missing environment variable, DATABASE_URL");
+}
+
+export const db = drizzle(databaseUrl, { schema });
+</file>
+
+<file path="package.json">
+{
+  "name": "@novelty/db",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "dev": "drizzle-kit studio",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:check": "drizzle-kit check",
+    "db:push": "drizzle-kit push",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
+    "test": "vitest",
+    "test:ci": "vitest run",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf node_modules .turbo dist coverage"
+  },
+  "dependencies": {
+    "@novelty/lib": "workspace:*",
+    "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.44.4",
+    "drizzle-zod": "^0.8.3",
+    "nanoid": "^5.1.5",
+    "pg": "^8.16.3",
+    "prom-client": "^15.1.3",
+    "sha3": "^2.1.4",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^5.2.1",
+    "@novelty/typescript-config": "workspace:*",
+    "@testcontainers/postgresql": "^11.5.1",
+    "@types/pg": "^8.15.4",
+    "drizzle-kit": "^0.31.4",
+    "testcontainers": "^11.5.1",
+    "tsx": "^4.20.4",
+    "typescript": "5.9.2"
+  }
+}
+</file>
+
+<file path="test-setup.ts">
+/* eslint-disable import/no-mutable-exports */
+import type { Logger } from "@novelty/lib/types";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import type { DBClient, Dependencies } from "lib/types";
+import type { Pool as TPool } from "pg";
+import path from "node:path";
+import { configureLogger } from "@novelty/lib/logger";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { Pool } from "pg";
+import { Registry } from "prom-client";
+import { afterAll, beforeAll, vi } from "vitest";
+import * as schema from "./schemas/index.schema";
+
+// eslint-disable-next-line node/no-process-env
+if (process.env.NODE_ENV !== "test") {
+  throw new Error("NODE_ENV must be 'test'");
+}
+
+let container: StartedPostgreSqlContainer;
+let pool: TPool;
+let testDb: DBClient;
+let testDependencies: Dependencies;
+let testLogger: Logger;
+
+beforeAll(async () => {
+  container = await new PostgreSqlContainer().withStartupTimeout(12000).start();
+
+  pool = new Pool({
+    connectionString: container.getConnectionUri(),
+  });
+
+  testDb = drizzle({ client: pool, schema });
+
+  const migrationsFolder = path.resolve(__dirname, "./migrations");
+
+  await migrate(testDb, {
+    migrationsFolder,
+  });
+
+  testLogger = configureLogger({
+    nodeEnvironment: "test",
+    hostUrl: "",
+    labels: {},
+    logLevel: "info",
+  });
+
+  testDependencies = {
+    dbInstance: testDb,
+    logger: testLogger,
+    reqId: "test-req-id",
+    prometheusRegistry: new Registry(),
+  };
+});
+
+afterAll(async () => {
+  await pool.end();
+  await container.stop();
+  vi.clearAllMocks();
+});
+
+export { testDb, testDependencies, testLogger };
+</file>
+
+<file path="tsconfig.json">
+{
+  "extends": "@novelty/typescript-config/base.json",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "baseUrl": "./",
+    "module": "ESNext",
+    "moduleResolution": "Node"
+  }
+}
+</file>
+
+<file path="vitest.config.ts">
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    globals: true,
+    reporters: ["default"],
+    hookTimeout: 100000,
+    include: ["**/*.test.ts", "!**/docker-data/**"],
+    setupFiles: "./test-setup.ts",
+  },
+});
+</file>
+
+</files>

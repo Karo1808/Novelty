@@ -6,7 +6,7 @@ import {
   createUpdateSchema,
 } from "drizzle-zod";
 import { nanoid } from "nanoid";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { authProvidersTable } from "./auth-provider.schema";
 import { userInfoTable } from "./user-info.schema";
 

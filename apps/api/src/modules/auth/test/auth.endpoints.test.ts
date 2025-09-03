@@ -26,7 +26,7 @@ import * as sessionService from "@novelty/services/session.service";
 import { eq, sql } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { z } from "zod/v4";
+import type { z } from "zod";
 import { authRouter } from "../auth.index";
 
 vi.mock("@hono/node-server/conninfo", () => ({
