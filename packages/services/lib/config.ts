@@ -30,3 +30,6 @@ export const GOOGLE_SCOPES = ["openid", "email", "profile"];
 export const AMAZON_SCOPES = ["openid", "email", "profile"];
 
 export const OAUTH_COOKIE_EXPIRATION = 60 * 10; // 10 minutes
+
+export const GOOGLE_BOOK_API_URL =
+  "https://www.googleapis.com/books/v1/" as const;

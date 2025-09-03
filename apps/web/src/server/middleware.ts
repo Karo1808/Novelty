@@ -11,30 +11,30 @@ export const redirectToLogin = () => {
 
 export const authenticationMiddleware = createMiddleware({
   type: "function",
-  // @ts-ignore
 }).server(async ({ next }) => {
   const { session, cookies } = getAuthHeaders();
 
   if (!session) {
-    return next();
+    return redirectToLogin();
   }
 
-  const response = await apiClient.auth.me.$get({
+  const response = await apiClient.user.$get({
     header: cookies,
   });
 
   if (response.status === HttpStatusCodes.UNAUTHORIZED) {
-    redirectToLogin();
+    return redirectToLogin();
   }
 
   const json = await response.json();
 
   if (json.success === false) {
-    redirectToLogin();
+    return redirectToLogin();
   }
 
+  const user = json.user;
+
   return next({
-    // @ts-expect-error: userId always defined here
-    context: { userId: json.userId },
+    context: { userId: user.id, user },
   });
 });

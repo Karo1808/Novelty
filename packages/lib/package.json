@@ -39,6 +39,7 @@
     "@sentry/types": "^10.5.0",
     "fetch-blob": "^4.0.0",
     "ioredis": "^5.7.0",
+    "react-hook-form": "^7.58.1",
     "typescript": "5.9.2"
   }
 }

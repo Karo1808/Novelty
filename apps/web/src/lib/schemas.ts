@@ -4,7 +4,7 @@ import { z } from "zod";
 
 export const updateOnboardingSchema = z.object({
   username: updateProfileSchema.shape.username,
-  profileImage: updateProfileSchema.shape.profileImage,
+  profileImage: updateProfileSchema.shape.profileImage.optional(),
   bio: updateProfileSchema.shape.bio,
   genres: updateUserInfoSchema.shape.preferences.shape.genres,
   authors: updateUserInfoSchema.shape.preferences.shape.authors,

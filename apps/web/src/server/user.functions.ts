@@ -3,19 +3,17 @@ import { apiClient } from "@novelty/react-query/lib/api-client";
 import { redirect } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import z from "zod";
-import { authenticationMiddleware, redirectToLogin } from "./middleware";
+import { authenticationMiddleware } from "./middleware";
 
-export const getUserFn = createServerFn({ method: "GET" })
-  .middleware([authenticationMiddleware])
-  .handler(async () => {
-    const { cookies } = getAuthHeaders();
+export const getUserFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { cookies } = getAuthHeaders();
 
-    const response = await apiClient.user.$get({
-      header: cookies,
-    });
-
-    return await response.json();
+  const response = await apiClient.user.$get({
+    header: cookies,
   });
+
+  return await response.json();
+});
 
 const toUpdateUserForm = (fd: FormData) => {
   const pick = (k: string) => fd.get(k)?.toString() ?? "";
@@ -42,18 +40,13 @@ const toUpdateUserForm = (fd: FormData) => {
 export const updateUserFn = createServerFn({ method: "POST" })
   .middleware([authenticationMiddleware])
   .validator(z.instanceof(FormData))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { cookies } = getAuthHeaders();
 
-    const user = await getUserFn();
+    const { isOnboarded, id: userId } = context.user;
 
-    if (user.success === false) {
-      redirectToLogin();
-      return;
-    }
-
-    if (user.user.isOnboarded) {
-      throw redirect({ to: "/user/profile/$userId", params: user.user.id });
+    if (isOnboarded) {
+      throw redirect({ to: "/user/profile/$userId", params: userId });
     }
 
     const response = await apiClient.user.$patch({

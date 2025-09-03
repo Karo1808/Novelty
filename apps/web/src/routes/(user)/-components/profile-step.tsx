@@ -13,9 +13,10 @@ import { UseFormReturn } from "react-hook-form";
 
 interface ProfileStepProps {
   form: UseFormReturn<UpdateOnboarding>;
+  avatarUrl?: string;
 }
 
-const ProfileStep = ({ form }: ProfileStepProps) => {
+const ProfileStep = ({ form, avatarUrl }: ProfileStepProps) => {
   return (
     <div className="grid gap-6">
       <div>
@@ -54,7 +55,7 @@ const ProfileStep = ({ form }: ProfileStepProps) => {
                 <ImageUpload
                   value={field.value ?? []}
                   onChange={(file) => field.onChange(file)}
-                  fallbackUrl={DEFAULT_AVATAR_URL}
+                  fallbackUrl={avatarUrl ?? DEFAULT_AVATAR_URL}
                 />
               </FormControl>
             </FormItem>

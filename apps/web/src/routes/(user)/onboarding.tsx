@@ -1,7 +1,10 @@
 import { ONBOARDING_STEPS } from "@/lib/config";
 import { UpdateOnboarding, updateOnboardingSchema } from "@/lib/schemas";
+import { getUserDraftFn, updateUserDraftFn } from "@/server/draft.functions";
 import { getUserFn, onboardFn } from "@/server/user.functions";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
+import { useDraft } from "@novelty/lib/hooks/use-draft";
+import { draftQuery } from "@novelty/react-query/modules/draft/draft.query";
 import { userQuery } from "@novelty/react-query/modules/user/user.query";
 import { Form } from "@novelty/ui/components/form";
 import OnboardingShell from "@novelty/ui/components/onboarding";
@@ -24,11 +27,17 @@ export const Route = createFileRoute("/(user)/onboarding")({
       throw redirect({ to: "/" });
     }
   },
-  loader: ({ context }) =>
+  loader: ({ context }) => {
     context.queryClient.ensureQueryData({
       queryKey: userQuery.userKey,
       queryFn: getUserFn,
-    }),
+    });
+
+    context.queryClient.ensureQueryData({
+      ...draftQuery.draftUserOpts(),
+      queryFn: getUserDraftFn,
+    });
+  },
 });
 
 function RouteComponent() {
@@ -38,23 +47,52 @@ function RouteComponent() {
     select: (data) => (data.success ? data.user : null),
   });
 
+  const { data: userDraft } = useSuspenseQuery({
+    queryKey: draftQuery.draftUserOpts().queryKey,
+    queryFn: getUserDraftFn,
+    staleTime: 0,
+    refetchInterval: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+  });
+
   const onboard = useServerFn(onboardFn);
+  const updateUserDraft = useServerFn(updateUserDraftFn);
 
   const navigate = useNavigate({
     from: "/onboarding",
   });
 
+  const defaultValues: UpdateOnboarding = {
+    username:
+      userDraft?.data?.profile?.username ?? user?.userInfo.profile.username,
+    bio: userDraft?.data?.profile?.bio ?? user?.userInfo.profile.bio,
+    profileImage:
+      userDraft?.data?.profile?.avatarUrl ?? user?.userInfo.profile.avatarUrl,
+    genres:
+      userDraft?.data?.preferences?.genres ??
+      user?.userInfo.preferences.genres ??
+      [],
+    authors:
+      userDraft?.data?.preferences?.authors ??
+      user?.userInfo.preferences.authors,
+    series:
+      userDraft?.data?.preferences?.series ?? user?.userInfo.preferences.series,
+  };
+
   const form = useForm<UpdateOnboarding>({
     resolver: standardSchemaResolver(updateOnboardingSchema),
-    defaultValues: {
-      username: user?.userInfo.profile.username,
-      profileImage: [],
-      bio: user?.userInfo.profile.bio,
-      genres: user?.userInfo.preferences.genres,
-      authors: user?.userInfo.preferences.authors,
-      series: user?.userInfo.preferences.series,
-    },
+    defaultValues,
   });
+
+  useDraft<UpdateOnboarding>(
+    form.control,
+    (values) =>
+      updateUserDraft({ data: { ...values, profileImage: undefined } }),
+    {
+      debounceMs: 1000,
+    },
+  );
 
   const onSubmit = async (values: UpdateOnboarding) => {
     const formData = new FormData();
@@ -105,7 +143,12 @@ function RouteComponent() {
                   return <WelcomeStep />;
 
                 case "profile":
-                  return <ProfileStep form={form} />;
+                  return (
+                    <ProfileStep
+                      form={form}
+                      avatarUrl={user?.userInfo.profile.avatarUrl ?? ""}
+                    />
+                  );
 
                 case "prefs":
                   return <PreferencesStep form={form} />;
