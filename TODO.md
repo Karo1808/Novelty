@@ -11,3 +11,19 @@
 [ ] fix grafana
 [ ] add observability and monitoring to frontend
 [ ] test the frontend
+
+
+Google:
+- id
+- volume info
+  - title
+  - subtitle
+  - authors
+  - industryIdentifiers
+    - isbn
+  - publishedData
+  - description
+  - pageCount
+  - average rating
+  - imageLinks
+    - thumbnail

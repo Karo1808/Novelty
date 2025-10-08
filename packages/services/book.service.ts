@@ -1,9 +1,16 @@
-import { MAX_RESULTS_BASIC_SEARCH } from "@novelty/lib/config";
+import {
+  MAX_RESULTS_BASIC_SEARCH,
+  MAX_RESULTS_DETAILED_SEARCH,
+} from "@novelty/lib/config";
 import { HttpStatusCodes } from "@novelty/lib/http-status-codes";
 import { captureException } from "@novelty/lib/sentry";
 import { MarkKeysAsPartial } from "@novelty/lib/types";
 import {
   BasicSearchResultSchema,
+  DetailSearchResult,
+  DetailSearchResultSchema,
+  GetBookResult,
+  getBookResultSchema,
   type BasicSearchResult,
 } from "@novelty/lib/validations/book";
 import ky, { HTTPError } from "ky";
@@ -111,6 +118,76 @@ const getApi = ({
   });
 };
 
+export const GetBook = async (
+  dependencies: Dependencies,
+  id: string,
+): Promise<Result<GetBookResult, BasicSearchError>> => {
+  const queryName = "getBook";
+  const endpoint = "volumes";
+
+  const api = getApi({
+    dependencies,
+    queryName,
+    endpointPath: endpoint,
+    query: id,
+  });
+
+  try {
+    const json = await api
+      .get(`volumes/${id}`, {
+        searchParams: {
+          fields:
+            "id,volumeInfo(title,authors,averageRating,publishedDate,description,pageCount,imageLinks(thumbnail))",
+        },
+      })
+      .json<BasicSearchResult>();
+
+    try {
+      const results = getBookResultSchema.parse(json);
+      return {
+        data: results,
+        success: true,
+      };
+    } catch (error) {
+      const parsedError = error as ZodError;
+      return {
+        success: false,
+        error: {
+          message: parsedError.message,
+          kind: "BAD_GATEWAY",
+        },
+      };
+    }
+  } catch (error) {
+    const httpError = error as HTTPError;
+    const status = httpError.response.status;
+    const statusText = httpError.response.statusText;
+    const message = httpError.message;
+
+    if (status === HttpStatusCodes.GATEWAY_TIMEOUT) {
+      return {
+        success: false,
+        error: {
+          message,
+          kind: statusText as "GATEWAY_TIMEOUT",
+        },
+      };
+    }
+
+    if (status === HttpStatusCodes.SERVICE_UNAVAILABLE) {
+      return {
+        success: false,
+        error: {
+          message,
+          kind: statusText as "SERVICE_UNAVAILABLE",
+        },
+      };
+    }
+
+    throw error;
+  }
+};
+
 export type BasicSearchError =
   | ErrorResponse<"SERVICE_UNAVAILABLE">
   | ErrorResponse<"GATEWAY_TIMEOUT">
@@ -143,10 +220,80 @@ export const basicSearch = async (
       })
       .json<BasicSearchResult>();
 
-    console.log(json);
-
     try {
       const results = BasicSearchResultSchema.parse(json);
+      return {
+        data: results,
+        success: true,
+      };
+    } catch (error) {
+      const parsedError = error as ZodError;
+      return {
+        success: false,
+        error: {
+          message: parsedError.message,
+          kind: "BAD_GATEWAY",
+        },
+      };
+    }
+  } catch (error) {
+    const httpError = error as HTTPError;
+    const status = httpError.response.status;
+    const statusText = httpError.response.statusText;
+    const message = httpError.message;
+
+    if (status === HttpStatusCodes.GATEWAY_TIMEOUT) {
+      return {
+        success: false,
+        error: {
+          message,
+          kind: statusText as "GATEWAY_TIMEOUT",
+        },
+      };
+    }
+
+    if (status === HttpStatusCodes.SERVICE_UNAVAILABLE) {
+      return {
+        success: false,
+        error: {
+          message,
+          kind: statusText as "SERVICE_UNAVAILABLE",
+        },
+      };
+    }
+
+    throw error;
+  }
+};
+
+export const detailedSearch = async (
+  dependencies: Dependencies,
+  query: string,
+): Promise<Result<DetailSearchResult, BasicSearchError>> => {
+  const queryName = "detailedSearch";
+  const endpoint = "volumes";
+
+  const api = getApi({
+    dependencies,
+    queryName,
+    endpointPath: endpoint,
+    query,
+  });
+
+  try {
+    const json = await api
+      .get("volumes", {
+        searchParams: {
+          q: query,
+          maxResults: MAX_RESULTS_DETAILED_SEARCH,
+          fields:
+            "items(id,volumeInfo(title,authors,averageRating,publishedDate,description,pageCount,imageLinks(thumbnail)))",
+        },
+      })
+      .json<BasicSearchResult>();
+
+    try {
+      const results = DetailSearchResultSchema.parse(json);
       return {
         data: results,
         success: true,
