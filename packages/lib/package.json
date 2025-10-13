@@ -20,7 +20,7 @@
     "@node-rs/argon2": "^2.0.2",
     "@oslojs/crypto": "^1.0.1",
     "@oslojs/encoding": "^1.1.0",
-    "@sentry/node": "^9.12.0",
+    "@sentry/node": "^10.19.0",
     "dayjs": "^1.11.13",
     "dotenv": "^16.5.0",
     "hono": "^4.7.6",
