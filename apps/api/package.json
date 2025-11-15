@@ -55,7 +55,7 @@
     "hono": "^4.7.6",
     "hono-pino": "^0.8.0",
     "hono-rate-limiter": "^0.4.2",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.1.1",
     "node-cron": "^3.0.3",
     "pino": "^9.6.0",
     "pino-loki": "^2.5.0",
