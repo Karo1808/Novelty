@@ -124,3 +124,29 @@ export const csrfErrorSchema = z
     },
     description: "Response returned when CSRF validation fails.",
   });
+
+export const malformedResponseSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "Malformed Response",
+      success: false,
+    },
+    description: "The external API does not pass validation",
+  });
+
+export const externalRateLimitSchema = z
+  .object({
+    message: z.string(),
+    success: z.literal(false),
+  })
+  .openapi({
+    example: {
+      message: "External Rate limit",
+      success: false,
+    },
+    description: "The external API usage has reached the rate limit",
+  });

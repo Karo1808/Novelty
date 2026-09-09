@@ -1,240 +1,75 @@
-/* eslint-disable ts/no-use-before-define */
 import {
   Body,
-  Column,
   Container,
   Head,
   Heading,
   Html,
-  Img,
-  Link,
   Preview,
-  Row,
   Section,
   Text,
 } from "@react-email/components";
 import * as React from "react";
 
-interface SlackConfirmEmailProps {
+interface ForgotPasswordEmailProps {
   token?: string;
 }
 
-const baseUrl = "test";
-
-// TODO: update this with my own code
-
-export const ForgotPasswordEmail = ({ token }: SlackConfirmEmailProps) => (
+export const ForgotPasswordEmail = ({ token }: ForgotPasswordEmailProps) => (
   <Html>
     <Head />
-    <Preview>Confirm your email address</Preview>
-    <Body style={main}>
+    <Preview>Reset your Novelty password</Preview>
+    <Body style={body}>
       <Container style={container}>
-        <Section style={logoContainer}>
-          <Img
-            src={`${baseUrl}/static/slack-logo.png`}
-            width="120"
-            height="36"
-            alt="Slack"
-          />
-        </Section>
-        <Heading style={h1}>Confirm your email address</Heading>
-        <Text style={heroText}>
-          Your confirmation code is below - enter it in your open browser window
-          and we'll help you get signed in.
-        </Text>
-
-        <Section style={codeBox}>
-          <Text style={confirmationCodeText}>{token}</Text>
-        </Section>
-
+        <Heading style={heading}>Reset your password</Heading>
         <Text style={text}>
-          If you didn't request this email, there's nothing to worry about, you
-          can safely ignore it.
+          Use this token to continue resetting your Novelty password:
         </Text>
-
-        <Section>
-          <Row style={footerLogos}>
-            <Column style={{ width: "66%" }}>
-              <Img
-                src={`${baseUrl}/static/slack-logo.png`}
-                width="120"
-                height="36"
-                alt="Slack"
-              />
-            </Column>
-            <Column>
-              <Section>
-                <Row>
-                  <Column>
-                    <Link href="/">
-                      <Img
-                        src={`${baseUrl}/static/slack-twitter.png`}
-                        width="32"
-                        height="32"
-                        alt="Slack"
-                        style={socialMediaIcon}
-                      />
-                    </Link>
-                  </Column>
-                  <Column>
-                    <Link href="/">
-                      <Img
-                        src={`${baseUrl}/static/slack-facebook.png`}
-                        width="32"
-                        height="32"
-                        alt="Slack"
-                        style={socialMediaIcon}
-                      />
-                    </Link>
-                  </Column>
-                  <Column>
-                    <Link href="/">
-                      <Img
-                        src={`${baseUrl}/static/slack-linkedin.png`}
-                        width="32"
-                        height="32"
-                        alt="Slack"
-                        style={socialMediaIcon}
-                      />
-                    </Link>
-                  </Column>
-                </Row>
-              </Section>
-            </Column>
-          </Row>
+        <Section style={codeBox}>
+          <Text style={code}>{token}</Text>
         </Section>
-
-        <Section>
-          <Link
-            style={footerLink}
-            href="https://slackhq.com"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Our blog
-          </Link>
-          &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
-          <Link
-            style={footerLink}
-            href="https://slack.com/legal"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Policies
-          </Link>
-          &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
-          <Link
-            style={footerLink}
-            href="https://slack.com/help"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Help center
-          </Link>
-          &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
-          <Link
-            style={footerLink}
-            href="https://slack.com/community"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-auth="NotApplicable"
-            data-linkindex="6"
-          >
-            Slack Community
-          </Link>
-          <Text style={footerText}>
-            ©2022 Slack Technologies, LLC, a Salesforce company.
-            {" "}
-            <br />
-            500 Howard Street, San Francisco, CA 94105, USA
-            {" "}
-            <br />
-            <br />
-            All rights reserved.
-          </Text>
-        </Section>
+        <Text style={muted}>
+          If you did not request a password reset, you can safely ignore this
+          email.
+        </Text>
       </Container>
     </Body>
   </Html>
 );
 
 ForgotPasswordEmail.PreviewProps = {
-  validationCode: "DJZ-TLX",
-} as SlackConfirmEmailProps;
+  token: "example-reset-token",
+} satisfies ForgotPasswordEmailProps;
 
 export default ForgotPasswordEmail;
 
-const footerText = {
-  fontSize: "12px",
-  color: "#b7b7b7",
-  lineHeight: "15px",
-  textAlign: "left" as const,
-  marginBottom: "50px",
-};
-
-const footerLink = {
-  color: "#b7b7b7",
-  textDecoration: "underline",
-};
-
-const footerLogos = {
-  marginBottom: "32px",
-  paddingLeft: "8px",
-  paddingRight: "8px",
-  width: "100%",
-};
-
-const socialMediaIcon = {
-  display: "inline",
-  marginLeft: "32px",
-};
-
-const main = {
-  backgroundColor: "#ffffff",
-  margin: "0 auto",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+const body = {
+  backgroundColor: "#0f172a",
+  color: "#e2e8f0",
+  fontFamily: "Arial, sans-serif",
+  padding: "32px 16px",
 };
 
 const container = {
+  backgroundColor: "#1e293b",
+  borderRadius: "8px",
   margin: "0 auto",
-  padding: "0px 20px",
+  maxWidth: "520px",
+  padding: "32px",
 };
 
-const logoContainer = {
-  marginTop: "32px",
-};
-
-const h1 = {
-  color: "#1d1c1d",
-  fontSize: "36px",
-  fontWeight: "700",
-  margin: "30px 0",
-  padding: "0",
-  lineHeight: "42px",
-};
-
-const heroText = {
-  fontSize: "20px",
-  lineHeight: "28px",
-  marginBottom: "30px",
-};
-
+const heading = { color: "#f8fafc", fontSize: "28px" };
+const text = { fontSize: "16px", lineHeight: "24px" };
+const muted = { color: "#94a3b8", fontSize: "14px", lineHeight: "22px" };
 const codeBox = {
-  background: "rgb(245, 244, 245)",
-  borderRadius: "4px",
-  marginBottom: "30px",
-  padding: "40px 10px",
+  backgroundColor: "#0f172a",
+  borderRadius: "6px",
+  margin: "24px 0",
+  padding: "12px",
 };
-
-const confirmationCodeText = {
-  fontSize: "30px",
+const code = {
+  fontSize: "20px",
+  fontWeight: "bold",
+  margin: "0",
+  overflowWrap: "anywhere" as const,
   textAlign: "center" as const,
-  verticalAlign: "middle",
-};
-
-const text = {
-  color: "#000",
-  fontSize: "14px",
-  lineHeight: "24px",
 };

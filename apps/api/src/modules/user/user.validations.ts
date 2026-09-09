@@ -100,6 +100,7 @@ export const completeOnboardingMissingFields = z
 export const getUserDraftSuccessSchema = z
   .object({
     userInfo: selectUserInfoSchema,
+    success: z.literal(true),
   })
   .openapi({
     example: {
@@ -115,6 +116,7 @@ export const getUserDraftSuccessSchema = z
           series: ["Mistborn", "The Dark Tower"],
         },
       },
+      success: true,
     },
   });
 

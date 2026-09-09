@@ -23,9 +23,13 @@ coverage*
 
 # Build Outputs
 .next/
+.nitro/
+.output/
+.tanstack/
 out/
 build
 dist
+*.tsbuildinfo
 
 
 # Debug
@@ -40,3 +44,11 @@ yarn-error.log*
 .sentryclirc
 
 docker-data
+
+# Local tooling and generated snapshots
+.roo/
+.roomodes
+memory-bank/
+repomix-output.xml
+*.session.sql
+open-api-spec.yaml

@@ -1,5 +1,7 @@
-export const DEFAULT_AVATAR_URL =
-  "https://pub-f2576f433d854257870dd0280684809a.r2.dev/profile_pictures/default-avatar-512.webp" as const;
+export const DEFAULT_AVATAR_URL = "/default-avatar.svg" as const;
+
+export const MAX_RESULTS_BASIC_SEARCH = 5 as const;
+export const MAX_RESULTS_DETAILED_SEARCH = 10 as const;
 
 export const BOOK_GENRES_STATIC = [
   // FICTION

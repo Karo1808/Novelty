@@ -513,12 +513,12 @@ export const getUserDraft = async (
 
     await setByKeyJson(dependencies, redisKey, user.userInfo);
 
-    [userInfo] = await getByKeyJson(dependencies, redisKey);
+    userInfo = await getByKeyJson(dependencies, redisKey);
   }
 
   return {
     success: true,
-    data: userInfo,
+    data: userInfo[0],
   };
 };
 

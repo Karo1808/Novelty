@@ -2,9 +2,10 @@
   "name": "novelty",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "packageManager": "pnpm@8.15.6",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "build": "turbo build",
@@ -19,8 +20,8 @@
     "test:ci": "turbo test:ci",
     "test:ui": "turbo test:ui",
     "test:coverage": "turbo test:coverage",
-    "open-open-api:generate": "turbo open-api:generate",
-    "open-open-api:lint": "turbo open-api:lint",
+    "open-api:generate": "turbo open-api:generate",
+    "open-api:lint": "turbo open-api:lint",
     "prepare": "husky",
     "commit": "git-cz",
     "compose:dev:up": "docker/run.sh dev",

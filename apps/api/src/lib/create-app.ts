@@ -47,7 +47,7 @@ export default function createApp() {
   app.use(secureHeaders());
   app.use("*", requestId());
   app.use("*", sentryTransactionMiddleware());
-  if (env.NODE_ENV !== "test") {
+  if (env.NODE_ENV !== "test" && env.SENTRY_DSN) {
     app.use("*", sentry({ dsn: env.SENTRY_DSN }));
     app.use("*", sentryConfigureScope());
   }
