@@ -8,8 +8,8 @@ import "dotenv/config";
 const redisPort = process.env.REDIS_PORT;
 const redisPassword = process.env.REDIS_PASSWORD;
 
-if (!redisPort || !redisPassword) {
-  throw new Error("Missing redis configuration environment variables");
+if (!redisPort) {
+  throw new Error("Missing REDIS_PORT environment variable");
 }
 
 const logger = configureLogger({
@@ -25,6 +25,7 @@ const logger = configureLogger({
 export const redis = new Redis({
   host: "localhost",
   port: Number(redisPort),
+  ...(redisPassword ? { password: redisPassword } : {}),
   maxRetriesPerRequest: null,
   connectTimeout: 3000,
   retryStrategy(times) {

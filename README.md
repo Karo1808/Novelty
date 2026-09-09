@@ -1,81 +1,75 @@
-# Turborepo starter
+# Novelty
 
-This is an official starter Turborepo.
+Novelty is a work-in-progress portfolio project exploring a social platform for readers. It was built to experiment with a TypeScript monorepo, session-based authentication, background jobs, external APIs, and a modern React frontend.
 
-## Using this example
+Development is currently paused, but the repository is kept as a portfolio snapshot of the architecture and features implemented so far.
 
-Run the following command:
+## Implemented Features
+
+- Email and password authentication
+- Google and Amazon OAuth providers
+- Email verification and password recovery
+- Redis-backed sessions and onboarding drafts
+- User profiles, avatars, and reading preferences
+- Google Books search and book details
+- Background email processing with BullMQ
+- API documentation and observability integrations
+
+## Tech Stack
+
+- **Frontend:** React, TanStack Start, TanStack Router, TanStack Query, Tailwind CSS
+- **API:** Hono, Zod OpenAPI
+- **Data:** PostgreSQL, Drizzle ORM, Redis
+- **Jobs and email:** BullMQ, React Email, Resend
+- **Storage:** S3-compatible object storage
+- **Tooling:** TypeScript, pnpm, Turborepo, Vitest, Docker
+
+## Repository Structure
+
+```text
+apps/
+  api/            Hono API
+  web/            TanStack Start frontend
+  email-sender/   Background email worker
+packages/
+  db/             Database schema and queries
+  email/          Email client and templates
+  lib/            Shared utilities and validation
+  message-queue/  BullMQ configuration
+  monitoring/     Monitoring experiments
+  react-query/    Typed API client and query definitions
+  redis/          Redis client and queries
+  services/       Application services
+  ui/             Shared React components
+```
+
+## Local Development
+
+### Requirements
+
+- Node.js 20 or newer
+- pnpm 8
+- Docker for PostgreSQL, Redis, and integration tests
+
+Install dependencies and start the development tasks:
 
 ```sh
-npx create-turbo@latest
-```
-
-## What's inside?
-
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-pnpm build
-```
-
-### Develop
-
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
+pnpm install
+pnpm compose:dev:up
 pnpm dev
 ```
 
-### Remote Caching
+Copy the relevant `.env.example` files to `.env.local` before starting each application.
 
-Turborepo can use a technique known as [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+Common workspace commands:
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup), then enter the following commands:
-
-```
-cd my-turborepo
-npx turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-npx turbo link
+```sh
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
-## Useful Links
+## License
 
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turbo.build/repo/docs/core-concepts/monorepos/running-tasks)
-- [Caching](https://turbo.build/repo/docs/core-concepts/caching)
-- [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching)
-- [Filtering](https://turbo.build/repo/docs/core-concepts/monorepos/filtering)
-- [Configuration Options](https://turbo.build/repo/docs/reference/configuration)
-- [CLI Usage](https://turbo.build/repo/docs/reference/command-line-reference)
+Licensed under the [MIT License](LICENSE). Third-party acknowledgements are listed in [NOTICE](NOTICE).

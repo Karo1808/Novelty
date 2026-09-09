@@ -1,0 +1,16 @@
+Third-Party Notices
+===================
+
+This project was initially structured from the Turborepo examples and includes
+UI components based on shadcn/ui. Both projects are distributed under the MIT
+License.
+
+Turborepo
+Copyright (c) 2024 Vercel, Inc.
+https://github.com/vercel/turborepo
+
+shadcn/ui
+Copyright (c) 2023 shadcn
+https://github.com/shadcn-ui/ui
+
+The full MIT License used by this project is available in the LICENSE file.
